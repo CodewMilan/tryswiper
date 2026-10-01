@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { SiteNav } from "@/components/site-nav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,17 +37,17 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   }
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center px-6 py-16">
-      <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
-        Swiper
-      </Link>
-      <h1 className="mt-6 text-2xl font-semibold tracking-tight">
+    <div className="hero-grid min-h-full">
+      <SiteNav />
+      <div className="mx-auto flex min-h-full w-full max-w-[440px] flex-col justify-center px-4 pb-16 pt-28">
+      <div className="rounded-[24px] border border-black/8 bg-white px-6 py-8 sm:px-8">
+      <h1 className="text-[32px] font-light leading-tight tracking-[-0.03em] text-black">
         {mode === "signup" ? "Create your workspace" : "Sign in"}
       </h1>
-      <p className="mt-2 text-sm text-muted-foreground">
+      <p className="mt-2 text-[15px] font-light leading-6 text-ink-soft">
         {mode === "signup"
-          ? "Then connect an agent. The web editor is there for review."
-          : "Pick up where your agent left off."}
+          ? "Then connect an agent. The editor is there when you want to change a line."
+          : "Pick up the carousel your agent already started."}
       </p>
       <form onSubmit={onSubmit} className="mt-8 space-y-4">
         {mode === "signup" ? (
@@ -96,23 +97,25 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           {pending ? "Working…" : mode === "signup" ? "Create account" : "Sign in"}
         </Button>
       </form>
-      <p className="mt-6 text-sm text-muted-foreground">
+      <p className="mt-6 text-sm font-light text-ink-soft">
         {mode === "signup" ? (
           <>
             Already have an account?{" "}
-            <Link href="/login" className="font-medium text-foreground underline">
+            <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               Sign in
             </Link>
           </>
         ) : (
           <>
             New here?{" "}
-            <Link href="/signup" className="font-medium text-foreground underline">
+            <Link href="/signup" className="font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               Create an account
             </Link>
           </>
         )}
       </p>
+      </div>
+      </div>
     </div>
   );
 }

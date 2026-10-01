@@ -110,17 +110,17 @@ export default function BrandPage() {
 
   if (status === "loading") {
     return (
-      <main className="mx-auto w-full max-w-xl px-6 py-10">
-        <div className="h-8 w-40 animate-pulse rounded bg-secondary" />
+      <main className="mx-auto w-full max-w-xl px-6 py-12">
+        <div className="h-8 w-40 animate-pulse rounded-xl bg-secondary" />
         <div className="mt-6 h-96 animate-pulse rounded-xl bg-secondary" />
       </main>
     );
   }
 
   return (
-    <main className="mx-auto w-full max-w-xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Brand kit</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
+    <main className="mx-auto w-full max-w-xl px-6 py-12">
+      <h1 className="text-[36px] font-light leading-tight tracking-[-0.03em] text-black">Brand kit</h1>
+      <p className="mt-2 text-[16px] font-light text-ink-soft">
         The agent receives a compact version of this, not your whole database.
       </p>
       <form onSubmit={onSubmit} className="mt-8 space-y-4">

@@ -107,9 +107,11 @@ export default function ConnectPage() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Connect an agent</h1>
-      <p className="mt-2 text-muted-foreground">
+    <main className="mx-auto w-full max-w-3xl px-6 py-12">
+      <h1 className="text-[36px] font-light leading-tight tracking-[-0.03em] text-black">
+        Connect an agent
+      </h1>
+      <p className="mt-2 text-[16px] font-light text-ink-soft">
         This is the product. Mint a key, add Swiper to Cursor or Claude, then ask for a carousel.
       </p>
 

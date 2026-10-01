@@ -94,8 +94,8 @@ export function Editor({ carouselId }: { carouselId: string }) {
   }
 
   return (
-    <div className="grid min-h-full grid-cols-1 lg:grid-cols-[220px_1fr_280px]">
-      <aside className="border-b border-border p-4 lg:border-r lg:border-b-0">
+    <div className="grid min-h-[calc(100vh-5rem)] grid-cols-1 lg:grid-cols-[220px_1fr_280px]">
+      <aside className="border-b border-black/8 bg-white p-4 lg:border-r lg:border-b-0">
         <Link
           href="/connect"
           className="text-sm text-muted-foreground hover:text-foreground"
@@ -123,8 +123,8 @@ export function Editor({ carouselId }: { carouselId: string }) {
         </ol>
       </aside>
 
-      <section className="flex flex-col bg-muted/40">
-        <div className="flex items-center justify-between border-b border-border bg-background px-4 py-3">
+      <section className="flex flex-col bg-background">
+        <div className="flex items-center justify-between border-b border-black/8 bg-white px-4 py-3">
           <div>
             <h1 className="text-sm font-semibold">{data.title}</h1>
             <p className="text-xs text-muted-foreground">{data.format_id}</p>
@@ -146,7 +146,7 @@ export function Editor({ carouselId }: { carouselId: string }) {
         </div>
       </section>
 
-      <aside className="border-t border-border p-4 lg:border-t-0 lg:border-l">
+      <aside className="border-t border-black/8 bg-white p-4 lg:border-t-0 lg:border-l">
         <h2 className="text-sm font-medium">Inspector</h2>
         {selected?.text != null ? (
           <div className="mt-4 space-y-2">

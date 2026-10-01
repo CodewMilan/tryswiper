@@ -1,0 +1,19 @@
+---
+description: Swiper visual system copied from the Skiff-style marketing reference. Follow it for every new page, feature, and component.
+globs: apps/web/**/*.{tsx,css}
+alwaysApply: false
+---
+
+# Swiper UI
+
+Match the existing marketing system. Do not invent a second palette, radius, or type style.
+
+- Canvas `#f5f5f4`. Cards white, `rounded-[24px]`, border `rgba(0,0,0,0.08)`.
+- Type is Inter. Headlines are font-light, tracking about `-0.02em`. Buttons and card titles are font-medium.
+- Accent `#ef5a3c`. Supporting tones: blue `#0b79af`, pink `#af5883`, green `#00a05e`, yellow `#ffcb30`.
+- Primary actions are black pills, `rounded-[14px]`, white text, with the small arrow used on the landing page.
+- App chrome uses the dark pill nav: fill `#303030`, border `#505050`, white “Start for free” pill, coral mark.
+- Body copy is `#8f8f8f` or `#707070`. Faint supporting copy is `#afafaf`. Do not introduce a dark-mode inversion.
+- Page sections stay wide (`max-w-[1200px]`) with airy vertical rhythm. Feature groups are white cards on the stone canvas, not bordered gray boxes.
+- Product UI mockups are built in markup. Do not paste third-party product screenshots.
+- Interactive controls are links or buttons, with a visible focus ring in the accent color.
