@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "swiper": {
+      "command": "pnpm",
+      "args": ["--filter", "@swiper/mcp", "start"],
+      "env": {
+        "SWIPER_API_URL": "http://localhost:3100",
+        "SWIPER_API_KEY": "sk_swiper_YOUR_KEY"
+      }
+    }
+  }
+}
