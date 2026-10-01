@@ -1,5 +1,5 @@
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
-import { createSwiperServer } from "./server.ts";
+import { createSwiperServer } from "./server";
 
 async function main() {
   const server = createSwiperServer();

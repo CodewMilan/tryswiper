@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
-import { SwiperApiError, swiperFetch } from "./api.ts";
+import { SwiperApiError, swiperFetch } from "./api";
 
 function ok(data: unknown) {
   return {

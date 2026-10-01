@@ -57,7 +57,7 @@ export function applyOperations(
   carousel: Carousel,
   operations: CarouselOperation[],
 ): Carousel {
-  let next: Carousel = structuredClone(carousel);
+  let next: Carousel = JSON.parse(JSON.stringify(carousel)) as Carousel;
 
   for (const operation of operations) {
     if (operation.op === "replace_slide_content") {
