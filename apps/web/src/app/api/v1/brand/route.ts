@@ -1,4 +1,6 @@
+import { eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/api-auth";
+import { db, schema } from "@/lib/db";
 import { fromUnknownError, json } from "@/lib/http";
 import { getWorkspaceBrand } from "@/lib/workspace";
 
@@ -22,10 +24,6 @@ export async function PATCH(request: Request) {
         Object.assign(new Error("Brand kit missing"), { status: 400, code: "NO_BRAND" }),
       );
     }
-
-    const { db } = await import("@/lib/db");
-    const { schema } = await import("@/lib/db");
-    const { eq } = await import("drizzle-orm");
 
     const [updated] = await db
       .update(schema.brand)

@@ -1,7 +1,6 @@
 import { requireAuth } from "@/lib/api-auth";
-import { editorUrl } from "@/lib/utils";
 import { apiError, fromUnknownError, json } from "@/lib/http";
-import { generateCarousel, getCarousel } from "@/server/carousels";
+import { generateCarousel } from "@/server/carousels";
 
 export async function POST(request: Request) {
   try {
