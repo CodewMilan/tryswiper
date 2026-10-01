@@ -40,5 +40,5 @@ export function clip(text: string, max: number) {
   if (trimmed.length <= max) return trimmed;
   const sliced = trimmed.slice(0, max - 1);
   const lastSpace = sliced.lastIndexOf(" ");
-  return `${(lastSpace > 40 ? sliced.slice(0, lastSpace) : sliced).trim()}`;
+  return `${(lastSpace > Math.min(24, max / 2) ? sliced.slice(0, lastSpace) : sliced).trim()}`;
 }

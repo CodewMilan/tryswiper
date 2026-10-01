@@ -15,11 +15,12 @@ import type {
 
 function el(
   partial: Omit<CarouselElement, "id"> & { id?: string },
-  index: number,
+  slideIndex: number,
+  elementIndex: number,
 ): CarouselElement {
   return {
-    id: partial.id ?? `el_${index}`,
     ...partial,
+    id: partial.id ?? `s${slideIndex + 1}_el_${elementIndex}`,
   };
 }
 
@@ -51,7 +52,7 @@ export function renderSlide(plan: SlidePlan, theme: Theme, index: number): Slide
   let i = 0;
 
   const push = (item: Omit<CarouselElement, "id">) => {
-    elements.push(el(item, i));
+    elements.push(el(item, index, i));
     i += 1;
   };
 

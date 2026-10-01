@@ -38,7 +38,7 @@ pnpm db:push
 pnpm dev
 ```
 
-Open http://localhost:3000, create an account, add a brand kit, then mint an MCP API key.
+Open http://localhost:3100, create an account, add a brand kit, then mint an MCP API key.
 
 Connect Cursor (or Claude Desktop) with:
 
@@ -49,7 +49,7 @@ Connect Cursor (or Claude Desktop) with:
       "command": "pnpm",
       "args": ["--filter", "@swiper/mcp", "start"],
       "env": {
-        "SWIPER_API_URL": "http://localhost:3000",
+        "SWIPER_API_URL": "http://localhost:3100",
         "SWIPER_API_KEY": "sk_swiper_..."
       }
     }

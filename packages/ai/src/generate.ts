@@ -1,7 +1,12 @@
-import { carouselPlanSchema, type CarouselPlan } from "@swiper/schema";
+import { carouselPlanSchema, clip, type CarouselPlan } from "@swiper/schema";
 import { generateObject } from "ai";
 import { compactBrand, type BrandContext } from "./brand";
 import { planLocally } from "./local";
+
+function firstUsefulLine(text: string, fallback: string) {
+  const cleaned = text.replace(/^(make|change|rewrite|update)\s+/i, "").trim();
+  return cleaned.length > 0 ? cleaned : fallback;
+}
 
 function model() {
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
@@ -70,19 +75,26 @@ export async function reviseSlidePlan(input: {
   if (!current) return input.plan;
   const loaded = await model();
   if (!loaded) {
-    const local = planLocally({
-      brief: `${current.headline}. ${input.instruction}`,
-      formatId: input.plan.formatId,
-      brand: input.brand,
-    });
-    const replacement = local.slides[input.slideIndex] ?? local.slides[0];
-    if (!replacement) return input.plan;
+    const lower = input.instruction.toLowerCase();
     const slides = [...input.plan.slides];
-    slides[input.slideIndex] = {
-      ...current,
-      headline: replacement.headline,
-      body: replacement.body,
-    };
+    if (/\bshort(er|en)?\b/.test(lower)) {
+      slides[input.slideIndex] = {
+        ...current,
+        headline: clip(current.headline, 42),
+        body: current.body ? clip(current.body, 90) : undefined,
+      };
+    } else if (/\bcta\b/.test(lower)) {
+      const match = input.instruction.match(/to ["'](.+?)["']/i);
+      slides[input.slideIndex] = {
+        ...current,
+        cta: match?.[1] ?? input.instruction.replace(/^.*cta[:\s]*/i, "").slice(0, 42),
+      };
+    } else {
+      slides[input.slideIndex] = {
+        ...current,
+        headline: clip(firstUsefulLine(input.instruction, current.headline), 90),
+      };
+    }
     return { ...input.plan, slides };
   }
 

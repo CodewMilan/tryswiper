@@ -100,7 +100,7 @@ export default function ConnectPage() {
     }
   }
 
-  const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+  const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3100";
   const snippet = useMemo(
     () => mcpConfig(origin, freshKey ?? "sk_swiper_YOUR_KEY"),
     [freshKey, origin],

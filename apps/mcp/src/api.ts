@@ -9,7 +9,7 @@ export class SwiperApiError extends Error {
 }
 
 export function apiBase() {
-  return (process.env.SWIPER_API_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  return (process.env.SWIPER_API_URL ?? "http://localhost:3100").replace(/\/$/, "");
 }
 
 export function apiKey() {

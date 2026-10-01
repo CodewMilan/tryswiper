@@ -19,6 +19,16 @@ function firstSentence(text: string, fallback: string) {
   return sentences(text)[0]?.replace(/[.?!]$/, "") ?? fallback;
 }
 
+function cleanBrief(brief: string) {
+  return brief
+    .replace(
+      /^(please\s+)?(make|create|write|generate|build)\s+(a\s+|an\s+)?(social\s+)?carousel\s+(that\s+)?(explaining|explains|about|on|for)?\s*/i,
+      "",
+    )
+    .replace(/^[.:,-]\s*/, "")
+    .trim();
+}
+
 function chooseFormatId(brief: string, requested?: string) {
   if (requested && getFormat(requested)) return requested;
   const lower = brief.toLowerCase();
@@ -34,11 +44,12 @@ function chooseFormatId(brief: string, requested?: string) {
 }
 
 function productFrom(brief: string, brand: BrandContext): ProductContext {
+  const cleaned = cleanBrief(brief);
   return {
     name: brand.name || "the product",
     audience: brand.audience ?? undefined,
-    problem: brand.description ?? firstSentence(brief, "the current workflow is too slow"),
-    differentiator: brand.positioning ?? firstSentence(brief, brand.name),
+    problem: brand.description ?? firstSentence(cleaned, "the current workflow is too slow"),
+    differentiator: brand.positioning ?? firstSentence(cleaned, brand.name),
     proof: brand.proofPoints?.[0],
     cta: brand.cta ?? `Try ${brand.name}`,
     forbiddenClaims: brand.wordsToAvoid ?? [],
@@ -52,15 +63,16 @@ function copyForRole(
   index: number,
 ): { headline: string; body?: string; kicker?: string; proof?: string; cta?: string } {
   const name = product.name;
-  const bits = sentences(brief);
-  const bit = bits[Math.min(index, bits.length - 1)] ?? brief;
+  const cleaned = cleanBrief(brief);
+  const bits = sentences(cleaned);
+  const bit = bits[Math.min(index, Math.max(bits.length - 1, 0))] ?? cleaned;
   const audience = product.audience ?? "the people you want to reach";
 
   switch (role) {
     case "hook":
       return {
         kicker: name.toUpperCase(),
-        headline: firstSentence(brief, `Why ${name} is a different kind of tool`),
+        headline: firstSentence(cleaned, `Why ${name} does not start in a design tool`),
         body: `Written for ${audience}. Not a slogan — a working argument.`,
       };
     case "problem":
@@ -84,11 +96,11 @@ function copyForRole(
     case "product":
       return {
         headline: `${name} is the layer between the agent and the post`,
-        body: bit,
+        body: product.differentiator ?? bit,
       };
     case "cta":
       return {
-        headline: `Make the next carousel from the agent you already use`,
+        headline: "Make the next carousel from the agent you already use",
         body: product.differentiator,
         cta: product.cta,
       };
@@ -122,17 +134,67 @@ function copyForRole(
         headline: `The ${name} path`,
         body: product.differentiator ?? bit,
       };
+    case "difference":
+      return {
+        headline: "The difference is the document, not the adjectives",
+        body: product.differentiator ?? bit,
+      };
+    case "why":
+      return {
+        headline: "The myth stuck because the tools were separate",
+        body: bit,
+      };
+    case "fix":
+      return {
+        headline: "A better default: one typed carousel",
+        body: product.differentiator ?? bit,
+      };
+    case "wound":
+      return {
+        headline: "It started as a personal bottleneck, not a market slide",
+        body: product.problem ?? bit,
+      };
+    case "attempt":
+      return {
+        headline: "The first workaround was still five tools",
+        body: bit,
+      };
+    case "turn":
+      return {
+        headline: "The work changed when the carousel became a document",
+        body: product.differentiator ?? bit,
+      };
+    case "surface":
+      return {
+        headline: "What people see first is the hook, not the settings panel",
+        body: bit,
+      };
+    case "mechanic":
+      return {
+        headline: "Under the hook is a schema the agent can actually edit",
+        body: product.differentiator ?? bit,
+      };
+    case "edge":
+      return {
+        headline: "A non-obvious detail: quality checks run before the link",
+        body: bit,
+      };
+    case "tradeoff":
+      return {
+        headline: "It will not invent a layout from nothing every time",
+        body: "Formats constrain the story so the output stays coherent.",
+      };
     default: {
       if (role.startsWith("item-") || role.startsWith("step-") || role.startsWith("mistake-")) {
         return {
           kicker: role.replace("-", " ").toUpperCase(),
-          headline: firstSentence(bit, bit).slice(0, 80),
-          body: bit,
+          headline: firstSentence(bit, `${name} ${role}`).slice(0, 80),
+          body: product.differentiator ?? bit,
         };
       }
       return {
-        headline: firstSentence(bit, `${name}: ${role}`),
-        body: bit,
+        headline: `${name}: ${role.replaceAll("-", " ")}`,
+        body: product.differentiator ?? bit,
       };
     }
   }
@@ -146,9 +208,10 @@ export function planLocally(input: {
   const formatId = chooseFormatId(input.brief, input.formatId);
   const format = getFormat(formatId) ?? FORMATS[0]!;
   const product = productFrom(input.brief, input.brand);
+  const cleaned = cleanBrief(input.brief);
 
   return {
-    title: firstSentence(input.brief, `${product.name} carousel`).slice(0, 80),
+    title: firstSentence(cleaned, `${product.name} carousel`).slice(0, 80),
     formatId: format.id,
     product,
     slides: format.slides.map((def, index) => {

@@ -153,7 +153,7 @@ export function Editor({ carouselId }: { carouselId: string }) {
             <Label htmlFor="element-text">{selected.role ?? selected.type}</Label>
             <Textarea
               id="element-text"
-              key={selected.id}
+              key={`${slide.id}-${selected.id}`}
               defaultValue={selected.text}
               onBlur={(event) => {
                 if (event.target.value !== selected.text) {
