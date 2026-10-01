@@ -4,7 +4,7 @@ import {
   elementSchema,
   slideSchema,
   type Carousel,
-} from "./carousel.ts";
+} from "./carousel";
 
 export const carouselOperationSchema = z.discriminatedUnion("op", [
   z.object({

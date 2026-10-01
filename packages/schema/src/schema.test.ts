@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DEFAULT_THEME } from "./carousel.ts";
-import { FORMATS } from "./formats.ts";
-import { applyOperations } from "./operations.ts";
-import { renderPlanToCarousel } from "./render.ts";
-import { validateCarousel } from "./validate.ts";
-import type { CarouselPlan } from "./carousel.ts";
+import { DEFAULT_THEME } from "./carousel";
+import { FORMATS } from "./formats";
+import { applyOperations } from "./operations";
+import { renderPlanToCarousel } from "./render";
+import { validateCarousel } from "./validate";
+import type { CarouselPlan } from "./carousel";
 
 const plan: CarouselPlan = {
   title: "Why Swiper is different",

@@ -1,4 +1,4 @@
-import type { LayoutType } from "./carousel.ts";
+import type { LayoutType } from "./carousel";
 
 export type SlideRoleDef = {
   role: string;

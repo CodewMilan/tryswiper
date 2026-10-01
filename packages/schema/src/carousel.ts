@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ASPECT_RATIO, SCHEMA_VERSION } from "./canvas.ts";
+import { ASPECT_RATIO, SCHEMA_VERSION } from "./canvas";
 
 export const layoutTypeSchema = z.enum([
   "hero",

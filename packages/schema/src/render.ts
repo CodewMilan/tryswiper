@@ -3,7 +3,7 @@ import {
   CANVAS_PADDING,
   CANVAS_WIDTH,
   SCHEMA_VERSION,
-} from "./canvas.ts";
+} from "./canvas";
 import type {
   Carousel,
   CarouselElement,
@@ -11,7 +11,7 @@ import type {
   Slide,
   SlidePlan,
   Theme,
-} from "./carousel.ts";
+} from "./carousel";
 
 function el(
   partial: Omit<CarouselElement, "id"> & { id?: string },

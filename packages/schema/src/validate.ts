@@ -1,13 +1,13 @@
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from "./canvas.ts";
-import { carouselSchema, type Carousel, type CarouselPlan } from "./carousel.ts";
-import { getFormat } from "./formats.ts";
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from "./canvas";
+import { carouselSchema, type Carousel, type CarouselPlan } from "./carousel";
+import { getFormat } from "./formats";
 import {
   clip,
   findForbiddenPhrases,
   looksLikeUnsupportedClaim,
   TEXT_LIMITS,
-} from "./quality.ts";
-import { renderPlanToCarousel } from "./render.ts";
+} from "./quality";
+import { renderPlanToCarousel } from "./render";
 
 export type Issue = {
   code: string;
