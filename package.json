@@ -1,0 +1,16 @@
+{
+  "name": "swiper",
+  "private": true,
+  "packageManager": "pnpm@10.14.0",
+  "scripts": {
+    "dev": "pnpm --filter @swiper/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:push": "pnpm --filter @swiper/db push",
+    "db:studio": "pnpm --filter @swiper/db studio"
+  }
+}

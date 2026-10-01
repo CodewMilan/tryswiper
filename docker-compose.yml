@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: swiper
+      POSTGRES_PASSWORD: swiper
+      POSTGRES_DB: swiper
+    ports:
+      - "54329:5432"
+    volumes:
+      - swiper_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U swiper"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  swiper_pg:
