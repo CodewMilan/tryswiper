@@ -23,6 +23,8 @@ export function Editor({ carouselId }: { carouselId: string }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<"png" | "pdf" | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -71,6 +73,30 @@ export function Editor({ carouselId }: { carouselId: string }) {
       setSaveState("saved");
     } catch {
       setSaveState("error");
+    }
+  }
+
+  async function download(format: "png" | "pdf") {
+    setExporting(format);
+    setExportError(null);
+    try {
+      const response = await fetch(`/api/v1/carousels/${carouselId}/export?format=${format}`);
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message ?? "Export failed.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const match = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") ?? "");
+      link.href = url;
+      link.download = match?.[1] ?? (format === "pdf" ? "carousel.pdf" : "carousel.zip");
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (exportFailure) {
+      setExportError(exportFailure instanceof Error ? exportFailure.message : "Export failed.");
+    } finally {
+      setExporting(null);
     }
   }
 
@@ -129,15 +155,37 @@ export function Editor({ carouselId }: { carouselId: string }) {
             <h1 className="text-sm font-semibold">{data.title}</h1>
             <p className="text-xs text-muted-foreground">{data.format_id}</p>
           </div>
-          <p className="text-xs text-muted-foreground" aria-live="polite">
-            {saveState === "saving"
-              ? "Saving…"
-              : saveState === "saved"
-                ? "Saved"
-                : saveState === "error"
-                  ? "Save failed"
-                  : "Draft"}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-muted-foreground" aria-live="polite">
+              {exportError
+                ? exportError
+                : saveState === "saving"
+                  ? "Saving…"
+                  : saveState === "saved"
+                    ? "Saved"
+                    : saveState === "error"
+                      ? "Save failed"
+                      : "Draft"}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={exporting != null}
+              onClick={() => void download("png")}
+            >
+              {exporting === "png" ? "Exporting…" : "PNG"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={exporting != null}
+              onClick={() => void download("pdf")}
+            >
+              {exporting === "pdf" ? "Exporting…" : "PDF"}
+            </Button>
+          </div>
         </div>
         <div className="flex flex-1 items-center justify-center overflow-auto p-6">
           {slide ? <SlideCanvas slide={slide} theme={data.carousel.theme} selectedId={selectedId} onSelect={setSelectedId} /> : (
@@ -148,7 +196,7 @@ export function Editor({ carouselId }: { carouselId: string }) {
 
       <aside className="border-t border-black/8 bg-white p-4 lg:border-t-0 lg:border-l">
         <h2 className="text-sm font-medium">Inspector</h2>
-        {selected?.text != null ? (
+        {slide && selected?.text != null ? (
           <div className="mt-4 space-y-2">
             <Label htmlFor="element-text">{selected.role ?? selected.type}</Label>
             <Textarea

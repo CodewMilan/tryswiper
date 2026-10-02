@@ -12,6 +12,7 @@
   "dependencies": {
     "@swiper/ai": "workspace:*",
     "@swiper/db": "workspace:*",
+    "@swiper/rendering": "workspace:*",
     "@swiper/schema": "workspace:*",
     "better-auth": "^1.3.28",
     "class-variance-authority": "^0.7.1",

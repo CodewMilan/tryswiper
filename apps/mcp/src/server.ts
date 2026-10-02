@@ -284,7 +284,8 @@ export function createSwiperServer() {
   server.registerTool(
     "swiper.export_carousel",
     {
-      description: "Create downloadable output for a carousel.",
+      description:
+        "Create downloadable output for a carousel. Returns URLs for a multi-page PDF and a zip of 1080×1350 PNGs. Fetch a URL with the same API key to download the file.",
       inputSchema: z.object({
         carousel_id: z.string(),
       }),

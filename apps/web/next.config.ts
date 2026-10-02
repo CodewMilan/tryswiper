@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@swiper/schema", "@swiper/db", "@swiper/ai"],
+  transpilePackages: ["@swiper/schema", "@swiper/db", "@swiper/ai", "@swiper/rendering"],
+  serverExternalPackages: ["@napi-rs/canvas"],
 };
 
 export default nextConfig;
