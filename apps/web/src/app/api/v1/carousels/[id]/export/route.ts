@@ -1,7 +1,7 @@
 import { CANVAS_HEIGHT, CANVAS_WIDTH, carouselSchema } from "@swiper/schema";
 import { renderExport } from "@swiper/rendering";
 import { requireAuth } from "@/lib/api-auth";
-import { editorUrl } from "@/lib/utils";
+import { appUrl, editorUrl } from "@/lib/utils";
 import { apiError, fromUnknownError, json } from "@/lib/http";
 import { getCarousel } from "@/server/carousels";
 
@@ -17,8 +17,7 @@ function fileName(title: string, extension: string) {
 }
 
 function downloadUrl(id: string, format: string) {
-  const base = editorUrl(id).replace(/\/c\/[^/]+$/, "");
-  return `${base}/api/v1/carousels/${id}/export?format=${format}`;
+  return `${appUrl().replace(/\/$/, "")}/api/v1/carousels/${id}/export?format=${format}`;
 }
 
 export async function GET(
