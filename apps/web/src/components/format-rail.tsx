@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { SpotlightCard } from "@/components/motion/spotlight-card";
 
 export type FormatCard = {
   id: string;
@@ -31,7 +32,7 @@ export function FormatRail({ items }: { items: FormatCard[] }) {
             type="button"
             aria-label="Previous formats"
             onClick={() => scrollByCard(-1)}
-            className="inline-flex size-10 items-center justify-center rounded-full border border-black/10 bg-white text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex size-10 items-center justify-center rounded-full border border-black/10 bg-white text-black motion-safe:transition-transform motion-safe:duration-150 hover:scale-[1.04] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             ←
           </button>
@@ -39,7 +40,7 @@ export function FormatRail({ items }: { items: FormatCard[] }) {
             type="button"
             aria-label="Next formats"
             onClick={() => scrollByCard(1)}
-            className="inline-flex size-10 items-center justify-center rounded-full border border-black/10 bg-white text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex size-10 items-center justify-center rounded-full border border-black/10 bg-white text-black motion-safe:transition-transform motion-safe:duration-150 hover:scale-[1.04] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             →
           </button>
@@ -52,16 +53,18 @@ export function FormatRail({ items }: { items: FormatCard[] }) {
         {items.map((item) => (
           <article
             key={item.id}
-            className="w-[300px] shrink-0 snap-start sm:w-[320px]"
+            className="w-[300px] shrink-0 snap-start sm:w-[320px] motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-[cubic-bezier(0.16,1,0.3,1)] motion-safe:hover:-translate-y-1"
           >
-            <div className="flex h-44 items-end rounded-2xl border border-black/6 bg-[#f3f3f1] p-4">
-              <div className="w-[46%] rounded-xl bg-white p-3 shadow-sm">
-                <p className="text-[10px] uppercase tracking-[0.14em] text-ink-faint">Hook</p>
-                <p className="mt-2 text-[13px] font-medium leading-4 tracking-[-0.02em] text-black">
-                  {item.hook}
-                </p>
+            <SpotlightCard className="rounded-2xl border border-black/6 bg-[#f3f3f1]">
+              <div className="flex h-44 items-end p-4">
+                <div className="w-[46%] rounded-xl bg-white p-3 shadow-sm">
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-ink-faint">Hook</p>
+                  <p className="mt-2 text-[13px] font-medium leading-4 tracking-[-0.02em] text-black">
+                    {item.hook}
+                  </p>
+                </div>
               </div>
-            </div>
+            </SpotlightCard>
             <p className="mt-4 inline-flex rounded-md bg-white px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-soft">
               {item.count}
             </p>

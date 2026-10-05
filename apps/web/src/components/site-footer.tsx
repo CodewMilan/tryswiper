@@ -75,7 +75,7 @@ export function SiteFooter() {
                   <li key={link.label}>
                     <Link
                       href={link.href}
-                      className="text-[15px] font-light leading-6 text-black hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="text-[15px] font-light leading-6 text-black motion-safe:transition-colors motion-safe:duration-150 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {link.label}
                     </Link>

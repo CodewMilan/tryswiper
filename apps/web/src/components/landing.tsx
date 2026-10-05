@@ -1,13 +1,39 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { FORMATS } from "@swiper/schema";
 import { ArrowRight } from "@/components/icons";
 import { FormatRail } from "@/components/format-rail";
+import { Magnetic } from "@/components/motion/magnetic";
+import { FadeUp, SoftBlurIn } from "@/components/motion/soft-blur-in";
+import { SpotlightCard } from "@/components/motion/spotlight-card";
+
+/* ─────────────────────────────────────────────────────────
+ * PAGE CONTENT STORYBOARD
+ *
+ * Static shell (nav) never re-animates.
+ *
+ *    0ms   headline words blur-in
+ *  280ms   subcopy lifts
+ *  420ms   primary CTA
+ *  560ms   product stage
+ * ───────────────────────────────────────────────────────── */
+
+const TIMING = {
+  copy: 280,
+  cta: 420,
+  stage: 560,
+};
 
 const linkClass =
   "rounded-sm text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
+const ctaClass =
+  "group inline-flex items-center gap-2 rounded-[14px] bg-black px-[17px] py-[9px] text-[16px] font-medium tracking-[-0.01em] text-white shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-2px_rgba(0,0,0,0.1)] motion-safe:transition-[transform,box-shadow,opacity] motion-safe:duration-150 hover:opacity-90 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+
 export function Landing() {
+  const [stage, setStage] = useState(0);
   const formats = FORMATS.slice(0, 6).map((format) => ({
     id: format.id,
     name: format.name,
@@ -16,6 +42,15 @@ export function Landing() {
     hook: format.slides[0]?.job ?? "Open with a reason to swipe.",
   }));
 
+  useEffect(() => {
+    const timers = [
+      window.setTimeout(() => setStage(1), TIMING.copy),
+      window.setTimeout(() => setStage(2), TIMING.cta),
+      window.setTimeout(() => setStage(3), TIMING.stage),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
   return (
     <div>
       <section className="hero-grid relative px-4 pb-16 pt-24 sm:px-8 sm:pt-28">
@@ -23,26 +58,42 @@ export function Landing() {
         <div className="relative mx-auto max-w-[1200px] overflow-hidden rounded-[24px] border border-black/8 border-b-2 bg-white px-5 pb-0 pt-16 sm:px-10 sm:pt-24">
           <div className="mx-auto flex max-w-[800px] flex-col items-center text-center">
             <h1 className="text-[40px] font-light leading-[1.05] tracking-[-0.03em] text-black sm:text-[52px] lg:text-[59px] lg:leading-[60.8px]">
-              Describe the post. Your <span className="text-accent">agent</span>
+              <SoftBlurIn
+                segments={[
+                  { text: "Describe the post. Your " },
+                  { text: "agent", accent: true },
+                ]}
+              />
               <br />
-              <span className="text-accent">builds</span> the carousel.
+              <SoftBlurIn
+                delay={TIMING.copy / 1000}
+                segments={[
+                  { text: "builds", accent: true },
+                  { text: " the carousel." },
+                ]}
+              />
             </h1>
-            <p className="mt-5 max-w-[540px] text-[18px] font-light leading-[27px] tracking-[-0.01em] text-[#8f8f8f] sm:text-[20px]">
-              Connect Swiper in Cursor, Claude, or ChatGPT. The agent reads your brand,
-              picks a format, and hands you an editor link.
-            </p>
-            <Link
-              href="/signup"
-              className="mt-6 inline-flex items-center gap-2 rounded-[14px] bg-black px-[17px] py-[9px] text-[16px] font-medium tracking-[-0.01em] text-white shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-2px_rgba(0,0,0,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              Start for free
-              <ArrowRight />
-            </Link>
-            <p className="mt-3 text-[13px] font-light tracking-[-0.01em] text-ink-soft">
-              Free to start • No card required
-            </p>
+            <FadeUp show={stage >= 1} className="mt-5 max-w-[540px]">
+              <p className="text-[18px] font-light leading-[27px] tracking-[-0.01em] text-[#8f8f8f] sm:text-[20px]">
+                Connect Swiper in Cursor, Claude, or ChatGPT. The agent reads your brand,
+                picks a format, and hands you an editor link.
+              </p>
+            </FadeUp>
+            <FadeUp show={stage >= 2} className="mt-6">
+              <Magnetic>
+                <Link href="/signup" className={ctaClass}>
+                  Start for free
+                  <ArrowRight className="motion-safe:transition-transform motion-safe:duration-150 group-hover:translate-x-0.5" />
+                </Link>
+              </Magnetic>
+              <p className="mt-3 text-[13px] font-light tracking-[-0.01em] text-ink-soft">
+                Free to start • No card required
+              </p>
+            </FadeUp>
           </div>
-          <HeroStage />
+          <FadeUp show={stage >= 3} y={18}>
+            <HeroStage />
+          </FadeUp>
         </div>
       </section>
 
@@ -143,18 +194,22 @@ export function Landing() {
                 edit it, and export it without guessing what changed.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
-                <Link
-                  href="/signup"
-                  className="inline-flex items-center rounded-[14px] border border-white/10 bg-white/5 px-4 py-2 text-[16px] font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                >
-                  Create a workspace
-                </Link>
-                <Link
-                  href="/#agents"
-                  className="inline-flex items-center rounded-[14px] border border-white/10 bg-white/5 px-4 py-2 text-[16px] font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                >
-                  Connect an agent
-                </Link>
+                <Magnetic strength={0.18}>
+                  <Link
+                    href="/signup"
+                    className="inline-flex items-center rounded-[14px] border border-white/10 bg-white/5 px-4 py-2 text-[16px] font-medium text-white motion-safe:transition-colors motion-safe:duration-150 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  >
+                    Create a workspace
+                  </Link>
+                </Magnetic>
+                <Magnetic strength={0.18}>
+                  <Link
+                    href="/#agents"
+                    className="inline-flex items-center rounded-[14px] border border-white/10 bg-white/5 px-4 py-2 text-[16px] font-medium text-white motion-safe:transition-colors motion-safe:duration-150 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  >
+                    Connect an agent
+                  </Link>
+                </Magnetic>
               </div>
             </div>
             <CodePanel />
@@ -193,9 +248,9 @@ export function Landing() {
             <p className="mt-4 text-[18px] font-light leading-7 text-ink-soft">
               Cursor, Claude, or ChatGPT. The web app is for the brand kit, the key, and the editor.
             </p>
-            <Link href="/signup" className={`mt-6 inline-flex items-center gap-1 text-[16px] font-medium ${linkClass}`}>
+            <Link href="/signup" className={`group mt-6 inline-flex items-center gap-1 text-[16px] font-medium ${linkClass}`}>
               Create a workspace
-              <ArrowRight />
+              <ArrowRight className="motion-safe:transition-transform motion-safe:duration-150 group-hover:translate-x-0.5" />
             </Link>
           </div>
           <div className="rounded-[24px] border border-black/6 bg-white p-6 sm:p-10">
@@ -213,41 +268,41 @@ export function Landing() {
             <p className="mt-4 max-w-md text-[16px] font-light leading-6 text-ink-soft">
               Set the voice once. The next carousel starts from the same brand, not a blank prompt.
             </p>
-            <Link href="/signup" className={`mt-5 inline-flex items-center gap-1 text-[16px] font-medium ${linkClass}`}>
+            <Link href="/signup" className={`group mt-5 inline-flex items-center gap-1 text-[16px] font-medium ${linkClass}`}>
               Set up brand
-              <ArrowRight />
+              <ArrowRight className="motion-safe:transition-transform motion-safe:duration-150 group-hover:translate-x-0.5" />
             </Link>
           </div>
-          <div className="flex min-h-36 items-center justify-center py-2">
-            <ul className="flex items-center justify-center gap-10 sm:gap-12">
-              <li>
+          <div className="flex min-h-36 items-center justify-center overflow-visible py-2">
+            <ul className="flex flex-wrap items-center justify-center gap-x-10 gap-y-6 sm:gap-x-12">
+              <li className="shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/logos/cursor.png"
                   alt="Cursor"
                   width={36}
                   height={40}
-                  className="h-9 w-auto"
+                  className="h-9 w-auto opacity-80 motion-safe:transition-opacity motion-safe:duration-200 hover:opacity-100"
                 />
               </li>
-              <li>
+              <li className="shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/logos/claude.png"
                   alt="Claude"
                   width={149}
                   height={32}
-                  className="h-8 w-auto"
+                  className="h-8 w-auto opacity-80 motion-safe:transition-opacity motion-safe:duration-200 hover:opacity-100"
                 />
               </li>
-              <li>
+              <li className="shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="/logos/openai.svg"
+                  src="/logos/openai.svg?v=2"
                   alt="OpenAI"
-                  width={87}
+                  width={119}
                   height={32}
-                  className="h-8 w-auto"
+                  className="h-8 w-auto opacity-80 motion-safe:transition-opacity motion-safe:duration-200 hover:opacity-100"
                 />
               </li>
             </ul>
@@ -262,17 +317,19 @@ export function Landing() {
           </h2>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {stories.map((story) => (
-              <article
+              <SpotlightCard
                 key={story.title}
-                className="flex min-h-[380px] flex-col rounded-2xl border border-black/6 bg-white p-5"
+                className="flex min-h-[380px] flex-col rounded-2xl border border-black/6 bg-white"
               >
-                <p className="font-mono text-[22px] tracking-[-0.04em] text-black">{story.mark}</p>
-                <h3 className="mt-8 text-[18px] font-medium leading-6 tracking-[-0.02em]">{story.title}</h3>
-                <p className="mt-3 text-[15px] font-light leading-6 text-ink-soft">{story.body}</p>
-                <p className="mt-auto inline-flex w-fit rounded-md border border-black/8 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-soft">
-                  {story.meta}
-                </p>
-              </article>
+                <article className="flex h-full min-h-[380px] flex-col p-5">
+                  <p className="font-mono text-[22px] tracking-[-0.04em] text-black">{story.mark}</p>
+                  <h3 className="mt-8 text-[18px] font-medium leading-6 tracking-[-0.02em]">{story.title}</h3>
+                  <p className="mt-3 text-[15px] font-light leading-6 text-ink-soft">{story.body}</p>
+                  <p className="mt-auto inline-flex w-fit rounded-md border border-black/8 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-soft">
+                    {story.meta}
+                  </p>
+                </article>
+              </SpotlightCard>
             ))}
           </div>
         </div>
@@ -285,8 +342,6 @@ export function Landing() {
       </section>
 
       <section className="relative px-4 py-16 sm:px-8">
-        <div className="pointer-events-none absolute left-0 top-1/2 size-40 -translate-y-1/2 rounded-full bg-[#1faa59] opacity-80 blur-2xl" />
-        <div className="pointer-events-none absolute right-0 top-1/2 size-40 -translate-y-1/2 rounded-full bg-[#3aa0e8] opacity-80 blur-2xl" />
         <div className="relative mx-auto flex max-w-[1200px] flex-col items-center rounded-[28px] bg-white px-6 py-20 text-center">
           <div className="flex h-[72px] w-[248px] items-center justify-center gap-2 rounded-2xl bg-nav shadow-md">
             <MiniIcon className="bg-[#7eb6e0]" />
@@ -300,13 +355,12 @@ export function Landing() {
           <p className="mt-4 max-w-xl text-[18px] font-light leading-7 text-ink-soft sm:text-[20px]">
             Create a workspace. Connect an agent. Ask for the post.
           </p>
-          <Link
-            href="/signup"
-            className="mt-8 inline-flex items-center gap-2 rounded-[14px] bg-black px-[17px] py-[9px] text-[16px] font-medium text-white shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            Start for free
-            <ArrowRight />
-          </Link>
+          <Magnetic className="mt-8">
+            <Link href="/signup" className={ctaClass}>
+              Start for free
+              <ArrowRight />
+            </Link>
+          </Magnetic>
           <p className="mt-4 text-[13px] font-light text-ink-soft">Free to start • No card required</p>
         </div>
       </section>
@@ -376,11 +430,9 @@ function FeatureCard({
   wide?: boolean;
 }) {
   return (
-    <article
-      id={id}
-      className="scroll-mt-24 overflow-hidden rounded-[24px] border border-black/6 bg-white p-6 sm:p-8"
-    >
-      <div className={wide ? "grid items-start gap-8 lg:grid-cols-[0.8fr_1.2fr]" : ""}>
+    <SpotlightCard className="scroll-mt-24 rounded-[24px] border border-black/6 bg-white">
+      <article id={id} className="p-6 sm:p-8">
+        <div className={wide ? "grid items-start gap-8 lg:grid-cols-[0.8fr_1.2fr]" : ""}>
         <div>
           <div className="flex items-start justify-between gap-4">
             <span
@@ -391,7 +443,7 @@ function FeatureCard({
             <Link
               href={href}
               aria-label={title}
-              className="inline-flex size-9 items-center justify-center rounded-full text-black/70 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex size-9 items-center justify-center rounded-full text-black/70 motion-safe:transition-colors motion-safe:duration-150 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <ArrowRight className="-rotate-45" />
             </Link>
@@ -404,6 +456,7 @@ function FeatureCard({
         <div className={wide ? "lg:mt-0" : "mt-6"}>{children}</div>
       </div>
     </article>
+    </SpotlightCard>
   );
 }
 
@@ -567,7 +620,7 @@ function DarkCard({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-6 motion-safe:transition-colors motion-safe:duration-150 hover:bg-white/[0.08]">
       <div className="flex items-start justify-between">
         <h3 className="text-[20px] font-medium">{title}</h3>
         <ArrowRight className="-rotate-45 text-white/70" />
