@@ -47,6 +47,9 @@ function toBrandContext(
     cta: brand.cta,
     proofPoints: brand.proofPoints,
     website: brand.website,
+    colors: brand.colors,
+    fonts: brand.fonts,
+    hasLogo: Boolean(brand.logoAssetId),
   };
 }
 

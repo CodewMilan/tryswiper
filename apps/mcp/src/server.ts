@@ -61,7 +61,7 @@ export function createSwiperServer() {
     "swiper.update_brand",
     {
       description:
-        "Update the workspace brand kit. Use this when the user describes their product, tone, audience, or CTA.",
+        "Update the workspace brand kit. Use this when the user describes their product, tone, audience, CTA, colors, or fonts.",
       inputSchema: z.object({
         name: z.string().optional(),
         description: z.string().optional(),
@@ -73,6 +73,20 @@ export function createSwiperServer() {
         wordsToUse: z.array(z.string()).optional(),
         wordsToAvoid: z.array(z.string()).optional(),
         proofPoints: z.array(z.string()).optional(),
+        colors: z
+          .object({
+            background: z.string().optional(),
+            primary: z.string().optional(),
+            secondary: z.string().optional(),
+            accent: z.string().optional(),
+          })
+          .optional(),
+        fonts: z
+          .object({
+            heading: z.string().optional(),
+            body: z.string().optional(),
+          })
+          .optional(),
       }),
     },
     async (input) => {

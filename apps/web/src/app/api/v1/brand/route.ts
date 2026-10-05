@@ -1,8 +1,50 @@
 import { eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/api-auth";
+import {
+  COLOR_KEYS,
+  DEFAULT_BRAND_COLORS,
+  DEFAULT_BRAND_FONTS,
+  isFontChoice,
+  normalizeHex,
+  type BrandColors,
+  type BrandFonts,
+} from "@/lib/brand-visuals";
 import { db, schema } from "@/lib/db";
-import { fromUnknownError, json } from "@/lib/http";
+import { apiError, fromUnknownError, json } from "@/lib/http";
+import { getAsset } from "@/server/assets";
 import { getWorkspaceBrand } from "@/lib/workspace";
+
+function badRequest(message: string) {
+  return apiError("INVALID_BRAND", message);
+}
+
+function readColors(input: unknown, current: BrandColors): BrandColors | Response {
+  if (!input || typeof input !== "object") return current;
+  const next = { ...current };
+  for (const key of COLOR_KEYS) {
+    if (!(key in input)) continue;
+    const value = (input as Record<string, unknown>)[key];
+    if (typeof value !== "string") return badRequest("Colors must be hex values like #171717.");
+    const hex = normalizeHex(value);
+    if (!hex) return badRequest(`${key} must be a hex color like #171717.`);
+    next[key] = hex;
+  }
+  return next;
+}
+
+function readFonts(input: unknown, current: BrandFonts): BrandFonts | Response {
+  if (!input || typeof input !== "object") return current;
+  const next = { ...current };
+  for (const key of ["heading", "body"] as const) {
+    if (!(key in input)) continue;
+    const value = (input as Record<string, unknown>)[key];
+    if (typeof value !== "string" || !isFontChoice(value)) {
+      return badRequest("Pick a heading and body font from the list.");
+    }
+    next[key] = value;
+  }
+  return next;
+}
 
 export async function GET(request: Request) {
   try {
@@ -23,6 +65,32 @@ export async function PATCH(request: Request) {
       return fromUnknownError(
         Object.assign(new Error("Brand kit missing"), { status: 400, code: "NO_BRAND" }),
       );
+    }
+
+    const colors = readColors(body.colors, {
+      background: current.colors?.background ?? DEFAULT_BRAND_COLORS.background,
+      primary: current.colors?.primary ?? DEFAULT_BRAND_COLORS.primary,
+      secondary: current.colors?.secondary ?? DEFAULT_BRAND_COLORS.secondary,
+      accent: current.colors?.accent ?? DEFAULT_BRAND_COLORS.accent,
+    });
+    if (colors instanceof Response) return colors;
+
+    const fonts = readFonts(body.fonts, {
+      heading: current.fonts?.heading ?? DEFAULT_BRAND_FONTS.heading,
+      body: current.fonts?.body ?? DEFAULT_BRAND_FONTS.body,
+    });
+    if (fonts instanceof Response) return fonts;
+
+    let logoAssetId = current.logoAssetId ?? null;
+    if ("logoAssetId" in body) {
+      if (body.logoAssetId === null || body.logoAssetId === "") {
+        logoAssetId = null;
+      } else if (typeof body.logoAssetId === "string") {
+        const asset = await getAsset(authContext, body.logoAssetId);
+        logoAssetId = asset.id;
+      } else {
+        return badRequest("Logo must be an uploaded image.");
+      }
     }
 
     const [updated] = await db
@@ -46,10 +114,9 @@ export async function PATCH(request: Request) {
         proofPoints: Array.isArray(body.proofPoints)
           ? (body.proofPoints as string[])
           : current.proofPoints,
-        colors:
-          body.colors && typeof body.colors === "object"
-            ? { ...current.colors, ...(body.colors as object) }
-            : current.colors,
+        colors,
+        fonts,
+        logoAssetId,
         guidelines: typeof body.guidelines === "string" ? body.guidelines : current.guidelines,
         updatedAt: new Date(),
       })

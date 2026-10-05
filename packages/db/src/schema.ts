@@ -124,6 +124,7 @@ export const brand = pgTable("brand", {
     .$type<{ heading: string; body: string }>()
     .notNull()
     .default({ heading: "Inter", body: "Inter" }),
+  logoAssetId: text("logo_asset_id"),
   cta: text("cta"),
   website: text("website"),
   socialHandles: jsonb("social_handles").$type<string[]>().notNull().default([]),

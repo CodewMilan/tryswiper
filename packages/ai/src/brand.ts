@@ -9,6 +9,9 @@ export type BrandContext = {
   cta?: string | null;
   proofPoints?: string[];
   website?: string | null;
+  colors?: { background?: string; primary?: string; secondary?: string; accent?: string };
+  fonts?: { heading?: string; body?: string };
+  hasLogo?: boolean;
 };
 
 export function compactBrand(brand: BrandContext) {
@@ -22,6 +25,13 @@ export function compactBrand(brand: BrandContext) {
     brand.proofPoints?.length ? `Proof: ${brand.proofPoints.join("; ")}` : null,
     brand.wordsToAvoid?.length ? `Avoid: ${brand.wordsToAvoid.join(", ")}` : null,
     brand.wordsToUse?.length ? `Prefer: ${brand.wordsToUse.join(", ")}` : null,
+    brand.colors
+      ? `Colors: background ${brand.colors.background ?? ""}, text ${brand.colors.primary ?? ""}, body ${brand.colors.secondary ?? ""}, accent ${brand.colors.accent ?? ""}`
+      : null,
+    brand.fonts
+      ? `Fonts: heading ${brand.fonts.heading ?? "Inter"}, body ${brand.fonts.body ?? "Inter"}`
+      : null,
+    brand.hasLogo ? "Logo: set" : null,
   ]
     .filter(Boolean)
     .join("\n");
