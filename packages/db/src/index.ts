@@ -3,7 +3,7 @@ import postgres from "postgres";
 import { schema } from "./schema";
 
 export function createDb(url: string) {
-  const client = postgres(url, { max: 10 });
+  const client = postgres(url, { max: 10, prepare: false });
   return drizzle(client, { schema });
 }
 

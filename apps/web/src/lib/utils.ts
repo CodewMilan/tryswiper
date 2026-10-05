@@ -6,7 +6,12 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function appUrl() {
-  return process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3100";
+  const url = process.env.APP_URL ?? process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL;
+  if (url) return url.replace(/\/$/, "");
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("APP_URL is not set");
+  }
+  return "http://localhost:3100";
 }
 
 export function editorUrl(carouselId: string) {

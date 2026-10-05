@@ -13,11 +13,13 @@ import { SpotlightCard } from "@/components/motion/spotlight-card";
  * PAGE CONTENT STORYBOARD
  *
  * Static shell (nav) never re-animates.
+ * Headline, subcopy, and the primary CTA are visible on first paint.
+ * They only settle a few pixels. Nothing in the hero starts at opacity 0.
  *
- *    0ms   headline words blur-in
- *  280ms   subcopy lifts
- *  420ms   primary CTA
- *  560ms   product stage
+ *    0ms   headline, subcopy, CTA, product stage are readable
+ *  280ms   subcopy settles
+ *  420ms   primary CTA settles
+ *  560ms   product stage settles
  * ───────────────────────────────────────────────────────── */
 
 const TIMING = {

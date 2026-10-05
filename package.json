@@ -2,15 +2,20 @@
   "name": "swiper",
   "private": true,
   "packageManager": "pnpm@10.14.0",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "pnpm --filter @swiper/web dev",
-    "build": "pnpm -r build",
-    "lint": "pnpm -r lint",
+    "build": "pnpm --filter @swiper/web build",
+    "start": "pnpm --filter @swiper/web start",
+    "lint": "pnpm --filter @swiper/web lint",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
+    "test": "pnpm -r --if-present test",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "db:push": "pnpm --filter @swiper/db push",
+    "db:migrate": "pnpm --filter @swiper/db migrate",
     "db:studio": "pnpm --filter @swiper/db studio"
   }
 }

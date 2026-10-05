@@ -8,6 +8,7 @@
   },
   "scripts": {
     "push": "drizzle-kit push",
+    "migrate": "node migrate.mjs",
     "studio": "drizzle-kit studio",
     "typecheck": "tsc --noEmit"
   },

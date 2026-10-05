@@ -24,6 +24,25 @@ type CarouselRow = {
   editor_url: string;
 };
 
+async function readWorkspace() {
+  const [brandRes, keysRes, projectsRes] = await Promise.all([
+    fetch("/api/v1/brand"),
+    fetch("/api/v1/mcp-keys"),
+    fetch("/api/v1/projects"),
+  ]);
+  if (!brandRes.ok || !keysRes.ok || !projectsRes.ok) {
+    throw new Error("Could not load workspace.");
+  }
+  const brandJson = (await brandRes.json()) as { brand: Brand };
+  const keysJson = (await keysRes.json()) as { keys: KeyRow[] };
+  const projectsJson = (await projectsRes.json()) as { carousels: CarouselRow[] };
+  return {
+    brand: brandJson.brand,
+    keys: keysJson.keys,
+    carousels: projectsJson.carousels ?? [],
+  };
+}
+
 function mcpConfig(origin: string, key: string) {
   return `{
   "mcpServers": {
@@ -53,20 +72,10 @@ export default function ConnectPage() {
     setLoading(true);
     setError(null);
     try {
-      const [brandRes, keysRes, projectsRes] = await Promise.all([
-        fetch("/api/v1/brand"),
-        fetch("/api/v1/mcp-keys"),
-        fetch("/api/v1/projects"),
-      ]);
-      if (!brandRes.ok || !keysRes.ok || !projectsRes.ok) {
-        throw new Error("Could not load workspace.");
-      }
-      const brandJson = (await brandRes.json()) as { brand: Brand };
-      const keysJson = (await keysRes.json()) as { keys: KeyRow[] };
-      const projectsJson = (await projectsRes.json()) as { carousels: CarouselRow[] };
-      setBrand(brandJson.brand);
-      setKeys(keysJson.keys);
-      setCarousels(projectsJson.carousels ?? []);
+      const next = await readWorkspace();
+      setBrand(next.brand);
+      setKeys(next.keys);
+      setCarousels(next.carousels);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load workspace.");
     } finally {
@@ -75,7 +84,24 @@ export default function ConnectPage() {
   }
 
   useEffect(() => {
-    void load();
+    let cancelled = false;
+    void readWorkspace()
+      .then((next) => {
+        if (cancelled) return;
+        setBrand(next.brand);
+        setKeys(next.keys);
+        setCarousels(next.carousels);
+      })
+      .catch((loadError: unknown) => {
+        if (cancelled) return;
+        setError(loadError instanceof Error ? loadError.message : "Could not load workspace.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function mintKey() {

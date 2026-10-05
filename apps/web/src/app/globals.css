@@ -82,6 +82,20 @@ body {
   background-size: 64px 64px;
 }
 
+@keyframes hero-word {
+  from {
+    transform: translateY(8px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.hero-word {
+  display: inline-block;
+  animation: hero-word 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   html {
     scroll-behavior: smooth;
