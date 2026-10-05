@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DEFAULT_THEME, FORMATS, renderPlanToCarousel, type CarouselPlan } from "@swiper/schema";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { PDFDocument } from "pdf-lib";
 import { unzipSync } from "fflate";
 import { renderExport } from "./export";
@@ -67,4 +68,37 @@ test("a single slide exports as png", async () => {
   const file = await renderExport(carousel, "png", 1);
   assert.equal(file.extension, "png");
   assert.deepEqual(pngSize(file.bytes), { width: 1080, height: 1350 });
+});
+
+test("an uploaded image is painted into the slide", async () => {
+  const source = createCanvas(4, 4);
+  const sourceCtx = source.getContext("2d");
+  sourceCtx.fillStyle = "#ff0000";
+  sourceCtx.fillRect(0, 0, 4, 4);
+
+  const carousel = renderPlanToCarousel(plan, DEFAULT_THEME);
+  const slide = carousel.slides[0]!;
+  slide.elements.push({
+    id: "img_1",
+    type: "image",
+    assetId: "ast_1",
+    src: "/api/v1/assets/ast_1",
+    x: 100,
+    y: 900,
+    width: 400,
+    height: 300,
+  });
+
+  const file = await renderExport(
+    carousel,
+    "png",
+    0,
+    new Map([["ast_1", source.toBuffer("image/png")]]),
+  );
+  const rendered = await loadImage(Buffer.from(file.bytes));
+  const check = createCanvas(1080, 1350);
+  const checkCtx = check.getContext("2d");
+  checkCtx.drawImage(rendered, 0, 0);
+  const [r, g, b] = checkCtx.getImageData(300, 1050, 1, 1).data;
+  assert.deepEqual([r, g, b], [255, 0, 0]);
 });

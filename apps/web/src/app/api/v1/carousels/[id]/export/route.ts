@@ -3,6 +3,7 @@ import { renderExport } from "@swiper/rendering";
 import { requireAuth } from "@/lib/api-auth";
 import { appUrl, editorUrl } from "@/lib/utils";
 import { apiError, fromUnknownError, json } from "@/lib/http";
+import { assetsForWorkspace } from "@/server/assets";
 import { getCarousel } from "@/server/carousels";
 
 export const runtime = "nodejs";
@@ -54,7 +55,14 @@ export async function GET(
       return fileResponse(bytes, "application/json", fileName(row.title, "json"));
     }
 
-    const rendered = await renderExport(parsed.data, format, slideIndex);
+    const assetIds = parsed.data.slides.flatMap((slide) =>
+      slide.elements.map((element) => element.assetId).filter((id): id is string => id != null),
+    );
+    const assets = assetIds.length
+      ? await assetsForWorkspace(authContext.workspaceId, assetIds)
+      : undefined;
+
+    const rendered = await renderExport(parsed.data, format, slideIndex, assets);
     const extension =
       format === "png" && slideIndex != null ? "png" : rendered.extension;
     const name =

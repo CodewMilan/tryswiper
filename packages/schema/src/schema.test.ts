@@ -52,6 +52,54 @@ test("applyOperations can shorten a headline", () => {
   );
 });
 
+test("applyOperations moves, reorders, and swaps in an image", () => {
+  const carousel = renderPlanToCarousel(plan, DEFAULT_THEME);
+  const first = carousel.slides[0]!;
+  const headline = first.elements.find((el) => el.role === "headline")!;
+  const secondRole = carousel.slides[1]!.role;
+
+  const next = applyOperations(carousel, [
+    {
+      op: "set_element_box",
+      slideId: first.id,
+      elementId: headline.id,
+      x: 120,
+      y: 240,
+      width: 800,
+      height: 360,
+    },
+    {
+      op: "add_element",
+      slideId: first.id,
+      element: {
+        id: "s1_img",
+        type: "image",
+        assetId: "ast_1",
+        src: "/api/v1/assets/ast_1",
+        x: 80,
+        y: 760,
+        width: 920,
+        height: 460,
+      },
+    },
+    { op: "reorder_slide", slideId: first.id, toIndex: 1 },
+  ]);
+
+  const moved = next.slides[1]!;
+  assert.equal(moved.id, first.id);
+  assert.equal(next.slides[0]?.role, secondRole);
+  assert.deepEqual(
+    { x: moved.elements[0]!.x, y: moved.elements[0]!.y },
+    { x: 120, y: 240 },
+  );
+  assert.equal(moved.elements.at(-1)?.type, "image");
+
+  const removed = applyOperations(next, [
+    { op: "delete_element", slideId: moved.id, elementId: "s1_img" },
+  ]);
+  assert.equal(removed.slides[1]?.elements.some((el) => el.id === "s1_img"), false);
+});
+
 test("validator flags generic AI phrasing", () => {
   const carousel = renderPlanToCarousel(plan, DEFAULT_THEME);
   carousel.slides[0]!.elements[0]!.text = "A revolutionary game-changing platform";

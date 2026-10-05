@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import {
   type BrandContext,
   generatePlan,
@@ -6,8 +6,8 @@ import {
 } from "@swiper/ai";
 import {
   applyOperations,
-  carouselOperationSchema,
   DEFAULT_THEME,
+  parseOperations,
   renderPlanToCarousel,
   validateAndRepair,
   validateCarousel,
@@ -183,15 +183,77 @@ export async function listProjects(authContext: AuthContext) {
   };
 }
 
+export async function undoDepth(carouselId: string) {
+  const rows = await db
+    .select({ count: count() })
+    .from(schema.carouselVersion)
+    .where(eq(schema.carouselVersion.carouselId, carouselId));
+  return rows[0]?.count ?? 0;
+}
+
+/** Restores the newest snapshot and drops it, so repeated calls walk the history back. */
+export async function undoCarousel(authContext: AuthContext, id: string) {
+  const current = await getCarousel(authContext, id);
+  const previous = await db
+    .select()
+    .from(schema.carouselVersion)
+    .where(eq(schema.carouselVersion.carouselId, id))
+    .orderBy(desc(schema.carouselVersion.createdAt), desc(schema.carouselVersion.version))
+    .limit(1);
+  const snapshotRow = previous[0];
+  if (!snapshotRow) {
+    throw Object.assign(new Error("Nothing left to undo"), {
+      status: 400,
+      code: "NOTHING_TO_UNDO",
+    });
+  }
+
+  const nextVersion = current.version + 1;
+  await db
+    .update(schema.carousel)
+    .set({
+      contentJson: snapshotRow.contentJson,
+      planJson: snapshotRow.planJson,
+      version: nextVersion,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.carousel.id, id));
+  await db.delete(schema.carouselVersion).where(eq(schema.carouselVersion.id, snapshotRow.id));
+
+  const content = snapshotRow.contentJson as Carousel;
+  return {
+    carousel_id: id,
+    editor_url: editorUrl(id),
+    version: nextVersion,
+    undo_count: await undoDepth(id),
+    validation: validateCarousel(content),
+    carousel: content,
+  };
+}
+
 export async function updateCarousel(
   authContext: AuthContext,
   id: string,
   operations: unknown[],
 ) {
-  const parsed = operations.map((operation) => carouselOperationSchema.parse(operation));
+  const parsed = parseOperations(operations);
+  if (!parsed) {
+    throw Object.assign(new Error("That edit is not a supported operation"), {
+      status: 400,
+      code: "INVALID_OPERATION",
+    });
+  }
   const current = await getCarousel(authContext, id);
   await snapshot(current.id, current.version, current.contentJson, current.planJson);
-  const content = applyOperations(current.contentJson as Carousel, parsed as CarouselOperation[]);
+  let content: Carousel;
+  try {
+    content = applyOperations(current.contentJson as Carousel, parsed as CarouselOperation[]);
+  } catch {
+    throw Object.assign(new Error("That edit would leave the carousel in an invalid state"), {
+      status: 400,
+      code: "INVALID_OPERATION",
+    });
+  }
   const validation = validateCarousel(content);
   const nextVersion = current.version + 1;
   await db
@@ -206,6 +268,7 @@ export async function updateCarousel(
     carousel_id: id,
     editor_url: editorUrl(id),
     version: nextVersion,
+    undo_count: await undoDepth(id),
     validation,
     carousel: content,
   };

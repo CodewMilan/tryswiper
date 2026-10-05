@@ -49,9 +49,58 @@ export const carouselOperationSchema = z.discriminatedUnion("op", [
     elementId: z.string(),
     text: z.string(),
   }),
+  z.object({
+    op: z.literal("set_element_box"),
+    slideId: z.string(),
+    elementId: z.string(),
+    x: z.number(),
+    y: z.number(),
+    width: z.number().positive(),
+    height: z.number().positive(),
+  }),
+  z.object({
+    op: z.literal("set_element_image"),
+    slideId: z.string(),
+    elementId: z.string(),
+    assetId: z.string().min(1),
+    src: z.string().min(1),
+  }),
+  z.object({
+    op: z.literal("add_element"),
+    slideId: z.string(),
+    element: elementSchema,
+  }),
+  z.object({
+    op: z.literal("delete_element"),
+    slideId: z.string(),
+    elementId: z.string(),
+  }),
 ]);
 
 export type CarouselOperation = z.infer<typeof carouselOperationSchema>;
+
+export function parseOperations(input: unknown): CarouselOperation[] | null {
+  const result = z.array(carouselOperationSchema).safeParse(input);
+  return result.success ? result.data : null;
+}
+
+function mapElement(
+  carousel: Carousel,
+  slideId: string,
+  elementId: string,
+  change: (element: Carousel["slides"][number]["elements"][number]) => Carousel["slides"][number]["elements"][number],
+) {
+  return carousel.slides.map((slide) =>
+    slide.id === slideId
+      ? {
+          ...slide,
+          elements: slide.elements.map((element) =>
+            element.id === elementId ? change(element) : element,
+          ),
+        }
+      : slide,
+  );
+}
 
 export function applyOperations(
   carousel: Carousel,
@@ -105,6 +154,37 @@ export function applyOperations(
                   ? { ...element, text: operation.text }
                   : element,
               ),
+            }
+          : slide,
+      );
+    } else if (operation.op === "set_element_box") {
+      next.slides = mapElement(next, operation.slideId, operation.elementId, (element) => ({
+        ...element,
+        x: operation.x,
+        y: operation.y,
+        width: operation.width,
+        height: operation.height,
+      }));
+    } else if (operation.op === "set_element_image") {
+      next.slides = mapElement(next, operation.slideId, operation.elementId, (element) => ({
+        ...element,
+        type: "image",
+        text: undefined,
+        assetId: operation.assetId,
+        src: operation.src,
+      }));
+    } else if (operation.op === "add_element") {
+      next.slides = next.slides.map((slide) =>
+        slide.id === operation.slideId
+          ? { ...slide, elements: [...slide.elements, operation.element] }
+          : slide,
+      );
+    } else if (operation.op === "delete_element") {
+      next.slides = next.slides.map((slide) =>
+        slide.id === operation.slideId
+          ? {
+              ...slide,
+              elements: slide.elements.filter((element) => element.id !== operation.elementId),
             }
           : slide,
       );

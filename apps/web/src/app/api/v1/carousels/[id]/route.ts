@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/api-auth";
 import { editorUrl } from "@/lib/utils";
 import { fromUnknownError, json } from "@/lib/http";
-import { getCarousel, updateCarousel } from "@/server/carousels";
+import { getCarousel, undoDepth, updateCarousel } from "@/server/carousels";
 
 export async function GET(
   request: Request,
@@ -16,6 +16,7 @@ export async function GET(
       editor_url: editorUrl(row.id),
       status: row.status,
       version: row.version,
+      undo_count: await undoDepth(row.id),
       title: row.title,
       format_id: row.formatId,
       carousel: row.contentJson,

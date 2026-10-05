@@ -1,7 +1,7 @@
 import { CANVAS_HEIGHT, CANVAS_WIDTH, type Carousel } from "@swiper/schema";
 import { zipSync } from "fflate";
 import { PDFDocument } from "pdf-lib";
-import { renderSlidePngs } from "./paint";
+import { decodeAssets, renderSlidePngs, type AssetMap } from "./paint";
 
 export type ExportFormat = "png" | "pdf" | "json";
 
@@ -25,8 +25,13 @@ export async function renderExport(
   carousel: Carousel,
   format: "png" | "pdf",
   slideIndex?: number,
+  assets?: AssetMap,
 ): Promise<ExportFile> {
-  const pngs = renderSlidePngs(carousel, slideIndex);
+  const pngs = renderSlidePngs(
+    carousel,
+    slideIndex,
+    assets ? await decodeAssets(assets) : undefined,
+  );
   if (format === "png" && slideIndex != null) {
     const bytes = pngs[0];
     if (!bytes) throw new Error("Slide render produced no image.");

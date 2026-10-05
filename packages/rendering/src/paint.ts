@@ -1,9 +1,59 @@
 import { CANVAS_HEIGHT, CANVAS_WIDTH, type Carousel, type Slide, type Theme } from "@swiper/schema";
-import { createCanvas, type SKRSContext2D } from "@napi-rs/canvas";
+import { createCanvas, loadImage, type Image, type SKRSContext2D } from "@napi-rs/canvas";
 import { familyForWeight, registerFonts } from "./fonts";
 import { wrapLines } from "./wrap";
 
 type ContextWithSpacing = SKRSContext2D & { letterSpacing?: string };
+
+/** Image bytes keyed by the element's assetId. */
+export type AssetMap = Map<string, Uint8Array>;
+
+/** Decoded images keyed by assetId. Skia only paints images decoded through loadImage. */
+export type DecodedAssets = Map<string, Image>;
+
+export async function decodeAssets(assets: AssetMap): Promise<DecodedAssets> {
+  const decoded: DecodedAssets = new Map();
+  for (const [assetId, bytes] of assets) {
+    try {
+      decoded.set(assetId, await loadImage(Buffer.from(bytes)));
+    } catch {
+      // A broken upload should not fail the whole export.
+    }
+  }
+  return decoded;
+}
+
+export async function readImageSize(bytes: Uint8Array) {
+  try {
+    const image = await loadImage(Buffer.from(bytes));
+    if (!image.width || !image.height) return null;
+    return { width: image.width, height: image.height };
+  } catch {
+    return null;
+  }
+}
+
+/** Fills the element box, cropping the overflow like CSS object-fit: cover. */
+function drawImage(ctx: SKRSContext2D, element: Slide["elements"][number], image: Image) {
+  if (!image.width || !image.height) return;
+
+  const scale = Math.max(element.width / image.width, element.height / image.height);
+  const width = image.width * scale;
+  const height = image.height * scale;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(element.x, element.y, element.width, element.height);
+  ctx.clip();
+  ctx.drawImage(
+    image,
+    element.x + (element.width - width) / 2,
+    element.y + (element.height - height) / 2,
+    width,
+    height,
+  );
+  ctx.restore();
+}
 
 function paintColor(value: string | undefined, fallback: string) {
   if (!value) return fallback;
@@ -52,7 +102,7 @@ function drawText(
   ctx.restore();
 }
 
-export function renderSlidePng(slide: Slide, theme: Theme): Buffer {
+export function renderSlidePng(slide: Slide, theme: Theme, assets?: DecodedAssets): Buffer {
   registerFonts();
   const canvas = createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
   const ctx = canvas.getContext("2d");
@@ -62,6 +112,11 @@ export function renderSlidePng(slide: Slide, theme: Theme): Buffer {
   for (const element of slide.elements) {
     if (element.type === "text") {
       drawText(ctx, element, theme);
+      continue;
+    }
+    const image = element.assetId ? assets?.get(element.assetId) : undefined;
+    if (image) {
+      drawImage(ctx, element, image);
       continue;
     }
     if (element.type === "shape" || element.type === "line") {
@@ -77,8 +132,12 @@ export function renderSlidePng(slide: Slide, theme: Theme): Buffer {
   return canvas.toBuffer("image/png");
 }
 
-export function renderSlidePngs(carousel: Carousel, slideIndex?: number): Buffer[] {
+export function renderSlidePngs(
+  carousel: Carousel,
+  slideIndex?: number,
+  assets?: DecodedAssets,
+): Buffer[] {
   const slides =
     slideIndex == null ? carousel.slides : carousel.slides.slice(slideIndex, slideIndex + 1);
-  return slides.map((slide) => renderSlidePng(slide, carousel.theme));
+  return slides.map((slide) => renderSlidePng(slide, carousel.theme, assets));
 }
