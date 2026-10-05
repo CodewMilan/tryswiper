@@ -40,6 +40,7 @@ export function Landing() {
     description: format.description,
     count: `${format.slideCount.min}–${format.slideCount.max} slides`,
     hook: format.slides[0]?.job ?? "Open with a reason to swipe.",
+    roles: format.slides.map((slide) => slide.role),
   }));
 
   useEffect(() => {
@@ -335,7 +336,7 @@ export function Landing() {
         </div>
       </section>
 
-      <section className="px-4 pb-8 sm:px-8">
+      <section id="format-rail" className="scroll-mt-24 px-4 pb-8 sm:px-8">
         <div className="mx-auto max-w-[1200px]">
           <FormatRail items={formats} />
         </div>
