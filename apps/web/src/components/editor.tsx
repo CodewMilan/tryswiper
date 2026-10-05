@@ -154,9 +154,14 @@ export function Editor({ carouselId }: { carouselId: string }) {
   return (
     <div className="grid min-h-[calc(100vh-5rem)] grid-cols-1 lg:grid-cols-[240px_1fr_300px]">
       <aside className="border-b border-black/8 bg-white p-4 lg:border-r lg:border-b-0">
-        <Link href="/connect" className="text-sm text-ink-soft hover:text-foreground">
-          ← Connect
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/new" className="text-sm text-ink-soft hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            ← New
+          </Link>
+          <Link href="/connect" className="text-sm text-ink-soft hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            Connect
+          </Link>
+        </div>
         <p className="mt-4 text-xs uppercase tracking-wide text-ink-faint">Slides</p>
         <SlideRail
           carousel={doc}

@@ -7,7 +7,9 @@ import {
 import {
   applyOperations,
   DEFAULT_THEME,
+  getFormat,
   parseOperations,
+  planFromFormat,
   renderPlanToCarousel,
   validateAndRepair,
   validateCarousel,
@@ -63,15 +65,12 @@ async function snapshot(carouselId: string, version: number, content: unknown, p
   });
 }
 
-async function agentProject(authContext: AuthContext) {
+async function namedProject(authContext: AuthContext, name: string, description: string) {
   const existing = await db
     .select()
     .from(schema.project)
     .where(
-      and(
-        eq(schema.project.workspaceId, authContext.workspaceId),
-        eq(schema.project.name, "Agent carousels"),
-      ),
+      and(eq(schema.project.workspaceId, authContext.workspaceId), eq(schema.project.name, name)),
     )
     .limit(1);
   if (existing[0]) return existing[0];
@@ -83,12 +82,20 @@ async function agentProject(authContext: AuthContext) {
       id: sid("prj"),
       workspaceId: authContext.workspaceId,
       brandId: brand?.id,
-      name: "Agent carousels",
-      description: "Carousels created through MCP",
+      name,
+      description,
       createdBy: authContext.userId,
     })
     .returning();
   return created!;
+}
+
+function agentProject(authContext: AuthContext) {
+  return namedProject(authContext, "Agent carousels", "Carousels created through MCP");
+}
+
+function draftsProject(authContext: AuthContext) {
+  return namedProject(authContext, "Drafts", "Carousels started in the browser");
 }
 
 export async function generateCarousel(input: {
@@ -132,6 +139,57 @@ export async function generateCarousel(input: {
     status: "draft" as const,
     format_id: result.plan.formatId,
     source,
+    validation: result.validation,
+    carousel: result.carousel,
+  };
+}
+
+export async function startCarouselFromFormat(input: {
+  auth: AuthContext;
+  formatId: string;
+  title?: string;
+}) {
+  const format = getFormat(input.formatId);
+  if (!format) {
+    throw Object.assign(new Error("That format is not in the library."), {
+      status: 400,
+      code: "UNKNOWN_FORMAT",
+    });
+  }
+  const brandRow = await getWorkspaceBrand(input.auth.workspaceId);
+  if (!brandRow) {
+    throw Object.assign(new Error("Brand kit missing"), { status: 400, code: "NO_BRAND" });
+  }
+
+  const theme = themeFromBrand(brandRow);
+  const plan = planFromFormat(format, {
+    title: input.title,
+    productName: brandRow.name,
+    audience: brandRow.audience,
+    cta: brandRow.cta,
+    forbiddenClaims: brandRow.wordsToAvoid,
+  });
+  const result = validateAndRepair(plan, theme, {
+    forbiddenWords: brandRow.wordsToAvoid,
+    allowedProof: brandRow.proofPoints,
+  });
+  const project = await draftsProject(input.auth);
+  const id = sid("car");
+  await db.insert(schema.carousel).values({
+    id,
+    projectId: project.id,
+    title: result.plan.title,
+    formatId: result.plan.formatId,
+    status: "draft",
+    contentJson: result.carousel,
+    planJson: result.plan,
+    createdBy: input.auth.userId,
+  });
+  return {
+    carousel_id: id,
+    editor_url: editorUrl(id),
+    status: "draft" as const,
+    format_id: result.plan.formatId,
     validation: result.validation,
     carousel: result.carousel,
   };

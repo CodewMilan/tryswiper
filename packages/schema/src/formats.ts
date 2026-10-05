@@ -156,6 +156,17 @@ export const FORMATS: FormatDefinition[] = [
       { role: "cta", layout: "cta", job: "The conclusion and next step." },
     ],
   },
+  {
+    id: "freeform",
+    name: "Start by hand",
+    description: "Three slides with placeholder lines. A hook, one point, and a CTA.",
+    slideCount: { min: 3, max: 8 },
+    slides: [
+      { role: "hook", layout: "hero", job: "Write the first line." },
+      { role: "point", layout: "split", job: "Make the one point." },
+      { role: "cta", layout: "cta", job: "Ask for the next step." },
+    ],
+  },
 ];
 
 export function getFormat(id: string): FormatDefinition | undefined {

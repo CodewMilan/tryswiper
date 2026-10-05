@@ -112,7 +112,10 @@ export default function ConnectPage() {
         Connect an agent
       </h1>
       <p className="mt-2 text-[16px] font-light text-ink-soft">
-        This is the product. Mint a key, add Swiper to Cursor or Claude, then ask for a carousel.
+        Mint a key, add Swiper to Cursor or Claude, then ask for a carousel. Or{" "}
+        <Link href="/new" className="text-foreground underline underline-offset-4 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          start one in the browser
+        </Link>.
       </p>
 
       {loading ? (
@@ -208,7 +211,10 @@ export default function ConnectPage() {
             <h2 className="font-medium">Recent carousels</h2>
             {carousels.length === 0 ? (
               <p className="mt-2 text-sm text-muted-foreground">
-                None yet. They appear here after the agent generates one.
+                None yet.{" "}
+                <Link href="/new" className="text-foreground underline underline-offset-4 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  Start one from a format
+                </Link>, or wait for the agent.
               </p>
             ) : (
               <ul className="mt-3 space-y-2">

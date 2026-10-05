@@ -1,6 +1,6 @@
 import { requireAuth } from "@/lib/api-auth";
 import { apiError, fromUnknownError, json } from "@/lib/http";
-import { generateCarousel } from "@/server/carousels";
+import { generateCarousel, startCarouselFromFormat } from "@/server/carousels";
 
 export async function POST(request: Request) {
   try {
@@ -21,9 +21,19 @@ export async function POST(request: Request) {
         201,
       );
     }
+    if (body.format_id?.trim()) {
+      return json(
+        await startCarouselFromFormat({
+          auth: authContext,
+          formatId: body.format_id.trim(),
+          title: body.title,
+        }),
+        201,
+      );
+    }
     return apiError(
-      "INVALID_BRIEF",
-      "Pass a brief to create a carousel, or call swiper.generate_carousel.",
+      "INVALID_REQUEST",
+      "Pick a format, or pass a brief for the agent.",
       400,
     );
   } catch (error) {

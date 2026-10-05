@@ -4,6 +4,7 @@ import { DEFAULT_THEME } from "./carousel";
 import { FORMATS } from "./formats";
 import { applyOperations } from "./operations";
 import { renderPlanToCarousel } from "./render";
+import { planFromFormat } from "./scaffold";
 import { validateCarousel } from "./validate";
 import type { CarouselPlan } from "./carousel";
 
@@ -98,6 +99,17 @@ test("applyOperations moves, reorders, and swaps in an image", () => {
     { op: "delete_element", slideId: moved.id, elementId: "s1_img" },
   ]);
   assert.equal(removed.slides[1]?.elements.some((el) => el.id === "s1_img"), false);
+});
+
+test("planFromFormat scaffolds every format into a valid carousel", () => {
+  for (const format of FORMATS) {
+    const plan = planFromFormat(format, { productName: "Swiper", cta: "Connect Swiper" });
+    const carousel = renderPlanToCarousel(plan, DEFAULT_THEME);
+    const result = validateCarousel(carousel);
+    assert.equal(result.ok, true, `${format.id} ${JSON.stringify(result.errors)}`);
+    assert.equal(carousel.slides.length, format.slides.length);
+    assert.equal(carousel.slides.at(-1)?.layout, "cta");
+  }
 });
 
 test("validator flags generic AI phrasing", () => {

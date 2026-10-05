@@ -27,11 +27,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <span className="text-[15px] font-medium tracking-[-0.03em] text-white">Swiper</span>
           </Link>
           <nav className="flex items-center" aria-label="Workspace">
-            <Link href="/connect" className={itemClass}>
-              Connect
+            <Link href="/new" className={itemClass}>
+              New
             </Link>
             <Link href="/brand" className={itemClass}>
               Brand
+            </Link>
+            <Link href="/connect" className={itemClass}>
+              Connect
             </Link>
             <SignOutButton className={itemClass} />
           </nav>

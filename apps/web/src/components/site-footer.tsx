@@ -18,6 +18,7 @@ const columns = [
       { href: "/signup", label: "Create account" },
       { href: "/login", label: "Sign in" },
       { href: "/brand", label: "Brand kit" },
+      { href: "/new", label: "Start a carousel" },
       { href: "/connect", label: "Connect an agent" },
     ],
   },
