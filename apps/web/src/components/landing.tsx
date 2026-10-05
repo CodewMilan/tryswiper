@@ -218,29 +218,39 @@ export function Landing() {
               <ArrowRight />
             </Link>
           </div>
-          <div className="relative flex h-36 items-center justify-center">
-            <div className="absolute inset-x-8 top-0 bottom-0 flex justify-between opacity-60">
-              {["#7eb6e0", "#ef5a3c", "#111111", "#1faa59", "#3aa0e8"].map((color) => (
-                <span key={color} className="w-px bg-black/10" style={{ boxShadow: `inset 0 0 0 1px ${color}22` }} />
-              ))}
-            </div>
-            <div className="relative flex items-center gap-3">
-              <span className="flex size-16 items-center justify-center rounded-[18px] bg-[#2f80ed] text-lg font-medium text-white shadow-sm">
-                C
-              </span>
-              <span className="flex size-16 items-center justify-center rounded-[18px] border border-[#2f80ed] bg-white text-lg text-[#2f80ed] shadow-sm">
-                ⌁
-              </span>
-              <span className="flex size-16 items-center justify-center rounded-[18px] bg-black text-[11px] font-medium tracking-[-0.04em] text-white shadow-sm">
-                GPT
-              </span>
-              <span className="flex size-16 items-center justify-center rounded-[18px] bg-[#e24b4b] text-lg font-medium text-white shadow-sm">
-                ✶
-              </span>
-              <span className="flex size-16 items-center justify-center rounded-[18px] border border-black/10 bg-white text-lg text-accent shadow-sm">
-                ↗
-              </span>
-            </div>
+          <div className="flex min-h-36 items-center justify-center py-2">
+            <ul className="flex items-center justify-center gap-10 sm:gap-12">
+              <li>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/logos/cursor.png"
+                  alt="Cursor"
+                  width={36}
+                  height={40}
+                  className="h-9 w-auto"
+                />
+              </li>
+              <li>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/logos/claude.png"
+                  alt="Claude"
+                  width={149}
+                  height={32}
+                  className="h-8 w-auto"
+                />
+              </li>
+              <li>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/logos/openai.svg"
+                  alt="OpenAI"
+                  width={87}
+                  height={32}
+                  className="h-8 w-auto"
+                />
+              </li>
+            </ul>
           </div>
         </div>
       </section>
