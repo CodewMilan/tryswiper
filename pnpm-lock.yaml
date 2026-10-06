@@ -47,6 +47,9 @@ importers:
       '@swiper/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@swiper/mcp':
+        specifier: workspace:*
+        version: link:../mcp
       '@swiper/rendering':
         specifier: workspace:*
         version: link:../../packages/rendering

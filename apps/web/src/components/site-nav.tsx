@@ -12,7 +12,6 @@ const productLinks = [
   { href: "/#formats", label: "Formats" },
   { href: "/#brand", label: "Brand kit" },
   { href: "/#export", label: "Export" },
-  { href: "/pricing", label: "Pricing" },
 ];
 
 const agentLinks = [
@@ -126,7 +125,7 @@ export function SiteNav() {
             exit={reduced ? undefined : { opacity: 0, y: 6 }}
             transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
           >
-            {[...productLinks, ...agentLinks, { href: "/login", label: "Sign in" }].map((item) => (
+            {[...productLinks, { href: "/pricing", label: "Pricing" }, ...agentLinks, { href: "/login", label: "Sign in" }].map((item) => (
               <Link
                 key={item.label + item.href}
                 href={item.href}

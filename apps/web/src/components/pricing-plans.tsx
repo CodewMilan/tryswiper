@@ -8,6 +8,16 @@ import { Button } from "@/components/ui/button";
 
 type Plan = "free" | "pro";
 
+async function readPlan() {
+  const response = await fetch("/api/v1/billing");
+  if (response.status === 401) return { signedIn: false, plan: "free" as Plan, error: null };
+  const body = (await response.json()) as { plan?: Plan; message?: string };
+  if (!response.ok) {
+    return { signedIn: false, plan: "free" as Plan, error: body.message ?? "Could not load the plan." };
+  }
+  return { signedIn: true, plan: body.plan === "pro" ? "pro" : "free", error: null };
+}
+
 export function PricingPlans({ priceLabel }: { priceLabel: string | null }) {
   const router = useRouter();
   const search = useSearchParams();
@@ -18,54 +28,30 @@ export function PricingPlans({ priceLabel }: { priceLabel: string | null }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
-    const response = await fetch("/api/v1/billing");
-    if (response.status === 401) {
-      setSignedIn(false);
-      setPlan("free");
-      setLoaded(true);
-      return;
-    }
-    const body = (await response.json()) as { plan?: Plan; message?: string };
-    if (!response.ok) {
-      setError(body.message ?? "Could not load the plan.");
-      setLoaded(true);
-      return;
-    }
-    setSignedIn(true);
-    setPlan(body.plan === "pro" ? "pro" : "free");
-    setLoaded(true);
-  }
-
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/v1/billing")
-      .then(async (response) => {
-        if (cancelled) return;
-        if (response.status === 401) {
-          setSignedIn(false);
-          setPlan("free");
-          return;
-        }
-        const body = (await response.json()) as { plan?: Plan };
-        if (response.ok) {
-          setSignedIn(true);
-          setPlan(body.plan === "pro" ? "pro" : "free");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoaded(true);
-      });
+    void readPlan().then((next) => {
+      if (cancelled) return;
+      setSignedIn(next.signedIn);
+      setPlan(next.plan);
+      if (next.error) setError(next.error);
+      setLoaded(true);
+    });
     return () => {
       cancelled = true;
     };
   }, []);
 
   useEffect(() => {
-    if (!returned || plan === "pro") return;
-    const timer = window.setInterval(() => void load(), 2500);
+    if (!returned || !signedIn || plan === "pro") return;
+    const timer = window.setInterval(() => {
+      void readPlan().then((next) => {
+        setSignedIn(next.signedIn);
+        setPlan(next.plan);
+      });
+    }, 2500);
     return () => window.clearInterval(timer);
-  }, [returned, plan]);
+  }, [returned, signedIn, plan]);
 
   async function checkout() {
     setBusy(true);
@@ -119,13 +105,15 @@ export function PricingPlans({ priceLabel }: { priceLabel: string | null }) {
         <section className="flex flex-col rounded-[24px] border border-accent bg-white p-6 sm:p-8">
           <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-accent">Pro</p>
           <p className="mt-4 text-[40px] font-light tracking-[-0.04em] text-black">
-            {priceLabel ?? "Checkout"}
+            {priceLabel ?? "Monthly"}
           </p>
-          {priceLabel ? <p className="text-[14px] font-light text-ink-soft">per month</p> : null}
+          <p className="text-[14px] font-light text-ink-soft">
+            {priceLabel ? "per month" : "Price shown at checkout"}
+          </p>
           <ul className="mt-6 space-y-2 text-[15px] font-light leading-6 text-ink-soft">
             <li>Everything on Free</li>
-            <li>Paid workspace, confirmed by Dodo</li>
-            <li>{plan === "pro" ? "This workspace is on Pro" : "The charge is the price on the Dodo product"}</li>
+            <li>Cursor, Claude, and ChatGPT</li>
+            <li>{plan === "pro" ? "This workspace is on Pro" : "Marked Pro once payment confirms"}</li>
           </ul>
           <div className="mt-8">
             {plan === "pro" ? (
