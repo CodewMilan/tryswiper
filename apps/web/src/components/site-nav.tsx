@@ -3,60 +3,17 @@
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useState } from "react";
-import { ChevronDown } from "@/components/icons";
 import { Mark } from "@/components/mark";
 import { Magnetic } from "@/components/motion/magnetic";
 
-const productLinks = [
-  { href: "/#editor", label: "Editor" },
-  { href: "/#formats", label: "Formats" },
-  { href: "/#brand", label: "Brand kit" },
-  { href: "/#export", label: "Export" },
-];
-
-const agentLinks = [
-  { href: "/#agents", label: "Cursor" },
-  { href: "/#agents", label: "Claude" },
-  { href: "/#agents", label: "ChatGPT" },
+const menuLinks = [
+  { href: "/pricing", label: "Pricing" },
+  { href: "/connect", label: "Connect" },
+  { href: "/login", label: "Sign in" },
 ];
 
 const navLinkClass =
   "inline-flex h-9 items-center rounded-lg px-3 text-[14px] font-light tracking-[-0.01em] text-white/90 motion-safe:transition-colors motion-safe:duration-150 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80";
-
-function Menu({
-  label,
-  items,
-}: {
-  label: string;
-  items: { href: string; label: string }[];
-}) {
-  return (
-    <div className="group relative">
-      <button
-        type="button"
-        aria-haspopup="menu"
-        className={`${navLinkClass} gap-0.5`}
-      >
-        {label}
-        <ChevronDown className="motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:rotate-180 group-focus-within:rotate-180" />
-      </button>
-      <div className="invisible absolute left-0 top-full z-20 min-w-44 origin-top -translate-y-1 pt-2 opacity-0 motion-safe:transition-[opacity,transform,visibility] motion-safe:duration-150 motion-safe:ease-[cubic-bezier(0.16,1,0.3,1)] group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
-        <div role="menu" className="rounded-2xl border border-black/10 bg-white p-1.5 text-black shadow-lg">
-          {items.map((item) => (
-            <Link
-              key={item.label}
-              href={item.href}
-              role="menuitem"
-              className="block rounded-xl px-3 py-2 text-sm font-light text-black motion-safe:transition-colors motion-safe:duration-150 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export function SiteNav() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -73,20 +30,11 @@ export function SiteNav() {
           <Mark />
         </Link>
         <nav className="hidden items-center md:flex" aria-label="Primary">
-          <Menu label="Product" items={productLinks} />
-          <Link href="/#formats" className={navLinkClass}>
-            Formats
-          </Link>
-          <Link href="/pricing" className={navLinkClass}>
-            Pricing
-          </Link>
-          <Menu label="Agents" items={agentLinks} />
-          <Link href="/#agents" className={navLinkClass}>
-            Connect
-          </Link>
-          <Link href="/login" className={navLinkClass}>
-            Sign in
-          </Link>
+          {menuLinks.map((item) => (
+            <Link key={item.href} href={item.href} className={navLinkClass}>
+              {item.label}
+            </Link>
+          ))}
         </nav>
         <Magnetic strength={0.16}>
           <Link
@@ -125,7 +73,7 @@ export function SiteNav() {
             exit={reduced ? undefined : { opacity: 0, y: 6 }}
             transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
           >
-            {[...productLinks, { href: "/pricing", label: "Pricing" }, ...agentLinks, { href: "/login", label: "Sign in" }].map((item) => (
+            {menuLinks.map((item) => (
               <Link
                 key={item.label + item.href}
                 href={item.href}
