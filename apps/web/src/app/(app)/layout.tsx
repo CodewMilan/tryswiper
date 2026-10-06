@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AccountMenu } from "@/components/account-menu";
 import { Mark } from "@/components/mark";
-import { SignOutButton } from "@/components/sign-out-button";
 import { getSessionUser } from "@/lib/session";
 
 const itemClass =
@@ -35,7 +35,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <Link href="/connect" className={itemClass}>
               Connect
             </Link>
-            <SignOutButton className={itemClass} />
+            <AccountMenu links={[{ href: "/pricing", label: "Pricing" }]} fallbackClassName={itemClass} />
           </nav>
         </div>
       </header>
