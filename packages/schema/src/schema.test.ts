@@ -5,6 +5,7 @@ import { FORMATS } from "./formats";
 import { applyOperations } from "./operations";
 import { renderPlanToCarousel } from "./render";
 import { planFromFormat } from "./scaffold";
+import { instantiateCarouselTemplate, instantiateTemplatePlan } from "./template";
 import { validateCarousel } from "./validate";
 import type { CarouselPlan } from "./carousel";
 
@@ -118,4 +119,26 @@ test("validator flags generic AI phrasing", () => {
   const result = validateCarousel(carousel);
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((issue) => issue.code === "GENERIC_COPY"));
+});
+
+test("workspace formats create independent carousel and plan copies", () => {
+  const carousel = renderPlanToCarousel(plan, DEFAULT_THEME);
+  let nextId = 0;
+  const copy = instantiateCarouselTemplate(carousel, {
+    formatId: "fmt_workspace",
+    title: "A fresh draft",
+    newId: (kind) => `${kind}_${++nextId}`,
+  });
+  const copiedPlan = instantiateTemplatePlan(plan, {
+    formatId: "fmt_workspace",
+    title: "A fresh draft",
+  });
+
+  assert.equal(copy.metadata.title, "A fresh draft");
+  assert.equal(copy.metadata.formatId, "fmt_workspace");
+  assert.equal(copiedPlan?.title, "A fresh draft");
+  assert.equal(copiedPlan?.formatId, "fmt_workspace");
+  assert.notEqual(copy.slides[0]?.id, carousel.slides[0]?.id);
+  assert.notEqual(copy.slides[0]?.elements[0]?.id, carousel.slides[0]?.elements[0]?.id);
+  assert.equal(validateCarousel(copy).warnings.some((issue) => issue.code === "UNKNOWN_FORMAT"), false);
 });

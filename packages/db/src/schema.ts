@@ -187,6 +187,32 @@ export const carouselVersion = pgTable("carousel_version", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const workspaceFormat = pgTable(
+  "workspace_format",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    sourceCarouselId: text("source_carousel_id").references(() => carousel.id, {
+      onDelete: "set null",
+    }),
+    contentJson: jsonb("content_json").notNull(),
+    planJson: jsonb("plan_json"),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("workspace_format_workspace_idx").on(table.workspaceId),
+    uniqueIndex("workspace_format_workspace_name_idx").on(table.workspaceId, table.name),
+  ],
+);
+
 export const asset = pgTable(
   "asset",
   {
@@ -238,6 +264,7 @@ export const schema = {
   project,
   carousel,
   carouselVersion,
+  workspaceFormat,
   asset,
   mcpKey,
 };

@@ -8,6 +8,8 @@ import {
   applyOperations,
   DEFAULT_THEME,
   getFormat,
+  instantiateCarouselTemplate,
+  instantiateTemplatePlan,
   parseOperations,
   planFromFormat,
   renderPlanToCarousel,
@@ -24,6 +26,7 @@ import { db } from "../lib/db";
 import { sid } from "../lib/ids";
 import { editorUrl } from "../lib/utils";
 import { getWorkspaceBrand } from "../lib/workspace";
+import { getWorkspaceFormat } from "./workspace-formats";
 
 function themeFromBrand(brand: NonNullable<Awaited<ReturnType<typeof getWorkspaceBrand>>>): Theme {
   return {
@@ -150,15 +153,58 @@ export async function startCarouselFromFormat(input: {
   title?: string;
 }) {
   const format = getFormat(input.formatId);
-  if (!format) {
-    throw Object.assign(new Error("That format is not in the library."), {
-      status: 400,
-      code: "UNKNOWN_FORMAT",
-    });
-  }
   const brandRow = await getWorkspaceBrand(input.auth.workspaceId);
   if (!brandRow) {
     throw Object.assign(new Error("Brand kit missing"), { status: 400, code: "NO_BRAND" });
+  }
+
+  const project = await draftsProject(input.auth);
+  const id = sid("car");
+
+  if (!format) {
+    const workspaceFormat = await getWorkspaceFormat(input.auth, input.formatId);
+    if (!workspaceFormat) {
+      throw Object.assign(new Error("That format is not in your library."), {
+        status: 400,
+        code: "UNKNOWN_FORMAT",
+      });
+    }
+    const title = input.title?.trim() || workspaceFormat.name;
+    const content = instantiateCarouselTemplate(workspaceFormat.contentJson, {
+      formatId: workspaceFormat.id,
+      title,
+      newId: (kind) => sid(kind === "slide" ? "sld" : "el"),
+    });
+    const plan = instantiateTemplatePlan(workspaceFormat.planJson, {
+      formatId: workspaceFormat.id,
+      title,
+    });
+    await db.insert(schema.carousel).values({
+      id,
+      projectId: project.id,
+      title,
+      formatId: workspaceFormat.id,
+      status: "draft",
+      contentJson: content,
+      planJson: plan,
+      createdBy: input.auth.userId,
+    });
+    console.info("carousel_started_from_workspace_format", {
+      carouselId: id,
+      formatId: workspaceFormat.id,
+      workspaceId: input.auth.workspaceId,
+    });
+    return {
+      carousel_id: id,
+      editor_url: editorUrl(id),
+      status: "draft" as const,
+      format_id: workspaceFormat.id,
+      validation: validateCarousel(content, {
+        forbiddenWords: brandRow.wordsToAvoid,
+        allowedProof: brandRow.proofPoints,
+      }),
+      carousel: content,
+    };
   }
 
   const theme = themeFromBrand(brandRow);
@@ -173,8 +219,6 @@ export async function startCarouselFromFormat(input: {
     forbiddenWords: brandRow.wordsToAvoid,
     allowedProof: brandRow.proofPoints,
   });
-  const project = await draftsProject(input.auth);
-  const id = sid("car");
   await db.insert(schema.carousel).values({
     id,
     projectId: project.id,

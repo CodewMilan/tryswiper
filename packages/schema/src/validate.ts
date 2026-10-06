@@ -53,7 +53,7 @@ export function validateCarousel(
   }
 
   const format = getFormat(carousel.metadata.formatId);
-  if (!format) {
+  if (!format && !carousel.metadata.formatId.startsWith("fmt_")) {
     warnings.push({
       code: "UNKNOWN_FORMAT",
       message: `Format ${carousel.metadata.formatId} is not in the official library.`,
