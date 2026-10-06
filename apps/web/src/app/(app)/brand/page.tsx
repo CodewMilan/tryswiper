@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { PageIntro, Settle } from "@/components/page-intro";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -218,23 +219,23 @@ export default function BrandPage() {
 
   if (status === "loading") {
     return (
-      <main className="mx-auto w-full max-w-[1100px] px-6 py-12">
-        <div className="h-8 w-40 animate-pulse rounded-xl bg-secondary" />
+      <main className="mx-auto w-full max-w-[1200px] px-6 py-12">
+        <div className="h-10 w-48 animate-pulse rounded-2xl bg-white" />
         <div className="mt-8 grid gap-4 lg:grid-cols-2">
-          <div className="h-[640px] animate-pulse rounded-[24px] bg-secondary" />
-          <div className="h-[640px] animate-pulse rounded-[24px] bg-secondary" />
+          <div className="h-[640px] animate-pulse rounded-[24px] bg-white" />
+          <div className="h-[640px] animate-pulse rounded-[24px] bg-white" />
         </div>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto w-full max-w-[1100px] px-6 py-12">
-      <h1 className="text-[36px] font-light leading-tight tracking-[-0.03em] text-black">Brand kit</h1>
-      <p className="mt-2 max-w-xl text-[16px] font-light text-ink-soft">
+    <main className="mx-auto w-full max-w-[1200px] px-6 py-12">
+      <PageIntro title="Brand kit">
         The agent receives a compact version of this, not your whole database. New carousels take
         these colors and the heading font.
-      </p>
+      </PageIntro>
+      <Settle>
       <form onSubmit={onSubmit} className="mt-8 grid items-start gap-4 lg:grid-cols-2">
         <section className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
           <h2 className="text-[18px] font-medium tracking-[-0.02em]">Voice</h2>
@@ -405,6 +406,7 @@ export default function BrandPage() {
           </Button>
         </div>
       </form>
+      </Settle>
     </main>
   );
 }

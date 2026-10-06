@@ -33,6 +33,11 @@ Second path:
 
 MCP connection → agent creates carousel → editor opens → edit → export.
 
+Workspace format path:
+
+Create or edit carousel → save as workspace format → open New carousel → select saved format →
+create an independent draft with fresh slide and element IDs.
+
 ## Visual regression
 
 Render representative templates at fixed dimensions and compare snapshots.

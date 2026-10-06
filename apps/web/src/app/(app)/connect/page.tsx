@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { PageIntro, Settle } from "@/components/page-intro";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -133,53 +133,50 @@ export default function ConnectPage() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-6 py-12">
-      <h1 className="text-[36px] font-light leading-tight tracking-[-0.03em] text-black">
-        Connect an agent
-      </h1>
-      <p className="mt-2 text-[16px] font-light text-ink-soft">
+    <main className="mx-auto w-full max-w-[800px] px-6 py-12">
+      <PageIntro title="Connect an agent">
         Mint a key, add Swiper to Cursor or Claude, then ask for a carousel. Or{" "}
-        <Link href="/new" className="text-foreground underline underline-offset-4 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <Link href="/new" className="text-black underline decoration-black/20 underline-offset-4 motion-safe:transition-colors motion-safe:duration-150 hover:text-accent hover:decoration-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           start one in the browser
         </Link>.
-      </p>
+      </PageIntro>
 
       {loading ? (
         <div className="mt-8 space-y-4" aria-busy="true">
-          <div className="h-32 animate-pulse rounded-xl bg-secondary" />
-          <div className="h-48 animate-pulse rounded-xl bg-secondary" />
+          <div className="h-36 animate-pulse rounded-[24px] bg-white" />
+          <div className="h-48 animate-pulse rounded-[24px] bg-white" />
         </div>
       ) : null}
 
       {error ? (
-        <Card className="mt-6 p-4">
+        <div className="mt-6 rounded-[24px] border border-black/8 bg-white p-6">
           <p className="text-sm text-destructive">{error}</p>
-          <Button className="mt-3" variant="outline" onClick={() => void load()}>
+          <Button className="mt-4" variant="outline" onClick={() => void load()}>
             Retry
           </Button>
-        </Card>
+        </div>
       ) : null}
 
       {!loading ? (
-        <div className="mt-8 space-y-6">
-          <Card className="p-5">
-            <h2 className="font-medium">1. Brand kit</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
+        <Settle className="mt-8 space-y-4">
+          <section className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
+            <h2 className="text-[18px] font-medium tracking-[-0.02em]">1. Brand kit</h2>
+            <p className="mt-2 text-[15px] font-light leading-6 text-ink-soft">
               {brand?.description
                 ? `${brand.name ?? "Product"} is ready for the agent.`
                 : "Add a product description so the agent is not guessing."}
             </p>
             <Link
               href="/brand"
-              className="mt-4 inline-flex min-h-10 items-center rounded-md border border-border px-4 text-sm font-medium hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-5 inline-flex min-h-10 items-center rounded-[14px] border border-black/10 bg-white px-4 text-sm font-medium motion-safe:transition-colors motion-safe:duration-150 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {brand?.description ? "Edit brand" : "Add brand context"}
             </Link>
-          </Card>
+          </section>
 
-          <Card className="p-5">
-            <h2 className="font-medium">2. MCP key</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
+          <section className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
+            <h2 className="text-[18px] font-medium tracking-[-0.02em]">2. MCP key</h2>
+            <p className="mt-2 text-[15px] font-light leading-6 text-ink-soft">
               Keys are hashed at rest. You only see the full value once.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
@@ -193,7 +190,7 @@ export default function ConnectPage() {
                 <Input id="fresh-key" readOnly value={freshKey} />
               </div>
             ) : null}
-            <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
+            <ul className="mt-4 space-y-2 text-[14px] font-light text-ink-soft">
               {keys.filter((key) => !key.revokedAt).length === 0 ? (
                 <li>No active keys yet.</li>
               ) : (
@@ -207,14 +204,14 @@ export default function ConnectPage() {
                   ))
               )}
             </ul>
-          </Card>
+          </section>
 
-          <Card className="p-5">
-            <h2 className="font-medium">3. Cursor config</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
+          <section className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
+            <h2 className="text-[18px] font-medium tracking-[-0.02em]">3. Cursor config</h2>
+            <p className="mt-2 text-[15px] font-light leading-6 text-ink-soft">
               Run Cursor from the Swiper repo root. API URL is {origin}.
             </p>
-            <pre className="mt-4 overflow-x-auto rounded-lg bg-secondary p-4 text-xs leading-6">
+            <pre className="mt-4 overflow-x-auto rounded-2xl bg-[#f7f7f6] p-4 font-mono text-[12px] leading-6 text-black">
               {snippet}
             </pre>
             <Button
@@ -228,37 +225,38 @@ export default function ConnectPage() {
             >
               {copied ? "Copied" : "Copy config"}
             </Button>
-            <p className="mt-4 text-sm text-muted-foreground">
+            <p className="mt-4 text-[14px] font-light text-ink-soft">
               Then ask: “Make a carousel explaining why we’re different.”
             </p>
-          </Card>
+          </section>
 
-          <section>
-            <h2 className="font-medium">Recent carousels</h2>
+          <section className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
+            <h2 className="text-[18px] font-medium tracking-[-0.02em]">Recent carousels</h2>
             {carousels.length === 0 ? (
-              <p className="mt-2 text-sm text-muted-foreground">
+              <p className="mt-2 text-[15px] font-light leading-6 text-ink-soft">
                 None yet.{" "}
-                <Link href="/new" className="text-foreground underline underline-offset-4 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <Link href="/new" className="text-black underline decoration-black/20 underline-offset-4 motion-safe:transition-colors motion-safe:duration-150 hover:text-accent hover:decoration-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   Start one from a format
-                </Link>, or wait for the agent.
+                </Link>
+                , or wait for the agent.
               </p>
             ) : (
-              <ul className="mt-3 space-y-2">
+              <ul className="mt-4 space-y-2">
                 {carousels.map((carousel) => (
                   <li key={carousel.id}>
                     <Link
                       href={`/c/${carousel.id}`}
-                      className="flex min-h-10 items-center justify-between rounded-lg border border-border px-4 py-2 text-sm hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="flex min-h-11 items-center justify-between rounded-2xl px-3 py-2 text-[15px] font-light motion-safe:transition-colors motion-safe:duration-150 hover:bg-[#f7f7f6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      <span>{carousel.title}</span>
-                      <span className="text-muted-foreground">{carousel.format_id}</span>
+                      <span className="text-black">{carousel.title}</span>
+                      <span className="font-mono text-[12px] text-ink-faint">{carousel.format_id}</span>
                     </Link>
                   </li>
                 ))}
               </ul>
             )}
           </section>
-        </div>
+        </Settle>
       ) : null}
     </main>
   );

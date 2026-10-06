@@ -211,5 +211,6 @@ export function useCarousel(carouselId: string) {
     reload,
     mutate,
     undo,
+    settle,
   };
 }

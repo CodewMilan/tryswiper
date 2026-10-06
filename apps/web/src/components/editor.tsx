@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { CarouselElement, Slide } from "@swiper/schema";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Inspector, uploadImage, type UploadedAsset } from "@/components/editor/inspector";
 import { SlideCanvas } from "@/components/editor/slide-canvas";
 import { SlideRail } from "@/components/editor/slide-rail";
@@ -23,12 +26,19 @@ export function Editor({ carouselId }: { carouselId: string }) {
     reload,
     mutate,
     undo,
+    settle,
   } = useCarousel(carouselId);
 
   const [index, setIndex] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<"png" | "pdf" | null>(null);
   const [adding, setAdding] = useState(false);
+  const [showFormatForm, setShowFormatForm] = useState(false);
+  const [formatName, setFormatName] = useState("");
+  const [formatDescription, setFormatDescription] = useState("");
+  const [formatSaving, setFormatSaving] = useState(false);
+  const [formatError, setFormatError] = useState<string | null>(null);
+  const [formatNotice, setFormatNotice] = useState<string | null>(null);
   const addFileRef = useRef<HTMLInputElement | null>(null);
 
   // Deleting a slide can leave the index past the end.
@@ -132,6 +142,41 @@ export function Editor({ carouselId }: { carouselId: string }) {
     }
   }
 
+  async function saveAsFormat(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!formatName.trim() || formatSaving) return;
+    setFormatSaving(true);
+    setFormatError(null);
+    setFormatNotice(null);
+    try {
+      if (!(await settle())) {
+        throw new Error("Your latest edits are still saving. Try again in a moment.");
+      }
+      const response = await fetch("/api/v1/formats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          carousel_id: carouselId,
+          name: formatName.trim(),
+          description: formatDescription.trim() || undefined,
+        }),
+      });
+      const body = (await response.json()) as { format?: { name?: string } | null; message?: string };
+      if (!response.ok || !body.format) {
+        throw new Error(body.message ?? "Could not save this format.");
+      }
+      const savedName = body.format.name ?? formatName.trim();
+      setFormatNotice(`“${savedName}” is ready in your workspace formats.`);
+      setShowFormatForm(false);
+      setFormatName("");
+      setFormatDescription("");
+    } catch (error) {
+      setFormatError(error instanceof Error ? error.message : "Could not save this format.");
+    } finally {
+      setFormatSaving(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-full items-center justify-center">
@@ -209,6 +254,19 @@ export function Editor({ carouselId }: { carouselId: string }) {
             >
               {adding ? "Adding…" : "Add image"}
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              aria-expanded={showFormatForm}
+              onClick={() => {
+                setShowFormatForm((open) => !open);
+                setFormatError(null);
+                setFormatNotice(null);
+                if (!formatName && meta.title) setFormatName(`${meta.title} format`);
+              }}
+            >
+              Save as format
+            </Button>
             <input
               ref={addFileRef}
               type="file"
@@ -238,6 +296,60 @@ export function Editor({ carouselId }: { carouselId: string }) {
             </Button>
           </div>
         </div>
+        {showFormatForm ? (
+          <form
+            onSubmit={saveAsFormat}
+            className="border-b border-border bg-card px-4 py-4"
+            aria-label="Save carousel as workspace format"
+          >
+            <div className="mx-auto grid max-w-3xl gap-4 md:grid-cols-[1fr_1.4fr_auto] md:items-end">
+              <div>
+                <Label htmlFor="format-name">Format name</Label>
+                <Input
+                  id="format-name"
+                  value={formatName}
+                  onChange={(event) => setFormatName(event.target.value)}
+                  className="mt-2"
+                  maxLength={80}
+                  autoComplete="off"
+                  required
+                  aria-invalid={formatError ? "true" : undefined}
+                  aria-describedby={formatError ? "format-save-error" : undefined}
+                />
+              </div>
+              <div>
+                <Label htmlFor="format-description">Description <span className="font-light text-ink-soft">(optional)</span></Label>
+                <Textarea
+                  id="format-description"
+                  value={formatDescription}
+                  onChange={(event) => setFormatDescription(event.target.value)}
+                  className="mt-2 min-h-11 resize-none"
+                  rows={1}
+                  maxLength={240}
+                  placeholder="When should your team use this?"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button type="button" variant="ghost" onClick={() => setShowFormatForm(false)} disabled={formatSaving}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={formatSaving || formatName.trim().length < 2} aria-busy={formatSaving}>
+                  {formatSaving ? "Saving…" : "Save format"}
+                </Button>
+              </div>
+            </div>
+            {formatError ? (
+              <p id="format-save-error" className="mx-auto mt-3 max-w-3xl text-sm text-destructive" role="alert">
+                {formatError}
+              </p>
+            ) : null}
+          </form>
+        ) : null}
+        {formatNotice ? (
+          <div className="border-b border-border bg-card px-4 py-3 text-center text-sm text-ink-soft" role="status">
+            {formatNotice} <Link href="/new" className="font-medium text-foreground underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Use it now</Link>
+          </div>
+        ) : null}
         <div className="flex flex-1 items-center justify-center overflow-auto p-6">
           {slide ? (
             <SlideCanvas

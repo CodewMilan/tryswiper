@@ -29,9 +29,20 @@ Use REST for MVP. Keep contracts typed.
 
 ## Templates
 
-`GET /v1/formats`
+`GET /v1/formats` — list official formats and formats saved in the authenticated workspace
+`POST /v1/formats` — save an authorized carousel as a reusable workspace format
 `GET /v1/templates`
 `POST /v1/templates`
+
+Create-format body:
+
+```json
+{
+  "carousel_id": "car_...",
+  "name": "Customer proof story",
+  "description": "Use after a launch to turn proof points into a short narrative."
+}
+```
 
 ## Assets
 

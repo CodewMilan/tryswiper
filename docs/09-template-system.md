@@ -56,6 +56,16 @@ Separate:
 - user-created templates
 - imported references
 
+## Workspace formats
+
+Any editable carousel can be saved as a workspace format from the editor. The saved format keeps
+the carousel's slide order, roles, layouts, element positions, copy, assets, and visual theme.
+Starting from it creates a new draft with fresh slide and element IDs, so later edits never mutate
+the saved source or other carousels created from it.
+
+Workspace formats are private to the authenticated workspace. They appear alongside the official
+library in the browser's **New carousel** flow and can be reused without an agent connection.
+
 ## Originality
 
 When a user references another post, extract high-level format characteristics rather than copying text, images, or distinctive creative expression.

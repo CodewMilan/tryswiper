@@ -127,7 +127,7 @@ test("workspace formats create independent carousel and plan copies", () => {
   const copy = instantiateCarouselTemplate(carousel, {
     formatId: "fmt_workspace",
     title: "A fresh draft",
-    newId: (kind) => `${kind}_${++nextId}`,
+    newId: (kind) => `copy_${kind}_${++nextId}`,
   });
   const copiedPlan = instantiateTemplatePlan(plan, {
     formatId: "fmt_workspace",

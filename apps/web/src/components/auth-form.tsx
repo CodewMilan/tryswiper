@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SiteNav } from "@/components/site-nav";
+import { Magnetic } from "@/components/motion/magnetic";
 import { FadeUp, SoftBlurIn } from "@/components/motion/soft-blur-in";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,9 +106,11 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
                   {error}
                 </p>
               ) : null}
-              <Button type="submit" className="w-full" disabled={pending}>
-                {pending ? "Working…" : mode === "signup" ? "Create account" : "Sign in"}
-              </Button>
+              <Magnetic strength={0.16} className="w-full">
+                <Button type="submit" className="w-full" disabled={pending}>
+                  {pending ? "Working…" : mode === "signup" ? "Create account" : "Sign in"}
+                </Button>
+              </Magnetic>
             </form>
             <p className="mt-6 text-sm font-light text-ink-soft">
               {mode === "signup" ? (

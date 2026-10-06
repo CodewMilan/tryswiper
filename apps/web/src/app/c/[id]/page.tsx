@@ -6,5 +6,9 @@ export default async function CarouselPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <Editor carouselId={id} />;
+  return (
+    <div className="hero-grid min-h-full">
+      <Editor carouselId={id} />
+    </div>
+  );
 }
