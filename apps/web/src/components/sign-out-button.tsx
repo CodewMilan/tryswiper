@@ -1,11 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useClerk } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
-import { authClient } from "@/lib/auth-client";
 
 export function SignOutButton({ className }: { className?: string }) {
-  const router = useRouter();
+  const clerk = useClerk();
   return (
     <button
       type="button"
@@ -14,14 +13,7 @@ export function SignOutButton({ className }: { className?: string }) {
         className,
       )}
       onClick={() => {
-        void authClient.signOut({
-          fetchOptions: {
-            onSuccess: () => {
-              router.push("/");
-              router.refresh();
-            },
-          },
-        });
+        void clerk.signOut({ redirectUrl: "/" });
       }}
     >
       Sign out

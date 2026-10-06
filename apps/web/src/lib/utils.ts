@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function appUrl() {
-  const url = process.env.APP_URL ?? process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL;
+  const url = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL;
   if (url) return url.replace(/\/$/, "");
   if (process.env.NODE_ENV === "production") {
     throw new Error("APP_URL is not set");

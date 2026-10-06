@@ -2,8 +2,7 @@ import { eq, and, isNull } from "drizzle-orm";
 import { schema } from "@swiper/db";
 import { db } from "./db";
 import { hashMcpKey } from "./ids";
-import { auth } from "./auth";
-import { ensureWorkspace } from "./workspace";
+import { getSessionUser } from "./session";
 
 export type AuthContext = {
   userId: string;
@@ -46,16 +45,15 @@ export async function requireAuth(request: Request): Promise<AuthContext> {
     return { userId: row.userId, workspaceId: row.workspaceId, source: "api_key" };
   }
 
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user) {
+  const session = await getSessionUser();
+  if (!session) {
     throw Object.assign(new Error("Sign in required"), { status: 401, code: "UNAUTHORIZED" });
   }
 
-  const workspaceId = await ensureWorkspace(session.user.id, session.user.name);
-  await verifyMembership(request, session.user.id, workspaceId);
+  await verifyMembership(request, session.userId, session.workspaceId);
   return {
-    userId: session.user.id,
-    workspaceId,
+    userId: session.userId,
+    workspaceId: session.workspaceId,
     source: "session",
   };
 }

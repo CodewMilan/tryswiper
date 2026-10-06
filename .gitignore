@@ -13,5 +13,6 @@ coverage
 apps/web/.next
 apps/mcp/dist
 apps/web/.next-e2e
+apps/web/.next-guard
 apps/web/test-results
 apps/web/playwright-report

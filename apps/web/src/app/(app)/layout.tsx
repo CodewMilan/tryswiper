@@ -1,17 +1,16 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Mark } from "@/components/mark";
 import { SignOutButton } from "@/components/sign-out-button";
-import { auth } from "@/lib/auth";
+import { getSessionUser } from "@/lib/session";
 
 const itemClass =
   "inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-lg px-2.5 text-[13px] font-light tracking-[-0.01em] text-white/90 motion-safe:transition-colors motion-safe:duration-150 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 sm:px-3 sm:text-[14px]";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
+  const session = await getSessionUser();
+  if (!session) {
     redirect("/login");
   }
 

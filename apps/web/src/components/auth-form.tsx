@@ -1,48 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth, useSignIn } from "@clerk/nextjs";
+import { GithubLogo, GoogleLogo } from "@phosphor-icons/react";
 import { SiteNav } from "@/components/site-nav";
 import { Magnetic } from "@/components/motion/magnetic";
 import { FadeUp, SoftBlurIn } from "@/components/motion/soft-blur-in";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { authClient } from "@/lib/auth-client";
+import { safeNextPath } from "@/lib/paths";
+
+const providers = [
+  { strategy: "oauth_google", label: "Continue with Google", icon: GoogleLogo },
+  { strategy: "oauth_github", label: "Continue with GitHub", icon: GithubLogo },
+] as const;
 
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/connect";
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const next = searchParams.get("next") ?? searchParams.get("redirect_url");
+  const destination = safeNextPath(next);
   const [ready, setReady] = useState(false);
+  const configured = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+  const otherHref = mode === "signup" ? "/login" : "/signup";
+  const otherWithNext = next ? `${otherHref}?next=${encodeURIComponent(next)}` : otherHref;
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setReady(true));
     return () => window.cancelAnimationFrame(frame);
   }, []);
-
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    setPending(true);
-    setError(null);
-    const result =
-      mode === "signup"
-        ? await authClient.signUp.email({ name, email, password })
-        : await authClient.signIn.email({ email, password });
-    setPending(false);
-    if (result.error) {
-      setError(result.error.message ?? "Could not authenticate.");
-      return;
-    }
-    router.push(next);
-    router.refresh();
-  }
 
   return (
     <div className="hero-grid min-h-full">
@@ -52,9 +38,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           <div className="rounded-[24px] border border-black/8 bg-white px-6 py-8 sm:px-8">
             <h1 className="text-[32px] font-light leading-tight tracking-[-0.03em] text-black">
               <SoftBlurIn
-                segments={[
-                  { text: mode === "signup" ? "Create your workspace" : "Sign in" },
-                ]}
+                segments={[{ text: mode === "signup" ? "Create your workspace" : "Sign in" }]}
               />
             </h1>
             <p className="mt-2 text-[15px] font-light leading-6 text-ink-soft">
@@ -62,68 +46,34 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
                 ? "Then connect an agent. The editor is there when you want to change a line."
                 : "Pick up the carousel your agent already started."}
             </p>
-            <form onSubmit={onSubmit} className="mt-8 space-y-4">
-              {mode === "signup" ? (
-                <div className="space-y-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    autoComplete="name"
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    required
-                  />
-                </div>
-              ) : null}
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  minLength={8}
-                  required
-                />
-              </div>
-              {error ? (
-                <p className="text-sm text-destructive" role="alert">
-                  {error}
+            <div className="mt-8 space-y-3">
+              {configured ? (
+                <SocialSignIn destination={destination} />
+              ) : (
+                <p className="text-sm text-ink-soft">
+                  Add your Clerk keys to <span className="font-mono text-xs">.env</span>, then restart.
+                  Google and GitHub both need to be enabled in the Clerk dashboard.
                 </p>
-              ) : null}
-              <Magnetic strength={0.16} className="w-full">
-                <Button type="submit" className="w-full" disabled={pending}>
-                  {pending ? "Working…" : mode === "signup" ? "Create account" : "Sign in"}
-                </Button>
-              </Magnetic>
-            </form>
+              )}
+            </div>
             <p className="mt-6 text-sm font-light text-ink-soft">
               {mode === "signup" ? (
                 <>
                   Already have an account?{" "}
-                  <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <Link
+                    href={otherWithNext}
+                    className="font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
                     Sign in
                   </Link>
                 </>
               ) : (
                 <>
                   New here?{" "}
-                  <Link href="/signup" className="font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <Link
+                    href={otherWithNext}
+                    className="font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
                     Create an account
                   </Link>
                 </>
@@ -133,5 +83,59 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         </FadeUp>
       </div>
     </div>
+  );
+}
+
+function SocialSignIn({ destination }: { destination: string }) {
+  const router = useRouter();
+  const { isLoaded, isSignedIn } = useAuth();
+  const { signIn } = useSignIn();
+  const [pending, setPending] = useState<(typeof providers)[number]["strategy"] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn) router.replace(destination);
+  }, [destination, isLoaded, isSignedIn, router]);
+
+  async function start(strategy: (typeof providers)[number]["strategy"]) {
+    setPending(strategy);
+    setError(null);
+    sessionStorage.setItem("swiper-next", destination);
+    const { error: signInError } = await signIn.sso({
+      strategy,
+      redirectUrl: destination,
+      redirectCallbackUrl: "/sso-callback",
+    });
+    if (signInError) {
+      setPending(null);
+      setError(signInError.longMessage || signInError.message || "Could not sign in.");
+    }
+  }
+
+  if (isLoaded && isSignedIn) return null;
+
+  return (
+    <>
+      {providers.map((provider) => {
+        const Icon = provider.icon;
+        return (
+          <Magnetic key={provider.strategy} strength={0.16} className="w-full">
+            <Button
+              className="w-full"
+              disabled={pending !== null}
+              onClick={() => void start(provider.strategy)}
+            >
+              <Icon size={18} weight="bold" />
+              {pending === provider.strategy ? "Redirecting…" : provider.label}
+            </Button>
+          </Magnetic>
+        );
+      })}
+      {error ? (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </>
   );
 }

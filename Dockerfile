@@ -21,9 +21,11 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
+# The publishable key is baked into the browser bundle. Pass the real one at build time.
+ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
+ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 RUN DATABASE_URL=postgres://swiper:swiper@127.0.0.1:5432/swiper \
-    BETTER_AUTH_SECRET=build-only-secret-not-used-at-runtime \
-    BETTER_AUTH_URL=http://127.0.0.1:3000 \
+    CLERK_SECRET_KEY=sk_test_buildplaceholder \
     APP_URL=http://127.0.0.1:3000 \
     pnpm --filter @swiper/web build
 

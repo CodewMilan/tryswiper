@@ -67,8 +67,8 @@ The web app is one Node process plus Postgres. Export rendering uses native canv
 docker build -t swiper .
 docker run --rm -p 3000:3000 \
   -e DATABASE_URL="postgres://USER:PASSWORD@HOST:5432/swiper?sslmode=require" \
-  -e BETTER_AUTH_SECRET="$(openssl rand -base64 32)" \
-  -e BETTER_AUTH_URL="https://your-domain" \
+  -e NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_live_..." \
+  -e CLERK_SECRET_KEY="sk_live_..." \
   -e APP_URL="https://your-domain" \
   swiper
 ```

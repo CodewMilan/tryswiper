@@ -10,6 +10,13 @@ export default defineConfig({
     command: process.env.E2E_PRODUCTION ? "pnpm exec next start --port 3101" : "pnpm exec next dev --webpack --port 3101",
     url: "http://localhost:3101/api/health",
     timeout: 120000,
-    env: { SWIPER_BUILD_DIR: process.env.E2E_PRODUCTION ? ".next" : ".next-e2e", BETTER_AUTH_URL: "http://localhost:3101", APP_URL: "http://localhost:3101", NEXT_PUBLIC_APP_URL: "http://localhost:3101" },
+    env: {
+      SWIPER_BUILD_DIR: process.env.E2E_PRODUCTION ? ".next" : ".next-e2e",
+      APP_URL: "http://localhost:3101",
+      NEXT_PUBLIC_APP_URL: "http://localhost:3101",
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_Y2xlcmsuZXhhbXBsZS5jb20k",
+      CLERK_SECRET_KEY: "sk_test_ciplaceholder",
+      SWIPER_E2E: "1",
+    },
   },
 });

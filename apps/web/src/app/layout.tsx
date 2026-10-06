@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
 const inter = localFont({
@@ -29,7 +30,20 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       data-scroll-behavior="smooth"
       className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col font-sans">{children}</body>
+      <body className="flex min-h-full flex-col font-sans">
+        {process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? (
+          <ClerkProvider
+            signInUrl="/login"
+            signUpUrl="/signup"
+            signInFallbackRedirectUrl="/connect"
+            signUpFallbackRedirectUrl="/connect"
+          >
+            {children}
+          </ClerkProvider>
+        ) : (
+          children
+        )}
+      </body>
     </html>
   );
 }

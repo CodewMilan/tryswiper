@@ -23,8 +23,8 @@ Images and logos live in Postgres (`asset.data`). Back up the database. There is
 See `.env.example`.
 
 - `DATABASE_URL` — include `sslmode=require` for managed Postgres. Use the pooled URL when the host has one. The driver disables prepared statements so transaction poolers work.
-- `BETTER_AUTH_SECRET` — at least 32 random characters. The placeholder in `.env.example` is rejected when `NODE_ENV=production`.
-- `BETTER_AUTH_URL` and `APP_URL` — public origin, no trailing slash. Production must be `https://`. These are read at runtime, not baked into the image.
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` — from the Clerk dashboard. The publishable key is read when the image is built (`docker build --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...`). Enable Google and GitHub under SSO connections.
+- `APP_URL` — public origin, no trailing slash. Production must be `https://`. Read at runtime.
 - `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` — optional. Without them, generation uses the local planner.
 
 `NEXT_PUBLIC_APP_URL` is optional. Leave it unset in the image so the browser uses the origin it loaded.
