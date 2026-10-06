@@ -11,6 +11,15 @@ export type AuthContext = {
   source: "session" | "api_key";
 };
 
+async function verifyMembership(request: Request, userId: string, workspaceId: string) {
+  const [member] = await db.select({ role: schema.membership.role }).from(schema.membership)
+    .where(and(eq(schema.membership.userId, userId), eq(schema.membership.workspaceId, workspaceId))).limit(1);
+  if (!member) throw Object.assign(new Error("Workspace access denied"), { status: 403, code: "FORBIDDEN" });
+  if (!["GET", "HEAD", "OPTIONS"].includes(request.method) && !["owner", "admin", "editor"].includes(member.role)) {
+    throw Object.assign(new Error("You need editor access to make changes."), { status: 403, code: "READ_ONLY" });
+  }
+}
+
 export async function requireAuth(request: Request): Promise<AuthContext> {
   const header = request.headers.get("authorization");
   if (header?.startsWith("Bearer ")) {
@@ -29,6 +38,7 @@ export async function requireAuth(request: Request): Promise<AuthContext> {
     if (!row) {
       throw Object.assign(new Error("Invalid API key"), { status: 401, code: "UNAUTHORIZED" });
     }
+    await verifyMembership(request, row.userId, row.workspaceId);
     await db
       .update(schema.mcpKey)
       .set({ lastUsedAt: new Date() })
@@ -42,6 +52,7 @@ export async function requireAuth(request: Request): Promise<AuthContext> {
   }
 
   const workspaceId = await ensureWorkspace(session.user.id, session.user.name);
+  await verifyMembership(request, session.user.id, workspaceId);
   return {
     userId: session.user.id,
     workspaceId,

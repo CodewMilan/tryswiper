@@ -6,4 +6,5 @@ export * from "./quality";
 export * from "./render";
 export * from "./scaffold";
 export * from "./template";
+export * from "./fonts";
 export * from "./validate";

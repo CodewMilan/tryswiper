@@ -6,6 +6,7 @@ import {
 } from "@swiper/ai";
 import {
   applyOperations,
+  carouselFontFamily,
   DEFAULT_THEME,
   getFormat,
   instantiateCarouselTemplate,
@@ -27,6 +28,7 @@ import { sid } from "../lib/ids";
 import { editorUrl } from "../lib/utils";
 import { getWorkspaceBrand } from "../lib/workspace";
 import { getWorkspaceFormat } from "./workspace-formats";
+import { getAsset } from "./assets";
 
 function themeFromBrand(brand: NonNullable<Awaited<ReturnType<typeof getWorkspaceBrand>>>): Theme {
   return {
@@ -34,7 +36,8 @@ function themeFromBrand(brand: NonNullable<Awaited<ReturnType<typeof getWorkspac
     primary: brand.colors.primary ?? DEFAULT_THEME.primary,
     secondary: brand.colors.secondary ?? DEFAULT_THEME.secondary,
     accent: brand.colors.accent ?? DEFAULT_THEME.accent,
-    fontFamily: brand.fonts.heading ?? DEFAULT_THEME.fontFamily,
+    fontFamily: carouselFontFamily(brand.fonts.heading),
+    bodyFontFamily: carouselFontFamily(brand.fonts.body),
   };
 }
 
@@ -56,6 +59,16 @@ function toBrandContext(
     fonts: brand.fonts,
     hasLogo: Boolean(brand.logoAssetId),
   };
+}
+
+function addBrandLogo(content: Carousel, assetId: string | null) {
+  if (!assetId) return;
+  for (const slide of content.slides) {
+    slide.elements.push({
+      id: sid("el"), type: "logo", assetId, src: `/api/v1/assets/${assetId}`,
+      x: 850, y: 68, width: 150, height: 64,
+    });
+  }
 }
 
 async function snapshot(carouselId: string, version: number, content: unknown, plan: unknown) {
@@ -125,6 +138,7 @@ export async function generateCarousel(input: {
     allowedProof: brand.proofPoints,
   });
   const project = await agentProject(input.auth);
+  addBrandLogo(result.carousel, brandRow.logoAssetId);
   const id = sid("car");
   await db.insert(schema.carousel).values({
     id,
@@ -219,6 +233,7 @@ export async function startCarouselFromFormat(input: {
     forbiddenWords: brandRow.wordsToAvoid,
     allowedProof: brandRow.proofPoints,
   });
+  addBrandLogo(result.carousel, brandRow.logoAssetId);
   await db.insert(schema.carousel).values({
     id,
     projectId: project.id,
@@ -297,9 +312,13 @@ export async function undoDepth(carouselId: string) {
 }
 
 /** Restores the newest snapshot and drops it, so repeated calls walk the history back. */
-export async function undoCarousel(authContext: AuthContext, id: string) {
-  const current = await getCarousel(authContext, id);
-  const previous = await db
+export async function undoCarousel(authContext: AuthContext, id: string, expectedVersion?: number) {
+  await getCarousel(authContext, id);
+  return db.transaction(async (tx) => {
+  const [current] = await tx.select().from(schema.carousel).where(eq(schema.carousel.id, id)).for("update");
+  if (!current) throw Object.assign(new Error("Carousel not found"), { status: 404 });
+  if (expectedVersion !== undefined && current.version !== expectedVersion) throw Object.assign(new Error("Carousel changed elsewhere. Reload before undoing."), { status: 409 });
+  const previous = await tx
     .select()
     .from(schema.carouselVersion)
     .where(eq(schema.carouselVersion.carouselId, id))
@@ -314,69 +333,71 @@ export async function undoCarousel(authContext: AuthContext, id: string) {
   }
 
   const nextVersion = current.version + 1;
-  await db
+  await tx
     .update(schema.carousel)
     .set({
       contentJson: snapshotRow.contentJson,
+      title: (snapshotRow.contentJson as Carousel).metadata.title,
+      lastMutationId: null,
       planJson: snapshotRow.planJson,
       version: nextVersion,
       updatedAt: new Date(),
     })
     .where(eq(schema.carousel.id, id));
-  await db.delete(schema.carouselVersion).where(eq(schema.carouselVersion.id, snapshotRow.id));
+  await tx.delete(schema.carouselVersion).where(eq(schema.carouselVersion.id, snapshotRow.id));
+  const [depth] = await tx.select({ count: count() }).from(schema.carouselVersion).where(eq(schema.carouselVersion.carouselId, id));
 
   const content = snapshotRow.contentJson as Carousel;
   return {
     carousel_id: id,
     editor_url: editorUrl(id),
     version: nextVersion,
-    undo_count: await undoDepth(id),
+    undo_count: depth?.count ?? 0,
     validation: validateCarousel(content),
     carousel: content,
   };
+  });
 }
 
 export async function updateCarousel(
   authContext: AuthContext,
   id: string,
   operations: unknown[],
+  expectedVersion?: number,
+  mutationId?: string,
 ) {
   const parsed = parseOperations(operations);
-  if (!parsed) {
+  if (!parsed || !parsed.length || parsed.length > 500 || (expectedVersion !== undefined && (!Number.isInteger(expectedVersion) || expectedVersion < 1)) || (mutationId !== undefined && (typeof mutationId !== "string" || mutationId.length > 100))) {
     throw Object.assign(new Error("That edit is not a supported operation"), {
       status: 400,
       code: "INVALID_OPERATION",
     });
   }
-  const current = await getCarousel(authContext, id);
-  await snapshot(current.id, current.version, current.contentJson, current.planJson);
-  let content: Carousel;
-  try {
-    content = applyOperations(current.contentJson as Carousel, parsed as CarouselOperation[]);
-  } catch {
-    throw Object.assign(new Error("That edit would leave the carousel in an invalid state"), {
-      status: 400,
-      code: "INVALID_OPERATION",
-    });
-  }
-  const validation = validateCarousel(content);
-  const nextVersion = current.version + 1;
-  await db
-    .update(schema.carousel)
-    .set({
-      contentJson: content,
-      version: nextVersion,
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.carousel.id, id));
-  return {
-    carousel_id: id,
-    editor_url: editorUrl(id),
-    version: nextVersion,
-    undo_count: await undoDepth(id),
-    validation,
-    carousel: content,
-  };
+  await getCarousel(authContext, id);
+  return db.transaction(async (tx) => {
+    const [current] = await tx.select().from(schema.carousel).where(eq(schema.carousel.id, id)).for("update");
+    if (!current) throw Object.assign(new Error("Carousel not found"), { status: 404 });
+    if (mutationId && current.lastMutationId === mutationId) {
+      return { carousel_id: id, version: current.version, carousel: current.contentJson, undo_count: await undoDepth(id) };
+    }
+    if (expectedVersion !== undefined && current.version !== expectedVersion) {
+      throw Object.assign(new Error("This carousel changed in another tab. Review the latest version before saving."), { status: 409, code: "VERSION_CONFLICT" });
+    }
+    let content: Carousel;
+    try {
+      content = applyOperations(current.contentJson as Carousel, parsed as CarouselOperation[]);
+    } catch {
+      throw Object.assign(new Error("That edit would leave the carousel in an invalid state"), { status: 400, code: "INVALID_OPERATION" });
+    }
+    for (const assetId of new Set(content.slides.flatMap((slide) => slide.elements.flatMap((element) => element.assetId ? [element.assetId] : [])))) {
+      await getAsset(authContext, assetId);
+    }
+    await tx.insert(schema.carouselVersion).values({ id: sid("ver"), carouselId: id, version: current.version, contentJson: current.contentJson, planJson: current.planJson });
+    const nextVersion = current.version + 1;
+    await tx.update(schema.carousel).set({ contentJson: content, title: content.metadata.title, version: nextVersion, lastMutationId: mutationId ?? null, updatedAt: new Date() }).where(eq(schema.carousel.id, id));
+    const [depth] = await tx.select({ count: count() }).from(schema.carouselVersion).where(eq(schema.carouselVersion.carouselId, id));
+    return { carousel_id: id, editor_url: editorUrl(id), version: nextVersion, undo_count: depth?.count ?? 0, validation: validateCarousel(content), carousel: content };
+  });
 }
 
 export async function generateSlide(

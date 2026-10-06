@@ -1,216 +1,214 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { applyOperations, type Carousel, type CarouselOperation } from "@swiper/schema";
+import { applyOperations, parseOperations, type Carousel, type CarouselOperation } from "@swiper/schema";
 
-export type SaveState = "idle" | "saving" | "saved" | "error";
-
-type Meta = { title: string; formatId: string; version: number };
-
+type Batch = { id: string; operations: CarouselOperation[]; version?: number };
 type Payload = {
-  title: string;
-  format_id: string;
-  version: number;
-  undo_count?: number;
-  carousel: Carousel;
-  message?: string;
+  title?: string; format_id?: string; version: number; undo_count?: number;
+  last_mutation_id?: string; carousel: Carousel; message?: string;
 };
-
-const DEBOUNCE_MS = 700;
-const RETRY_MS = 3000;
+export type SaveState = "idle" | "saving" | "saved" | "error";
 
 export function useCarousel(carouselId: string) {
   const [doc, setDoc] = useState<Carousel | null>(null);
-  const [meta, setMeta] = useState<Meta | null>(null);
+  const [meta, setMeta] = useState<{ title: string; formatId: string; version: number } | null>(null);
   const [undoCount, setUndoCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
-
+  const [conflict, setConflict] = useState(false);
   const docRef = useRef<Carousel | null>(null);
-  const queue = useRef<CarouselOperation[]>([]);
-  const inFlight = useRef(false);
+  const version = useRef(0);
+  const batches = useRef<Batch[]>([]);
+  const inFlight = useRef<Promise<boolean> | null>(null);
+  const historyBusy = useRef(false);
+  const blocked = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const flushRef = useRef<(keepalive?: boolean) => Promise<void>>(async () => {});
+  const flushRef = useRef<() => Promise<boolean>>(async () => true);
+  const storageKey = `swiper:draft:${carouselId}`;
+
+  const persist = useCallback(() => {
+    try {
+      if (batches.current.length) localStorage.setItem(storageKey, JSON.stringify(batches.current));
+      else localStorage.removeItem(storageKey);
+    } catch {
+      setSaveError("Browser storage is unavailable. Keep this tab open until your changes finish saving.");
+    }
+  }, [storageKey]);
 
   const setDocument = useCallback((next: Carousel) => {
     docRef.current = next;
     setDoc(next);
   }, []);
 
-  const schedule = useCallback((delay: number) => {
+  const schedule = useCallback((delay = 650) => {
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      timer.current = null;
-      void flushRef.current();
-    }, delay);
+    timer.current = setTimeout(() => { void flushRef.current(); }, delay);
   }, []);
 
-  const flush = useCallback(
-    async (keepalive = false) => {
-      if (inFlight.current || queue.current.length === 0) return;
-      const batch = queue.current;
-      queue.current = [];
-      inFlight.current = true;
-      setSaveState("saving");
+  const flush = useCallback((): Promise<boolean> => {
+    if (inFlight.current) return inFlight.current;
+    if (blocked.current || historyBusy.current) return Promise.resolve(false);
+    const batch = batches.current[0];
+    if (!batch) return Promise.resolve(true);
+    batch.version ??= version.current;
+    persist();
+    setSaveState("saving");
+    const task = (async () => {
       try {
         const response = await fetch(`/api/v1/carousels/${carouselId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ operations: batch }),
-          keepalive,
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ operations: batch.operations, mutation_id: batch.id, expected_version: batch.version }),
+          signal: AbortSignal.timeout(15000),
         });
-        const body = (await response.json()) as Payload;
-        if (!response.ok) throw new Error(body.message ?? "Save failed.");
+        const body = await response.json() as Payload;
+        if (!response.ok) {
+          if (response.status === 409 || response.status === 400 || response.status === 404) {
+            blocked.current = true;
+            setConflict(true);
+          }
+          throw new Error(body.message ?? "Could not save. Your edits are kept on this device.");
+        }
+        batches.current.shift();
+        version.current = body.version;
+        persist();
         setUndoCount(body.undo_count ?? 0);
-        setMeta((current) => (current ? { ...current, version: body.version } : current));
-        // Only trust the server copy when no newer local edit is waiting.
-        if (queue.current.length === 0 && body.carousel) setDocument(body.carousel);
-        setSaveState("saved");
+        setMeta({ title: body.carousel.metadata.title, formatId: body.carousel.metadata.formatId, version: body.version });
+        if (!batches.current.length) setDocument(body.carousel);
         setSaveError(null);
+        setSaveState(batches.current.length ? "saving" : "saved");
+        return true;
       } catch (error) {
-        queue.current = [...batch, ...queue.current];
         setSaveState("error");
-        setSaveError(error instanceof Error ? error.message : "Save failed.");
+        setSaveError(error instanceof Error ? error.message : "Could not save. Your edits are kept on this device.");
+        return false;
       } finally {
-        inFlight.current = false;
-        if (queue.current.length > 0) schedule(RETRY_MS);
+        inFlight.current = null;
+        if (batches.current.length && !blocked.current) schedule(3000);
       }
-    },
-    [carouselId, schedule, setDocument],
-  );
+    })();
+    inFlight.current = task;
+    return task;
+  }, [carouselId, persist, schedule, setDocument]);
 
-  useEffect(() => {
-    flushRef.current = flush;
-  }, [flush]);
+  useEffect(() => { flushRef.current = flush; }, [flush]);
 
-  const fetchCarousel = useCallback(async () => {
+  const load = useCallback(async () => {
     const response = await fetch(`/api/v1/carousels/${carouselId}`);
-    const body = (await response.json()) as Payload;
+    const body = await response.json() as Payload;
     if (!response.ok) throw new Error(body.message ?? "Could not open carousel.");
-    return body;
-  }, [carouselId]);
-
-  const applyPayload = useCallback(
-    (body: Payload) => {
-      setDocument(body.carousel);
-      setMeta({ title: body.title, formatId: body.format_id, version: body.version });
-      setUndoCount(body.undo_count ?? 0);
-      setLoadError(null);
-    },
-    [setDocument],
-  );
+    version.current = body.version;
+    let pending: Batch[] = [];
+    try {
+      const saved: unknown = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
+      if (Array.isArray(saved)) pending = saved.filter((item): item is Batch =>
+        typeof item?.id === "string" && parseOperations(item.operations) !== null &&
+        (item.version === undefined || Number.isInteger(item.version)));
+    } catch { /* An unavailable storage area does not prevent loading server content. */ }
+    if (pending[0]?.id === body.last_mutation_id) pending.shift();
+    let restored = body.carousel;
+    try {
+      for (const batch of pending) restored = applyOperations(restored, batch.operations);
+      if (pending[0]?.version !== undefined && pending[0].version !== body.version) {
+        throw new Error("version");
+      }
+    } catch {
+      blocked.current = true;
+      setConflict(true);
+      setSaveState("error");
+      setSaveError("This carousel changed elsewhere. Download your local draft before loading the latest version.");
+    }
+    batches.current = pending;
+    persist();
+    setDocument(restored);
+    setMeta({ title: restored.metadata.title, formatId: restored.metadata.formatId, version: body.version });
+    setUndoCount(body.undo_count ?? 0);
+    setLoadError(null);
+    if (pending.length && !blocked.current) schedule(0);
+  }, [carouselId, storageKey, persist, schedule, setDocument]);
 
   useEffect(() => {
     let active = true;
-    fetchCarousel()
-      .then((body) => {
-        if (active) applyPayload(body);
-      })
-      .catch((error: unknown) => {
-        if (active) {
-          setLoadError(error instanceof Error ? error.message : "Could not open carousel.");
-        }
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [fetchCarousel, applyPayload]);
+    // Loading reconciles the server snapshot with the persisted local outbox.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load().catch((error: unknown) => {
+      if (active) setLoadError(error instanceof Error ? error.message : "Could not open carousel.");
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; if (timer.current) clearTimeout(timer.current); };
+  }, [load]);
 
   const reload = useCallback(() => {
     setLoading(true);
-    setLoadError(null);
-    fetchCarousel()
-      .then(applyPayload)
-      .catch((error: unknown) => {
-        setLoadError(error instanceof Error ? error.message : "Could not open carousel.");
-      })
-      .finally(() => setLoading(false));
-  }, [applyPayload, fetchCarousel]);
+    load().catch((error: unknown) => setLoadError(String(error))).finally(() => setLoading(false));
+  }, [load]);
 
-  /** Applies operations to the local document, then saves them as one batch. */
-  const mutate = useCallback(
-    (operations: CarouselOperation[], options: { immediate?: boolean } = {}) => {
-      const current = docRef.current;
-      if (!current || operations.length === 0) return;
-      try {
-        setDocument(applyOperations(current, operations));
-      } catch {
-        setSaveState("error");
-        setSaveError("That edit would leave the slide empty.");
-        return;
-      }
-      queue.current.push(...operations);
-      schedule(options.immediate ? 0 : DEBOUNCE_MS);
-    },
-    [schedule, setDocument],
-  );
+  const mutate = useCallback((operations: CarouselOperation[], options: { immediate?: boolean } = {}) => {
+    if (!docRef.current || historyBusy.current || blocked.current || !operations.length) return;
+    try {
+      const next = applyOperations(docRef.current, operations);
+      setDocument(next);
+      setMeta((current) => current ? { ...current, title: next.metadata.title } : current);
+      const last = batches.current.at(-1);
+      if (last && last.version === undefined) last.operations.push(...operations);
+      else batches.current.push({ id: crypto.randomUUID(), operations });
+      // Save the expected base version before a refresh can happen.
+      if (!inFlight.current && batches.current.length === 1) batches.current[0]!.version = version.current;
+      persist();
+      setSaveState("saving");
+      schedule(options.immediate ? 0 : 650);
+    } catch {
+      setSaveError("That edit is not valid. A carousel and each slide need at least one element.");
+    }
+  }, [persist, schedule, setDocument]);
 
   const settle = useCallback(async () => {
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      if (!inFlight.current && queue.current.length === 0) return true;
-      if (inFlight.current) await new Promise((resolve) => setTimeout(resolve, 50));
-      else await flushRef.current();
+    if (timer.current) clearTimeout(timer.current);
+    while (batches.current.length) {
+      if (!(await flushRef.current())) return false;
     }
-    return false;
+    return !blocked.current && !historyBusy.current;
   }, []);
 
   const undo = useCallback(async () => {
-    if (!(await settle())) return;
+    if (historyBusy.current || !(await settle())) return;
+    historyBusy.current = true;
     setSaveState("saving");
     try {
-      const response = await fetch(`/api/v1/carousels/${carouselId}/undo`, { method: "POST" });
-      const body = (await response.json()) as Payload;
+      const response = await fetch(`/api/v1/carousels/${carouselId}/undo`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expected_version: version.current }),
+      });
+      const body = await response.json() as Payload;
       if (!response.ok) throw new Error(body.message ?? "Undo failed.");
+      version.current = body.version;
       setDocument(body.carousel);
+      setMeta({ title: body.carousel.metadata.title, formatId: body.carousel.metadata.formatId, version: body.version });
       setUndoCount(body.undo_count ?? 0);
-      setMeta((current) => (current ? { ...current, version: body.version } : current));
       setSaveState("saved");
       setSaveError(null);
     } catch (error) {
       setSaveState("error");
       setSaveError(error instanceof Error ? error.message : "Undo failed.");
-    }
+    } finally { historyBusy.current = false; }
   }, [carouselId, setDocument, settle]);
 
-  // Nothing in the queue may die with the tab.
+  const discardLocal = useCallback(() => {
+    batches.current = [];
+    blocked.current = false;
+    setConflict(false);
+    persist();
+    setSaveError(null);
+    reload();
+  }, [persist, reload]);
+
   useEffect(() => {
-    function onHide() {
-      if (queue.current.length > 0) void flushRef.current(true);
-    }
-    function onBeforeUnload(event: BeforeUnloadEvent) {
-      if (queue.current.length === 0 && !inFlight.current) return;
-      void flushRef.current(true);
-      event.preventDefault();
-    }
-    window.addEventListener("pagehide", onHide);
-    document.addEventListener("visibilitychange", onHide);
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => {
-      window.removeEventListener("pagehide", onHide);
-      document.removeEventListener("visibilitychange", onHide);
-      window.removeEventListener("beforeunload", onBeforeUnload);
-      if (timer.current) clearTimeout(timer.current);
-      if (queue.current.length > 0) void flushRef.current(true);
-    };
+    const retry = () => { void flushRef.current(); };
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
   }, []);
 
-  return {
-    doc,
-    meta,
-    undoCount,
-    loading,
-    loadError,
-    saveState,
-    saveError,
-    setSaveError,
-    reload,
-    mutate,
-    undo,
-    settle,
-  };
+  return { doc, meta, undoCount, loading, loadError, saveState, saveError, setSaveError,
+    reload, mutate, undo, settle, conflict, discardLocal, retry: flush };
 }

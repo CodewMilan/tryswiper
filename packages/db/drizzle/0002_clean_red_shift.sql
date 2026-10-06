@@ -1,0 +1,1 @@
+ALTER TABLE "carousel" ADD COLUMN "last_mutation_id" text;

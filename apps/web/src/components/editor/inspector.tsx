@@ -34,6 +34,7 @@ export function Inspector({
   onMove,
   onReplaceImage,
   onDelete,
+  onStyle,
 }: {
   slide: Slide | undefined;
   element: CarouselElement | undefined;
@@ -42,16 +43,18 @@ export function Inspector({
   onMove: (elementId: string, box: Box) => void;
   onReplaceImage: (elementId: string, asset: UploadedAsset) => void;
   onDelete: (elementId: string) => void;
+  onStyle: (elementId: string, style: NonNullable<CarouselElement["style"]>) => void;
 }) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   if (!slide || !element) {
-    return <p className="mt-4 text-sm text-ink-soft">Select an element on the canvas.</p>;
+    return <div className="py-10 text-center"><p className="text-sm font-medium">Make it yours</p><p className="mt-2 text-sm leading-6 text-ink-soft">Select text or an image on the canvas to edit its content, size, and position.</p></div>;
   }
 
   const box = boxOf(element);
+  const textStyle = { fontSize: 24, fontWeight: 400, align: "left" as const, ...element.style };
 
   async function replace(file: File) {
     if (!element) return;
@@ -69,7 +72,7 @@ export function Inspector({
   return (
     <div className="mt-4 space-y-5">
       <div className="space-y-2">
-        <Label htmlFor="element-text">{element.role ?? element.type}</Label>
+        <Label htmlFor="element-text" className="capitalize">{element.role ?? element.type}</Label>
         {element.type === "text" ? (
           <Textarea
             id="element-text"
@@ -84,9 +87,39 @@ export function Inspector({
         )}
       </div>
 
+      {element.type === "text" ? (
+        <fieldset className="space-y-3 border-t border-border pt-5">
+          <legend className="text-xs font-medium text-ink-soft">Typography</legend>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="font-size">Size</Label>
+              <Input id="font-size" type="number" min={8} max={240} value={element.style?.fontSize ?? 24}
+                onChange={(event) => onStyle(element.id, { ...textStyle, fontSize: Math.max(8, Math.min(240, Number(event.target.value))) })} />
+            </div>
+            <div>
+              <Label htmlFor="font-weight">Weight</Label>
+              <select id="font-weight" className="editor-select mt-1" value={element.style?.fontWeight ?? 400}
+                onChange={(event) => onStyle(element.id, { ...textStyle, fontWeight: Number(event.target.value) })}>
+                <option value={400}>Regular</option><option value={500}>Medium</option><option value={600}>Semibold</option><option value={700}>Bold</option><option value={800}>Extra bold</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label htmlFor="text-align">Alignment</Label>
+              <select id="text-align" className="editor-select mt-1" value={element.style?.align ?? "left"}
+                onChange={(event) => onStyle(element.id, { ...textStyle, align: event.target.value as "left" | "center" | "right" })}>
+                <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
+              </select>
+            </div>
+            <div><Label htmlFor="text-color">Color</Label><input id="text-color" type="color" className="mt-1 h-11 w-full rounded-lg border border-border p-1" value={element.style?.color ?? "#171717"}
+              onChange={(event) => onStyle(element.id, { ...textStyle, color: event.target.value })} /></div>
+          </div>
+        </fieldset>
+      ) : null}
+
       <div className="space-y-2">
         <p className="text-xs uppercase tracking-wide text-ink-faint">Position and size</p>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 gap-3">
           {BOX_FIELDS.map(({ key, label }) => (
             <div key={key}>
               <Label htmlFor={`box-${key}`} className="text-xs text-ink-soft">

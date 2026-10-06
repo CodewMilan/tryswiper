@@ -1,16 +1,20 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const inter = Inter({
+const inter = localFont({
   variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["300", "400", "500"],
+  src: [
+    { path: "../../public/fonts/Inter-Regular.ttf", weight: "300 400" },
+    { path: "../../public/fonts/Inter-Medium.ttf", weight: "500" },
+    { path: "../../public/fonts/Inter-SemiBold.ttf", weight: "600" },
+    { path: "../../public/fonts/Inter-Bold.ttf", weight: "700" },
+  ],
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  src: "../../public/fonts/IBMPlexMono-Regular.ttf",
 });
 
 export const metadata: Metadata = {
@@ -22,6 +26,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col font-sans">{children}</body>

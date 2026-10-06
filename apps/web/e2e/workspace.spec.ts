@@ -1,0 +1,153 @@
+import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
+import { createCanvas } from "@napi-rs/canvas";
+import type { Carousel } from "@swiper/schema";
+
+function fixtureImage(color: string) {
+  const canvas = createCanvas(120, 60);
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = color; ctx.fillRect(0, 0, 120, 60);
+  return { name: "test-image.png", mimeType: "image/png", buffer: canvas.toBuffer("image/png") };
+}
+async function signUp(request: APIRequestContext) {
+  const response = await request.post("/api/auth/sign-up/email", {
+    data: { name: "Editor QA", email: `swiper-qa-${crypto.randomUUID()}@example.test`, password: crypto.randomUUID() },
+    headers: { Origin: "http://localhost:3101" },
+  });
+  expect(response.ok(), await response.text()).toBeTruthy();
+}
+async function create(request: APIRequestContext, format = "freeform") {
+  const response = await request.post("/api/v1/carousels", { data: { format_id: format, title: "A better way to tell your story" } });
+  expect(response.status(), await response.text()).toBe(201);
+  return await response.json() as { carousel_id: string; carousel: Carousel };
+}
+async function saved(page: Page) {
+  await expect(page.getByText("All changes saved", { exact: true })).toBeVisible();
+}
+async function state(request: APIRequestContext, id: string) {
+  return await (await request.get(`/api/v1/carousels/${id}`)).json() as { carousel: Carousel; version: number; undo_count: number };
+}
+
+test("brand visuals, manual creation, editor gestures, format reuse, and downloads", async ({ page }, testInfo) => {
+  const request = page.request;
+  await signUp(request);
+  await page.goto("/brand");
+  await page.locator("#color-background").fill("#F3EEE5");
+  await page.locator("#color-primary").fill("#20352C");
+  await page.locator("#font-heading").selectOption("Lora");
+  await page.locator("#font-body").selectOption("IBM Plex Mono");
+  await page.locator("#logo").setInputFiles(fixtureImage("#B64831"));
+  await expect(page.getByRole("button", { name: "Replace", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Save brand", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Saved", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.locator("#font-heading")).toHaveValue("Lora");
+  await expect(page.locator("#color-background")).toHaveValue("#F3EEE5");
+  await page.goto("/new");
+  await page.getByLabel("Carousel title", { exact: true }).fill("A better way to tell your story");
+  await page.getByRole("button", { name: "Open in editor" }).click();
+  await expect(page.getByTestId("slide-canvas")).toBeVisible();
+  const id = page.url().split("/").at(-1)!;
+  let current = await state(request, id);
+  expect(current.carousel.theme.fontFamily).toBe("Lora");
+  expect(current.carousel.theme.bodyFontFamily).toBe("IBM Plex Mono");
+  expect(current.carousel.slides[0]!.elements.some((element) => element.type === "logo")).toBeTruthy();
+  const headline = page.getByTestId("slide-canvas").getByRole("button", { name: "headline element", exact: true });
+  await headline.click();
+  await page.locator("#element-text").fill("Good stories deserve a better canvas.");
+  await saved(page);
+  const xBefore = Number(await page.locator("#box-x").inputValue());
+  const bounds = (await headline.boundingBox())!;
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down(); await page.mouse.move(bounds.x + bounds.width / 2 + 18, bounds.y + bounds.height / 2 + 18, { steps: 6 }); await page.mouse.up();
+  await expect.poll(async () => Number(await page.locator("#box-x").inputValue())).toBeGreaterThan(xBefore);
+  await saved(page);
+  const wBefore = Number(await page.locator("#box-width").inputValue());
+  const handle = page.getByRole("button", { name: "Resize right", exact: true });
+  const hb = (await handle.boundingBox())!;
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down(); await page.mouse.move(hb.x - 20, hb.y + hb.height / 2, { steps: 6 }); await page.mouse.up();
+  await expect.poll(async () => Number(await page.locator("#box-width").inputValue())).toBeLessThan(wBefore);
+  await saved(page);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(page.locator("#box-width")).toHaveValue(String(wBefore));
+  await page.getByRole("button", { name: "Move hook later", exact: true }).click();
+  await saved(page);
+  current = await state(request, id);
+  expect(current.carousel.slides[1]!.role).toBe("hook");
+  await page.getByRole("button", { name: "Move hook earlier", exact: true }).click();
+  await saved(page);
+  await page.getByLabel("Add image file").setInputFiles(fixtureImage("#173FA3"));
+  await expect(page.getByRole("button", { name: "Replace image", exact: true })).toBeVisible();
+  await saved(page);
+  await page.locator('aside[aria-label="Element properties"] input[type=file]').setInputFiles(fixtureImage("#D45935"));
+  await expect(page.getByRole("button", { name: "Replace image", exact: true })).toBeEnabled();
+  await saved(page);
+  await page.reload();
+  await expect(page.getByTestId("slide-canvas").getByText("Good stories deserve a better canvas.")).toBeVisible();
+  await page.getByRole("button", { name: "Save as format", exact: true }).click();
+  await page.getByLabel("Format name", { exact: true }).fill("Launch story");
+  await page.getByRole("button", { name: "Save format", exact: true }).click();
+  await expect(page.getByText("“Launch story” is ready in your workspace formats.")).toBeVisible();
+  const source = await state(request, id);
+  await page.goto("/new");
+  await page.getByText("Launch story", { exact: true }).click();
+  await expect(page.getByRole("radio", { name: /Launch story/ })).toBeChecked();
+  await page.getByRole("button", { name: "Open in editor" }).click();
+  await expect(page.getByTestId("slide-canvas")).toBeVisible();
+  const copyId = page.url().split("/").at(-1)!;
+  const copy = await state(request, copyId);
+  expect(copyId).not.toBe(id);
+  expect(copy.carousel.slides[0]!.id).not.toBe(source.carousel.slides[0]!.id);
+  expect(copy.carousel.slides[0]!.elements[0]!.id).not.toBe(source.carousel.slides[0]!.elements[0]!.id);
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  for (const name of ["PNG images", "PDF document"]) {
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: new RegExp(name) }).click();
+    const file = await download;
+    expect(await file.failure()).toBeNull();
+    await file.saveAs(testInfo.outputPath(file.suggestedFilename()));
+    if (name === "PNG images") await page.getByRole("button", { name: "Export", exact: true }).click();
+  }
+  for (const width of [1440, 768, 375]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expect(page.getByTestId("slide-canvas")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+    await page.screenshot({ path: testInfo.outputPath(`editor-${width}.png`), fullPage: true });
+  }
+});
+
+test("pending edits survive refresh and saves reject stale or unauthorized writes", async ({ page, browser }) => {
+  const request = page.request;
+  await signUp(request);
+  const { carousel_id: id } = await create(request);
+  await page.goto(`/c/${id}`);
+  await page.getByTestId("slide-canvas").getByRole("button", { name: "headline element", exact: true }).click();
+  await page.route(`**/api/v1/carousels/${id}`, async (route) => {
+    if (route.request().method() === "PATCH") await route.abort(); else await route.continue();
+  });
+  await page.locator("#element-text").fill("This draft survives a failed network request.");
+  await page.reload();
+  await expect(page.getByTestId("slide-canvas").getByText("This draft survives a failed network request.")).toBeVisible();
+  await page.unroute(`**/api/v1/carousels/${id}`);
+  await expect.poll(async () => (await state(request, id)).carousel.slides[0]!.elements.find((e) => e.role === "headline")!.text, { timeout: 20000 }).toBe("This draft survives a failed network request.");
+  const initial = await state(request, id);
+  const mutation = crypto.randomUUID();
+  const payload = { expected_version: initial.version, mutation_id: mutation, operations: [{ op: "rename", title: "A safe retry" }] };
+  const first = await request.patch(`/api/v1/carousels/${id}`, { data: payload });
+  expect(first.status()).toBe(200);
+  const retry = await request.patch(`/api/v1/carousels/${id}`, { data: payload });
+  expect(retry.status()).toBe(200);
+  expect((await retry.json()).version).toBe(initial.version + 1);
+  const stale = await request.patch(`/api/v1/carousels/${id}`, { data: { ...payload, mutation_id: crypto.randomUUID() } });
+  expect(stale.status()).toBe(409);
+  const savedFormat = await request.post("/api/v1/formats", { data: { carousel_id: id, name: "Private format" } });
+  expect(savedFormat.status()).toBe(201);
+  const fmt = (await savedFormat.json()).format.id;
+  const other = await browser.newContext({ baseURL: "http://localhost:3101" });
+  await signUp(other.request);
+  expect((await other.request.get(`/api/v1/carousels/${id}`)).status()).toBe(404);
+  expect((await other.request.get(`/api/v1/carousels/${id}/export?format=png`)).status()).toBe(404);
+  expect((await other.request.post("/api/v1/carousels", { data: { format_id: fmt } })).status()).toBe(400);
+  expect((await other.request.post("/api/v1/formats", { data: { carousel_id: id, name: "Stolen" } })).status()).toBe(404);
+  await other.close();
+});

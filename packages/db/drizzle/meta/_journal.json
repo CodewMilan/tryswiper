@@ -15,6 +15,13 @@
       "when": 1791265799112,
       "tag": "0001_vengeful_korg",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791266919138,
+      "tag": "0002_clean_red_shift",
+      "breakpoints": true
     }
   ]
 }

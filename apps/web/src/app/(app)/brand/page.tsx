@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { carouselFontFamily } from "@swiper/schema";
 import {
   COLOR_KEYS,
   DEFAULT_BRAND_COLORS,
@@ -103,8 +104,8 @@ export default function BrandPage() {
             accent: colors.accent ?? DEFAULT_BRAND_COLORS.accent,
           },
           fonts: {
-            heading: fonts.heading ?? DEFAULT_BRAND_FONTS.heading,
-            body: fonts.body ?? DEFAULT_BRAND_FONTS.body,
+            heading: carouselFontFamily(fonts.heading),
+            body: carouselFontFamily(fonts.body),
           },
           logoAssetId,
         });
@@ -232,8 +233,8 @@ export default function BrandPage() {
   return (
     <main className="mx-auto w-full max-w-[1200px] px-6 py-12">
       <PageIntro title="Brand kit">
-        The agent receives a compact version of this, not your whole database. New carousels take
-        these colors and the heading font.
+        Set the visual signature for your next carousel. Your colors, typography, and logo
+        carry through from the editor to the download.
       </PageIntro>
       <Settle>
       <form onSubmit={onSubmit} className="mt-8 grid items-start gap-4 lg:grid-cols-2">
@@ -246,7 +247,7 @@ export default function BrandPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="description">What it is</Label>
-              <Textarea id="description" required {...field("description")} />
+              <Textarea id="description" {...field("description")} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="audience">Audience</Label>
@@ -281,7 +282,7 @@ export default function BrandPage() {
           </div>
         </section>
 
-        <section className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
+        <section className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8 lg:sticky lg:top-6">
           <h2 className="text-[18px] font-medium tracking-[-0.02em]">Visuals</h2>
           <SlidePreview form={form} logoSrc={logoPreview} />
 
@@ -328,7 +329,7 @@ export default function BrandPage() {
               }}
             />
             <p className="col-span-full text-[12px] font-light text-ink-faint">
-              PNG export still paints Inter. The editor uses the heading you pick.
+              Bundled fonts stay consistent in the editor, PNG images, and PDFs.
             </p>
           </fieldset>
 
@@ -414,7 +415,7 @@ export default function BrandPage() {
 function SlidePreview({ form, logoSrc }: { form: BrandForm; logoSrc: string | null }) {
   return (
     <div
-      className="mt-6 flex aspect-[4/5] max-h-[280px] flex-col rounded-2xl border border-black/8 p-5"
+      className="mt-6 flex aspect-[4/5] max-h-[360px] flex-col rounded-xl border border-black/8 p-8"
       style={{ background: normalizeHex(form.colors.background) ?? form.colors.background }}
       aria-hidden
     >

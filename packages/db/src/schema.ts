@@ -161,6 +161,7 @@ export const carousel = pgTable(
       .notNull()
       .references(() => project.id, { onDelete: "cascade" }),
     version: integer("version").notNull().default(1),
+    lastMutationId: text("last_mutation_id"),
     schemaVersion: text("schema_version").notNull().default("1.0"),
     title: text("title").notNull(),
     formatId: text("format_id").notNull(),

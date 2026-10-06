@@ -41,6 +41,18 @@ Run one container first so migrations finish, then add replicas. Startup takes a
 
 CI (`.github/workflows/ci.yml`) installs, typechecks, tests, lints, migrates a fresh Postgres twice, and builds.
 
+CI also runs Chromium workflows against the compiled production server: brand visuals and logo,
+manual creation, editor gestures and undo, image replacement, workspace formats, PNG/PDF downloads,
+refresh recovery, stale-write rejection, and workspace isolation. Failed runs retain traces and screenshots.
+
+The native `@napi-rs/canvas` package must be a direct web-app dependency as well as an external
+server package. Otherwise Next may try to bundle its native binary. Fonts (Inter, Lora, IBM Plex Mono)
+are bundled with their licenses; building and rendering do not require Google Fonts or system fonts.
+
+The editor's save protocol requires migration `0002_clean_red_shift.sql` (`carousel.last_mutation_id`).
+Apply migrations before serving the new application. Existing local databases created through schema
+push should use `pnpm db:push` as described below.
+
 ## Schema changes
 
 1. Edit `packages/db/src/schema.ts`.

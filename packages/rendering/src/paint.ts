@@ -37,7 +37,7 @@ export async function readImageSize(bytes: Uint8Array) {
 function drawImage(ctx: SKRSContext2D, element: Slide["elements"][number], image: Image) {
   if (!image.width || !image.height) return;
 
-  const scale = Math.max(element.width / image.width, element.height / image.height);
+  const scale = (element.type === "logo" ? Math.min : Math.max)(element.width / image.width, element.height / image.height);
   const width = image.width * scale;
   const height = image.height * scale;
 
@@ -72,7 +72,7 @@ function drawText(
   const style = element.style;
   const fontSize = style?.fontSize ?? 24;
   const weight = style?.fontWeight ?? 500;
-  const family = familyForWeight(weight);
+  const family = familyForWeight(weight, element.role === "headline" ? theme.fontFamily : (theme.bodyFontFamily ?? theme.fontFamily));
   const color = paintColor(style?.color, theme.primary);
   const align = style?.align ?? "left";
   const lineHeight = fontSize * (style?.lineHeight ?? 1.2);
@@ -83,7 +83,7 @@ function drawText(
   ctx.rect(element.x, element.y, element.width, element.height);
   ctx.clip();
   ctx.fillStyle = color;
-  ctx.font = `${fontSize}px "${family}"`;
+  ctx.font = `${family === "Lora" ? weight + " " : ""}${fontSize}px "${family}"`;
   ctx.textBaseline = "top";
   const spaced = ctx as ContextWithSpacing;
   if (spacing) spaced.letterSpacing = `${spacing}px`;

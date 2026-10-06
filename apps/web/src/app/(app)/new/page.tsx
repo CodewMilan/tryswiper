@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DEFAULT_THEME, getFormat, planFromFormat, renderPlanToCarousel, type Slide, type Theme } from "@swiper/schema";
+import { SlidePreview } from "@/components/editor/slide-frame";
+import { Check, Plus } from "@phosphor-icons/react";
 
 type FormatOption = {
   id: string;
@@ -13,6 +16,7 @@ type FormatOption = {
   slideCount: { min: number; max: number };
   roles: string[];
   source: "official" | "workspace";
+  preview?: { slide: Slide; theme: Theme };
 };
 
 function FormatChoice({ format, checked, onChange }: {
@@ -20,17 +24,31 @@ function FormatChoice({ format, checked, onChange }: {
   checked: boolean;
   onChange: () => void;
 }) {
+  const official = getFormat(format.id);
+  const preview = format.preview ?? (official ? {
+    slide: renderPlanToCarousel(planFromFormat(official, { productName: "Your story" }), DEFAULT_THEME).slides[0]!,
+    theme: DEFAULT_THEME,
+  } : null);
   const count = format.slideCount.min === format.slideCount.max
     ? `${format.slideCount.min} slides`
     : `${format.slideCount.min}–${format.slideCount.max} slides`;
   return (
     <label
-      className={`group min-h-44 cursor-pointer rounded-xl border bg-card p-5 motion-safe:transition-[border-color,box-shadow,transform] motion-safe:duration-150 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background ${
+      className={`group block min-h-44 cursor-pointer rounded-xl border bg-card p-5 motion-safe:transition-[border-color,box-shadow,transform] motion-safe:duration-150 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background ${
         checked ? "border-foreground shadow-sm" : "border-border hover:-translate-y-0.5 hover:border-foreground/20"
       }`}
     >
       <input type="radio" name="format" value={format.id} checked={checked} onChange={onChange} className="sr-only" />
-      <span className="flex items-start justify-between gap-4">
+      <span className="mb-4 flex items-center gap-5 rounded-lg bg-secondary p-4">
+        {format.id === "freeform" ? <span className="grid h-28 w-24 shrink-0 place-items-center rounded-md border border-dashed border-ink-soft/40 bg-card"><Plus size={24} className="text-ink-soft" /></span>
+          : preview ? <span aria-hidden className="pointer-events-none shrink-0 shadow-sm"><SlidePreview slide={preview.slide} theme={preview.theme} width={92} /></span> : null}
+        <span className="min-w-0 space-y-2">
+          {format.roles.slice(0, 3).map((role, index) => <span key={index} className="block truncate text-xs capitalize text-ink-soft"><span className="mr-2 font-mono opacity-70">{String(index + 1).padStart(2, "0")}</span>{role.replaceAll("-", " ")}</span>)}
+          {format.roles.length > 3 ? <span className="block text-xs text-ink-soft">+{format.roles.length - 3} more slides</span> : null}
+        </span>
+        {checked ? <Check size={18} className="ml-auto shrink-0 self-start" /> : null}
+      </span>
+      <span className="flex flex-wrap items-start justify-between gap-2">
         <span className="text-base font-medium tracking-[-0.02em] text-foreground">{format.name}</span>
         <span className="shrink-0 font-mono text-xs uppercase tracking-wider text-ink-soft">{count}</span>
       </span>
@@ -119,7 +137,7 @@ export default function NewCarouselPage() {
             autoComplete="off"
             aria-describedby="title-hint"
           />
-          <p id="title-hint" className="mt-2 text-sm text-ink-soft">Optional. Your brand colors and heading font are applied automatically.</p>
+          <p id="title-hint" className="mt-2 text-sm text-ink-soft">Optional. Story formats use your brand kit; workspace formats keep their saved design.</p>
         </div>
 
         {loadState === "loading" ? (

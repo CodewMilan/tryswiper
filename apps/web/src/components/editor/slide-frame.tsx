@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import type { Carousel, CarouselElement, Slide } from "@swiper/schema";
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from "@swiper/schema";
+import { CANVAS_HEIGHT, CANVAS_WIDTH, carouselFontFamily } from "@swiper/schema";
 
 export type Box = { x: number; y: number; width: number; height: number };
 
@@ -55,9 +55,12 @@ export function elementStyle(
     color: element.style?.color ?? theme.primary,
     fontSize: `${(element.style?.fontSize ?? 24) * (frameWidth / CANVAS_WIDTH)}px`,
     fontWeight: element.style?.fontWeight,
+    fontFamily: carouselFontFamily(element.role === "headline" ? theme.fontFamily : (theme.bodyFontFamily ?? theme.fontFamily)),
     textAlign: element.style?.align,
     lineHeight: element.style?.lineHeight,
-    letterSpacing: element.style?.letterSpacing,
+    letterSpacing: (element.style?.letterSpacing ?? 0) * (frameWidth / CANVAS_WIDTH),
+    whiteSpace: "pre-wrap",
+    overflowWrap: "anywhere",
   };
 }
 
@@ -69,7 +72,7 @@ export function ElementContent({ element }: { element: CarouselElement }) {
         src={element.src}
         alt={element.role ?? "Slide image"}
         draggable={false}
-        className="pointer-events-none h-full w-full object-cover"
+        className={`pointer-events-none h-full w-full ${element.type === "logo" ? "object-contain" : "object-cover"}`}
       />
     );
   }

@@ -23,6 +23,7 @@ function formatSummary(row: typeof schema.workspaceFormat.$inferSelect) {
     slideCount: { min: parsed.data.slides.length, max: parsed.data.slides.length },
     roles: parsed.data.slides.map((slide) => slide.role),
     source: "workspace" as const,
+    preview: { slide: parsed.data.slides[0], theme: parsed.data.theme },
   };
 }
 
@@ -139,7 +140,10 @@ export async function createWorkspaceFormat(input: {
       planJson: source.carousel.planJson,
       createdBy: input.auth.userId,
     })
+    .onConflictDoNothing()
     .returning();
+
+  if (!created) throw Object.assign(new Error("A workspace format with this name already exists."), { status: 409, code: "FORMAT_NAME_TAKEN" });
 
   console.info("workspace_format_created", {
     formatId: id,

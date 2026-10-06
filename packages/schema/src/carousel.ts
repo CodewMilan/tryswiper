@@ -80,6 +80,7 @@ export const themeSchema = z.object({
   secondary: z.string(),
   accent: z.string(),
   fontFamily: z.string(),
+  bodyFontFamily: z.string().optional(),
 });
 
 export const productContextSchema = z.object({

@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  distDir: process.env.SWIPER_BUILD_DIR ?? ".next",
   poweredByHeader: false,
   transpilePackages: ["@swiper/schema", "@swiper/db", "@swiper/ai", "@swiper/rendering"],
   serverExternalPackages: ["@napi-rs/canvas"],

@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       name?: string;
       description?: string;
     };
-    if (!body.carousel_id?.trim() || !body.name?.trim()) {
+    if (!body || typeof body.carousel_id !== "string" || !body.carousel_id.trim() || typeof body.name !== "string" || !body.name.trim() || (body.description !== undefined && typeof body.description !== "string")) {
       throw Object.assign(new Error("Carousel and format name are required."), {
         status: 400,
         code: "INVALID_REQUEST",

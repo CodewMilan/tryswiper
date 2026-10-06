@@ -16,6 +16,7 @@ export async function GET(
       editor_url: editorUrl(row.id),
       status: row.status,
       version: row.version,
+      last_mutation_id: row.lastMutationId,
       undo_count: await undoDepth(row.id),
       title: row.title,
       format_id: row.formatId,
@@ -34,8 +35,8 @@ export async function PATCH(
   try {
     const authContext = await requireAuth(request);
     const { id } = await context.params;
-    const body = (await request.json()) as { operations?: unknown[] };
-    return json(await updateCarousel(authContext, id, body.operations ?? []));
+    const body = (await request.json()) as { operations?: unknown[]; expected_version?: number; mutation_id?: string };
+    return json(await updateCarousel(authContext, id, body.operations ?? [], body.expected_version, body.mutation_id));
   } catch (error) {
     return fromUnknownError(error);
   }

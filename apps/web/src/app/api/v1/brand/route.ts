@@ -60,6 +60,11 @@ export async function PATCH(request: Request) {
   try {
     const authContext = await requireAuth(request);
     const body = (await request.json()) as Record<string, unknown>;
+    if (!body || typeof body !== "object" || Array.isArray(body)) return badRequest("Provide a brand object.");
+    for (const field of ["wordsToUse", "wordsToAvoid", "proofPoints"]) {
+      if (field in body && (!Array.isArray(body[field]) || body[field].length > 100 || !body[field].every((item: unknown) => typeof item === "string" && item.length <= 1000))) return badRequest(`${field} must be a list of short text entries.`);
+    }
+    if ("name" in body && (typeof body.name !== "string" || !body.name.trim() || body.name.length > 120)) return badRequest("Product name must be between 1 and 120 characters.");
     const current = await getWorkspaceBrand(authContext.workspaceId);
     if (!current) {
       return fromUnknownError(

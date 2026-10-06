@@ -6,6 +6,7 @@ import { PDFDocument } from "pdf-lib";
 import { unzipSync } from "fflate";
 import { renderExport } from "./export";
 import { wrapLines } from "./wrap";
+import { renderSlidePng } from "./paint";
 
 const plan: CarouselPlan = {
   title: "Why Swiper is different",
@@ -101,4 +102,27 @@ test("an uploaded image is painted into the slide", async () => {
   checkCtx.drawImage(rendered, 0, 0);
   const [r, g, b] = checkCtx.getImageData(300, 1050, 1, 1).data;
   assert.deepEqual([r, g, b], [255, 0, 0]);
+});
+
+test("heading and body font choices change the rendered pixels", () => {
+  const carousel = renderPlanToCarousel(plan, DEFAULT_THEME);
+  const inter = renderSlidePng(carousel.slides[0]!, DEFAULT_THEME);
+  const serif = renderSlidePng(carousel.slides[0]!, { ...DEFAULT_THEME, fontFamily: "Lora" });
+  const mono = renderSlidePng(carousel.slides[0]!, { ...DEFAULT_THEME, bodyFontFamily: "IBM Plex Mono" });
+  assert.notDeepEqual(inter, serif);
+  assert.notDeepEqual(inter, mono);
+});
+
+test("a logo fits inside its box without cropping", async () => {
+  const source = createCanvas(100, 50);
+  const ctx = source.getContext("2d");
+  ctx.fillStyle = "#ff0000"; ctx.fillRect(0, 0, 100, 50);
+  const carousel = renderPlanToCarousel(plan, DEFAULT_THEME);
+  carousel.slides[0]!.elements = [{ id: "logo", type: "logo", assetId: "logo", x: 100, y: 100, width: 100, height: 100 }];
+  const output = await renderExport(carousel, "png", 0, new Map([["logo", source.toBuffer("image/png")]]));
+  const image = await loadImage(Buffer.from(output.bytes));
+  const sample = createCanvas(1080, 1350).getContext("2d");
+  sample.drawImage(image, 0, 0);
+  assert.deepEqual([...sample.getImageData(150, 150, 1, 1).data].slice(0, 3), [255, 0, 0]);
+  assert.deepEqual([...sample.getImageData(150, 110, 1, 1).data].slice(0, 3), [250, 250, 248]);
 });

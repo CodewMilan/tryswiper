@@ -62,11 +62,13 @@ export function SlideCanvas({
   selectedId,
   onSelect,
   onMove,
+  width = FRAME_WIDTH,
 }: {
   slide: Slide;
   theme: Carousel["theme"];
   selectedId: string | null;
-  onSelect: (id: string) => void;
+  onSelect: (id: string | null) => void;
+  width?: number;
   onMove: (elementId: string, box: Box, options?: { immediate?: boolean }) => void;
 }) {
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -74,6 +76,7 @@ export function SlideCanvas({
     null,
   );
   const [draft, setDraft] = useState<{ id: string; box: Box } | null>(null);
+  const draftRef = useRef<{ id: string; box: Box } | null>(null);
   // Key repeat fires faster than React re-renders, so nudges stack on their own result
   // until the slide comes back with them applied.
   const nudgeRef = useRef<{ id: string; box: Box } | null>(null);
@@ -103,7 +106,8 @@ export function SlideCanvas({
     const origin = boxOf(element);
     nudgeRef.current = null;
     dragRef.current = { id: element.id, handle, x: event.clientX, y: event.clientY, origin };
-    setDraft({ id: element.id, box: origin });
+    draftRef.current = { id: element.id, box: origin };
+    setDraft(draftRef.current);
   }
 
   function continueDrag(event: ReactPointerEvent<HTMLElement>) {
@@ -111,15 +115,18 @@ export function SlideCanvas({
     if (!drag) return;
     const dx = toCanvasUnits(event.clientX - drag.x);
     const dy = toCanvasUnits(event.clientY - drag.y);
-    setDraft({ id: drag.id, box: resizedBox(drag.origin, drag.handle, dx, dy, event.shiftKey) });
+    draftRef.current = { id: drag.id, box: resizedBox(drag.origin, drag.handle, dx, dy, event.shiftKey) };
+    setDraft(draftRef.current);
   }
 
   function endDrag() {
     const drag = dragRef.current;
     dragRef.current = null;
-    if (drag && draft && !sameBox(draft.box, drag.origin)) {
-      onMove(drag.id, draft.box, { immediate: true });
+    const latest = draftRef.current;
+    if (drag && latest && !sameBox(latest.box, drag.origin)) {
+      onMove(drag.id, latest.box, { immediate: true });
     }
+    draftRef.current = null;
     setDraft(null);
   }
 
@@ -144,8 +151,10 @@ export function SlideCanvas({
   return (
     <div
       ref={frameRef}
-      className="relative touch-none shadow-sm select-none"
-      style={frameStyle(slide, theme, `min(100%, ${FRAME_WIDTH}px)`)}
+      data-testid="slide-canvas"
+      onPointerDown={(event) => { if (event.target === event.currentTarget) onSelect(null); }}
+      className="relative shrink-0 touch-none select-none shadow-[0_8px_40px_-12px_rgba(0,0,0,0.2)]"
+      style={frameStyle(slide, theme, width)}
     >
       {slide.elements.map((element) => {
         const selected = element.id === selectedId;
@@ -169,27 +178,31 @@ export function SlideCanvas({
               }
               if (selected) nudge(event, element);
             }}
-            className={`absolute cursor-move overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            data-element-id={element.id}
+            className={`absolute cursor-move text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               selected ? "ring-2 ring-accent" : "hover:ring-1 hover:ring-accent/40"
             }`}
-            style={elementStyle(element, theme, FRAME_WIDTH, box)}
+            style={elementStyle(element, theme, width, box)}
           >
-            <ElementContent element={element} />
+            <div className="h-full w-full overflow-hidden"><ElementContent element={element} /></div>
             {selected
               ? RESIZE_HANDLES.map(({ handle, label, position, cursor }) => (
-                  <span
+                  <button
                     key={handle}
-                    role="slider"
-                    tabIndex={-1}
+                    type="button"
                     aria-label={`Resize ${label}`}
-                    aria-valuenow={handle.includes("e") || handle.includes("w") ? box.width : box.height}
-                    aria-valuemin={MIN_SIZE}
-                    aria-valuemax={CANVAS_WIDTH}
+                    onKeyDown={(event) => {
+                      if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      const step = event.shiftKey ? 24 : 4;
+                      onMove(element.id, resizedBox(box, handle, event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0, event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0, false));
+                    }}
                     onPointerDown={(event) => startDrag(event, element, handle)}
                     onPointerMove={continueDrag}
                     onPointerUp={endDrag}
                     onPointerCancel={endDrag}
-                    className={`absolute block size-3 rounded-full border border-white bg-accent ${position}`}
+                    className={`absolute z-10 block size-3 rounded-sm border-2 border-accent bg-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring after:absolute after:-inset-2 ${position}`}
                     style={{ cursor }}
                   />
                 ))

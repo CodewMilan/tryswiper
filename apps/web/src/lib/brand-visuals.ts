@@ -1,3 +1,4 @@
+import { CAROUSEL_FONTS } from "@swiper/schema";
 export const COLOR_KEYS = ["background", "primary", "secondary", "accent"] as const;
 
 export type BrandColorKey = (typeof COLOR_KEYS)[number];
@@ -6,14 +7,7 @@ export type BrandColors = Record<BrandColorKey, string>;
 
 export type BrandFonts = { heading: string; body: string };
 
-export const FONT_CHOICES = [
-  "Inter",
-  "Georgia",
-  "Arial",
-  "Helvetica",
-  "Times New Roman",
-  "Courier New",
-] as const;
+export const FONT_CHOICES = CAROUSEL_FONTS;
 
 export const DEFAULT_BRAND_COLORS: BrandColors = {
   background: "#FAFAF8",

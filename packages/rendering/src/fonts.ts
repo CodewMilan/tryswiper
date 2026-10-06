@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { GlobalFonts } from "@napi-rs/canvas";
+import { carouselFontFamily } from "@swiper/schema";
 
 const FACES = [
   { max: 449, family: "Inter", file: "Inter-Regular.ttf" },
@@ -29,10 +30,16 @@ export function registerFonts() {
   for (const face of FACES) {
     GlobalFonts.registerFromPath(fontFile(face.file), face.family);
   }
+  GlobalFonts.registerFromPath(fontFile("Lora.ttf"), "Lora");
+  GlobalFonts.registerFromPath(fontFile("IBMPlexMono-Regular.ttf"), "IBM Plex Mono");
+  GlobalFonts.registerFromPath(fontFile("IBMPlexMono-Bold.ttf"), "IBM Plex Mono Bold");
   registered = true;
 }
 
-export function familyForWeight(weight: number) {
+export function familyForWeight(weight: number, requested = "Inter") {
+  const family = carouselFontFamily(requested);
+  if (family === "Lora") return "Lora";
+  if (family === "IBM Plex Mono") return weight >= 600 ? "IBM Plex Mono Bold" : "IBM Plex Mono";
   const face = FACES.find((item) => weight <= item.max);
   return face?.family ?? "Inter ExtraBold";
 }

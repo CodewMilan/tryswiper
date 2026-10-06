@@ -7,6 +7,13 @@ import {
 } from "./carousel";
 
 export const carouselOperationSchema = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("rename"), title: z.string().trim().min(1).max(120) }),
+  z.object({
+    op: z.literal("set_text_style"),
+    slideId: z.string(),
+    elementId: z.string(),
+    style: elementSchema.shape.style.unwrap(),
+  }),
   z.object({
     op: z.literal("replace_slide_content"),
     slideId: z.string(),
@@ -109,11 +116,22 @@ export function applyOperations(
   let next: Carousel = JSON.parse(JSON.stringify(carousel)) as Carousel;
 
   for (const operation of operations) {
-    if (operation.op === "replace_slide_content") {
+    if ("slideId" in operation && !next.slides.some((slide) => slide.id === operation.slideId)) {
+      throw new Error("Slide no longer exists");
+    }
+    if ("elementId" in operation && !next.slides.find((slide) => slide.id === operation.slideId)?.elements.some((element) => element.id === operation.elementId)) {
+      throw new Error("Element no longer exists");
+    }
+    if (operation.op === "rename") {
+      next.metadata.title = operation.title;
+    } else if (operation.op === "set_text_style") {
+      next.slides = mapElement(next, operation.slideId, operation.elementId, (element) => ({ ...element, style: operation.style }));
+    } else if (operation.op === "replace_slide_content") {
       next.slides = next.slides.map((slide) =>
         slide.id === operation.slideId ? { ...slide, elements: operation.elements } : slide,
       );
     } else if (operation.op === "insert_slide") {
+      if (next.slides.length >= 12 || next.slides.some((slide) => slide.id === operation.slide.id)) throw new Error("Invalid new slide");
       const slides = [...next.slides];
       slides.splice(operation.index, 0, operation.slide);
       next.slides = slides;
@@ -174,6 +192,7 @@ export function applyOperations(
         src: operation.src,
       }));
     } else if (operation.op === "add_element") {
+      if (next.slides.some((slide) => slide.elements.some((element) => element.id === operation.element.id))) throw new Error("Duplicate element");
       next.slides = next.slides.map((slide) =>
         slide.id === operation.slideId
           ? { ...slide, elements: [...slide.elements, operation.element] }

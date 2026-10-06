@@ -10,6 +10,11 @@ export async function POST(request: Request) {
       brief?: string;
       format_id?: string;
     };
+    if (!body || (body.title !== undefined && (typeof body.title !== "string" || body.title.length > 120)) ||
+      (body.brief !== undefined && (typeof body.brief !== "string" || body.brief.length > 10000)) ||
+      (body.format_id !== undefined && typeof body.format_id !== "string")) {
+      return apiError("INVALID_REQUEST", "Provide a title under 120 characters and a valid format or brief.", 400);
+    }
     if (body.brief?.trim()) {
       return json(
         await generateCarousel({
