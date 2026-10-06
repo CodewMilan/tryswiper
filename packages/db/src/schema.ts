@@ -254,6 +254,18 @@ export const mcpKey = pgTable(
   (table) => [index("mcp_key_workspace_idx").on(table.workspaceId)],
 );
 
+export const billing = pgTable("billing", {
+  workspaceId: text("workspace_id")
+    .primaryKey()
+    .references(() => workspace.id, { onDelete: "cascade" }),
+  plan: text("plan").notNull().default("free"),
+  status: text("status").notNull().default("inactive"),
+  dodoCustomerId: text("dodo_customer_id"),
+  dodoSubscriptionId: text("dodo_subscription_id"),
+  dodoPaymentId: text("dodo_payment_id"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const schema = {
   user,
   session,
@@ -268,4 +280,5 @@ export const schema = {
   workspaceFormat,
   asset,
   mcpKey,
+  billing,
 };

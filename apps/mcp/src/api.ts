@@ -8,12 +8,20 @@ export class SwiperApiError extends Error {
   }
 }
 
-export function apiBase() {
-  return (process.env.SWIPER_API_URL ?? "http://localhost:3100").replace(/\/$/, "");
+export type SwiperCredentials = {
+  key: string;
+  base: string;
+};
+
+export function apiBase(credentials?: SwiperCredentials) {
+  return (credentials?.base ?? process.env.SWIPER_API_URL ?? "http://localhost:3100").replace(
+    /\/$/,
+    "",
+  );
 }
 
-export function apiKey() {
-  const key = process.env.SWIPER_API_KEY;
+export function apiKey(credentials?: SwiperCredentials) {
+  const key = credentials?.key ?? process.env.SWIPER_API_KEY;
   if (!key) {
     throw new SwiperApiError(
       "MISSING_API_KEY",
@@ -23,11 +31,15 @@ export function apiKey() {
   return key;
 }
 
-export async function swiperFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiBase()}${path}`, {
+export async function swiperFetch<T>(
+  path: string,
+  init?: RequestInit,
+  credentials?: SwiperCredentials,
+): Promise<T> {
+  const response = await fetch(`${apiBase(credentials)}${path}`, {
     ...init,
     headers: {
-      Authorization: `Bearer ${apiKey()}`,
+      Authorization: `Bearer ${apiKey(credentials)}`,
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },

@@ -107,6 +107,16 @@ Example:
 }
 ```
 
+## Transport
+
+`POST /mcp` on the web app is the remote server for Cursor, Claude, and ChatGPT.
+
+- Cursor and Claude: `Authorization: Bearer <mcp key>`, or the `x-api-key` header.
+- ChatGPT: authentication none, URL `/mcp?key=<mcp key>`.
+- Local stdio (`apps/mcp`) remains available when the agent can launch a process in this repo.
+
+The same tools are registered for both transports. Each remote request uses the key on that request.
+
 ## Resources
 
 Expose read-only resources where useful:

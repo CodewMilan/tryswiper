@@ -30,6 +30,10 @@ const withClerk = clerkMiddleware(async (auth, request) => {
 });
 
 export function proxy(request: NextRequest, event: NextFetchEvent) {
+  const pathname = request.nextUrl.pathname;
+  if (pathname === "/mcp" || pathname === "/api/v1/billing/webhook") {
+    return NextResponse.next();
+  }
   if (e2eEnabled(request.headers.get("host"))) {
     const signedIn = isE2eUserId(request.cookies.get(E2E_COOKIE)?.value);
     if (!signedIn && matches(request.nextUrl.pathname, protectedPaths)) {

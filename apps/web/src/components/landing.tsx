@@ -207,7 +207,7 @@ export function Landing() {
                 </Magnetic>
                 <Magnetic strength={0.18}>
                   <Link
-                    href="/#agents"
+                    href="/connect"
                     className="inline-flex items-center rounded-[14px] border border-white/10 bg-white/5 px-4 py-2 text-[16px] font-medium text-white motion-safe:transition-colors motion-safe:duration-150 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
                     Connect an agent

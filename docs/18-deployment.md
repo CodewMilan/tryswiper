@@ -6,7 +6,7 @@ One container (`Dockerfile`) runs the Next.js app. Route handlers are the API. P
 
 `GET /api/health` returns `{ "ok": true }` when the database answers.
 
-MCP is a stdio process on the agent machine. It is not part of the container. Set `SWIPER_API_URL` to the public origin.
+Remote agents call the streamable HTTP endpoint at `/mcp` on this app. Cursor and Claude send `Authorization: Bearer` with a key minted at `/connect`. ChatGPT uses `/mcp?key=` because it does not send a custom header. The stdio process in `apps/mcp` still works for a local Cursor or Claude Desktop install; set `SWIPER_API_URL` to the public origin.
 
 Images and logos live in Postgres (`asset.data`). Back up the database. There is no object store, queue, or worker in this release.
 
@@ -26,6 +26,8 @@ See `.env.example`.
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` — from the Clerk dashboard. The publishable key is read when the image is built (`docker build --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...`). Enable Google and GitHub under SSO connections.
 - `APP_URL` — public origin, no trailing slash. Production must be `https://`. Read at runtime.
 - `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` — optional. Without them, generation uses the local planner.
+- `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_PRODUCT_ID`, and `DODO_PAYMENTS_WEBHOOK_SECRET` — optional until you charge. Checkout uses the test API unless `DODO_PAYMENTS_ENVIRONMENT=live_mode`. Point the Dodo webhook at `https://<origin>/api/v1/billing/webhook`.
+- `PRO_PRICE` — optional label on `/pricing`, for example `19`. The charged amount is the Dodo product price.
 
 `NEXT_PUBLIC_APP_URL` is optional. Leave it unset in the image so the browser uses the origin it loaded.
 

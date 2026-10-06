@@ -12,6 +12,7 @@ const productLinks = [
   { href: "/#formats", label: "Formats" },
   { href: "/#brand", label: "Brand kit" },
   { href: "/#export", label: "Export" },
+  { href: "/pricing", label: "Pricing" },
 ];
 
 const agentLinks = [
@@ -76,6 +77,9 @@ export function SiteNav() {
           <Menu label="Product" items={productLinks} />
           <Link href="/#formats" className={navLinkClass}>
             Formats
+          </Link>
+          <Link href="/pricing" className={navLinkClass}>
+            Pricing
           </Link>
           <Menu label="Agents" items={agentLinks} />
           <Link href="/#agents" className={navLinkClass}>

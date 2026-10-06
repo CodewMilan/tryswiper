@@ -6,6 +6,10 @@
   "bin": {
     "swiper-mcp": "./src/index.ts"
   },
+  "exports": {
+    ".": "./src/server.ts",
+    "./http": "./src/http.ts"
+  },
   "scripts": {
     "start": "tsx src/index.ts",
     "dev": "tsx src/index.ts",

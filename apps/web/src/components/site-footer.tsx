@@ -9,6 +9,7 @@ const columns = [
       { href: "/#formats", label: "Formats" },
       { href: "/#brand", label: "Brand kit" },
       { href: "/#export", label: "Export" },
+      { href: "/pricing", label: "Pricing" },
       { href: "/#product", label: "How it works" },
     ],
   },
@@ -20,6 +21,7 @@ const columns = [
       { href: "/brand", label: "Brand kit" },
       { href: "/new", label: "Start a carousel" },
       { href: "/connect", label: "Connect an agent" },
+      { href: "/pricing", label: "Pricing" },
     ],
   },
   {
@@ -28,7 +30,7 @@ const columns = [
       { href: "/#agents", label: "Cursor" },
       { href: "/#agents", label: "Claude" },
       { href: "/#agents", label: "ChatGPT" },
-      { href: "/#agents", label: "MCP config" },
+      { href: "/connect", label: "MCP config" },
     ],
   },
   {

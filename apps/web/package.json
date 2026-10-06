@@ -17,6 +17,7 @@
     "@radix-ui/react-dialog": "^1.2.0",
     "@swiper/ai": "workspace:*",
     "@swiper/db": "workspace:*",
+    "@swiper/mcp": "workspace:*",
     "@swiper/rendering": "workspace:*",
     "@swiper/schema": "workspace:*",
     "class-variance-authority": "^0.7.1",

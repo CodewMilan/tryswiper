@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
-import { SwiperApiError, swiperFetch } from "./api";
+import { SwiperApiError, swiperFetch, type SwiperCredentials } from "./api";
 
 function ok(data: unknown) {
   return {
@@ -36,7 +36,8 @@ function fail(error: unknown) {
   };
 }
 
-export function createSwiperServer() {
+export function createSwiperServer(credentials?: SwiperCredentials) {
+  const call = <T>(path: string, init?: RequestInit) => swiperFetch<T>(path, init, credentials);
   const server = new McpServer({
     name: "swiper",
     version: "0.1.0",
@@ -50,7 +51,7 @@ export function createSwiperServer() {
     },
     async () => {
       try {
-        return ok(await swiperFetch("/api/v1/brand"));
+        return ok(await call("/api/v1/brand"));
       } catch (error) {
         return fail(error);
       }
@@ -92,7 +93,7 @@ export function createSwiperServer() {
     async (input) => {
       try {
         return ok(
-          await swiperFetch("/api/v1/brand", {
+          await call("/api/v1/brand", {
             method: "PATCH",
             body: JSON.stringify(input),
           }),
@@ -111,7 +112,7 @@ export function createSwiperServer() {
     },
     async () => {
       try {
-        return ok(await swiperFetch("/api/v1/formats"));
+        return ok(await call("/api/v1/formats"));
       } catch (error) {
         return fail(error);
       }
@@ -126,7 +127,7 @@ export function createSwiperServer() {
     },
     async () => {
       try {
-        return ok(await swiperFetch("/api/v1/projects"));
+        return ok(await call("/api/v1/projects"));
       } catch (error) {
         return fail(error);
       }
@@ -148,7 +149,7 @@ export function createSwiperServer() {
     async (input) => {
       try {
         return ok(
-          await swiperFetch("/api/v1/carousels/generate", {
+          await call("/api/v1/carousels/generate", {
             method: "POST",
             body: JSON.stringify(input),
           }),
@@ -173,7 +174,7 @@ export function createSwiperServer() {
     async (input) => {
       try {
         return ok(
-          await swiperFetch("/api/v1/carousels", {
+          await call("/api/v1/carousels", {
             method: "POST",
             body: JSON.stringify(input),
           }),
@@ -194,7 +195,7 @@ export function createSwiperServer() {
     },
     async ({ carousel_id }) => {
       try {
-        return ok(await swiperFetch(`/api/v1/carousels/${carousel_id}`));
+        return ok(await call(`/api/v1/carousels/${carousel_id}`));
       } catch (error) {
         return fail(error);
       }
@@ -214,7 +215,7 @@ export function createSwiperServer() {
     async ({ carousel_id, operations }) => {
       try {
         return ok(
-          await swiperFetch(`/api/v1/carousels/${carousel_id}`, {
+          await call(`/api/v1/carousels/${carousel_id}`, {
             method: "PATCH",
             body: JSON.stringify({ operations }),
           }),
@@ -239,7 +240,7 @@ export function createSwiperServer() {
     async ({ carousel_id, slide_id, instruction }) => {
       try {
         return ok(
-          await swiperFetch(
+          await call(
             `/api/v1/carousels/${carousel_id}/slides/${slide_id}/regenerate`,
             {
               method: "POST",
@@ -264,7 +265,7 @@ export function createSwiperServer() {
     async ({ carousel_id }) => {
       try {
         return ok(
-          await swiperFetch(`/api/v1/carousels/${carousel_id}/validate`, {
+          await call(`/api/v1/carousels/${carousel_id}/validate`, {
             method: "POST",
           }),
         );
@@ -285,7 +286,7 @@ export function createSwiperServer() {
     async ({ carousel_id }) => {
       try {
         return ok(
-          await swiperFetch(`/api/v1/carousels/${carousel_id}/render`, {
+          await call(`/api/v1/carousels/${carousel_id}/render`, {
             method: "POST",
           }),
         );
@@ -307,7 +308,7 @@ export function createSwiperServer() {
     async ({ carousel_id }) => {
       try {
         return ok(
-          await swiperFetch(`/api/v1/carousels/${carousel_id}/export`, {
+          await call(`/api/v1/carousels/${carousel_id}/export`, {
             method: "POST",
           }),
         );

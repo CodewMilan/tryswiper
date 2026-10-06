@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { AgentConfigs } from "@/components/agent-configs";
 import { PageIntro, Settle } from "@/components/page-intro";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,21 +44,6 @@ async function readWorkspace() {
   };
 }
 
-function mcpConfig(origin: string, key: string) {
-  return `{
-  "mcpServers": {
-    "swiper": {
-      "command": "pnpm",
-      "args": ["--filter", "@swiper/mcp", "start"],
-      "env": {
-        "SWIPER_API_URL": "${origin}",
-        "SWIPER_API_KEY": "${key}"
-      }
-    }
-  }
-}`;
-}
-
 export default function ConnectPage() {
   const [brand, setBrand] = useState<Brand>(null);
   const [keys, setKeys] = useState<KeyRow[]>([]);
@@ -66,7 +52,6 @@ export default function ConnectPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [minting, setMinting] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -111,7 +96,7 @@ export default function ConnectPage() {
       const response = await fetch("/api/v1/mcp-keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Cursor" }),
+        body: JSON.stringify({ name: "Agent" }),
       });
       const body = (await response.json()) as { key?: string; message?: string };
       if (!response.ok || !body.key) {
@@ -127,15 +112,11 @@ export default function ConnectPage() {
   }
 
   const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3100";
-  const snippet = useMemo(
-    () => mcpConfig(origin, freshKey ?? "sk_swiper_YOUR_KEY"),
-    [freshKey, origin],
-  );
 
   return (
     <main className="mx-auto w-full max-w-[800px] px-6 py-12">
       <PageIntro title="Connect an agent">
-        Mint a key, add Swiper to Cursor or Claude, then ask for a carousel. Or{" "}
+        Mint a key, then add Swiper to Cursor, Claude, or ChatGPT. Or{" "}
         <Link href="/new" className="text-black underline decoration-black/20 underline-offset-4 motion-safe:transition-colors motion-safe:duration-150 hover:text-accent hover:decoration-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           start one in the browser
         </Link>.
@@ -206,29 +187,13 @@ export default function ConnectPage() {
             </ul>
           </section>
 
-          <section className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
-            <h2 className="text-[18px] font-medium tracking-[-0.02em]">3. Cursor config</h2>
-            <p className="mt-2 text-[15px] font-light leading-6 text-ink-soft">
-              Run Cursor from the Swiper repo root. API URL is {origin}.
+          <div>
+            <h2 className="text-[18px] font-medium tracking-[-0.02em]">3. Add the agent</h2>
+            <p className="mt-2 mb-4 text-[15px] font-light leading-6 text-ink-soft">
+              Mint a key first so these configs include it. Then ask: “Make a carousel explaining why we’re different.”
             </p>
-            <pre className="mt-4 overflow-x-auto rounded-2xl bg-[#f7f7f6] p-4 font-mono text-[12px] leading-6 text-black">
-              {snippet}
-            </pre>
-            <Button
-              className="mt-3"
-              variant="secondary"
-              onClick={async () => {
-                await navigator.clipboard.writeText(snippet);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-            >
-              {copied ? "Copied" : "Copy config"}
-            </Button>
-            <p className="mt-4 text-[14px] font-light text-ink-soft">
-              Then ask: “Make a carousel explaining why we’re different.”
-            </p>
-          </section>
+            <AgentConfigs origin={origin} apiKey={freshKey ?? "sk_swiper_YOUR_KEY"} />
+          </div>
 
           <section className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
             <h2 className="text-[18px] font-medium tracking-[-0.02em]">Recent carousels</h2>

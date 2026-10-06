@@ -1,0 +1,25 @@
+import { Suspense } from "react";
+import { PricingPlans } from "@/components/pricing-plans";
+import { SiteFooter } from "@/components/site-footer";
+import { SiteNav } from "@/components/site-nav";
+import { proPriceLabel } from "@/lib/dodo";
+
+export const dynamic = "force-dynamic";
+
+export const metadata = {
+  title: "Pricing · Swiper",
+};
+
+export default function PricingPage() {
+  return (
+    <div className="min-h-full bg-background">
+      <SiteNav />
+      <main className="hero-grid">
+        <Suspense fallback={<div className="mx-auto min-h-[50vh] max-w-[1200px] px-6 py-16" />}>
+          <PricingPlans priceLabel={proPriceLabel()} />
+        </Suspense>
+      </main>
+      <SiteFooter />
+    </div>
+  );
+}
