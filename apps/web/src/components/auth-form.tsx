@@ -21,6 +21,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const next = searchParams.get("next") ?? searchParams.get("redirect_url");
   const destination = safeNextPath(next);
   const [ready, setReady] = useState(false);
+  const [configError, setConfigError] = useState<string | null>(null);
   const configured = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
   const otherHref = mode === "signup" ? "/login" : "/signup";
   const otherWithNext = next ? `${otherHref}?next=${encodeURIComponent(next)}` : otherHref;
@@ -50,11 +51,19 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
               {configured ? (
                 <SocialSignIn destination={destination} />
               ) : (
-                <p className="text-sm text-ink-soft">
-                  Add your Clerk keys to <span className="font-mono text-xs">.env</span>, then restart.
-                  Google and GitHub both need to be enabled in the Clerk dashboard.
-                </p>
+                <ProviderButtons
+                  onClick={() =>
+                    setConfigError(
+                      "Add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY, then restart. Enable Google and GitHub in the Clerk dashboard.",
+                    )
+                  }
+                />
               )}
+              {configError ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {configError}
+                </p>
+              ) : null}
             </div>
             <p className="mt-6 text-sm font-light text-ink-soft">
               {mode === "signup" ? (
@@ -84,6 +93,26 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       </div>
     </div>
   );
+}
+
+function ProviderButtons({
+  pending,
+  onClick,
+}: {
+  pending?: (typeof providers)[number]["strategy"] | null;
+  onClick: (strategy: (typeof providers)[number]["strategy"]) => void;
+}) {
+  return providers.map((provider) => {
+    const Icon = provider.icon;
+    return (
+      <Magnetic key={provider.strategy} strength={0.16} className="w-full">
+        <Button className="w-full" disabled={pending !== undefined && pending !== null} onClick={() => onClick(provider.strategy)}>
+          <Icon size={18} weight="bold" />
+          {pending === provider.strategy ? "Redirecting…" : provider.label}
+        </Button>
+      </Magnetic>
+    );
+  });
 }
 
 function SocialSignIn({ destination }: { destination: string }) {
@@ -116,21 +145,7 @@ function SocialSignIn({ destination }: { destination: string }) {
 
   return (
     <>
-      {providers.map((provider) => {
-        const Icon = provider.icon;
-        return (
-          <Magnetic key={provider.strategy} strength={0.16} className="w-full">
-            <Button
-              className="w-full"
-              disabled={pending !== null}
-              onClick={() => void start(provider.strategy)}
-            >
-              <Icon size={18} weight="bold" />
-              {pending === provider.strategy ? "Redirecting…" : provider.label}
-            </Button>
-          </Magnetic>
-        );
-      })}
+      <ProviderButtons pending={pending} onClick={(strategy) => void start(strategy)} />
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}
