@@ -35,7 +35,7 @@ function FormatChoice({ format, checked, onChange }: {
     : `${format.slideCount.min}–${format.slideCount.max} slides`;
   return (
     <label
-      className={`group block min-h-44 cursor-pointer rounded-xl border bg-card p-5 motion-safe:transition-[border-color,box-shadow,transform] motion-safe:duration-150 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background ${
+      className={`group block min-h-44 cursor-pointer rounded-[24px] border bg-white p-5 motion-safe:transition-[border-color,box-shadow,transform] motion-safe:duration-150 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background ${
         checked ? "border-foreground shadow-sm" : "border-border hover:-translate-y-0.5 hover:border-foreground/20"
       }`}
     >
@@ -62,7 +62,8 @@ function FormatChoice({ format, checked, onChange }: {
 export default function NewCarouselPage() {
   const router = useRouter();
   const [formats, setFormats] = useState<FormatOption[]>([]);
-  const [formatId, setFormatId] = useState("");
+  const [generateFormatId, setGenerateFormatId] = useState("problem-insight-product");
+  const [manualFormatId, setManualFormatId] = useState("freeform");
   const [title, setTitle] = useState("");
   const [brief, setBrief] = useState("");
   const [referenceUrl, setReferenceUrl] = useState("");
@@ -76,10 +77,15 @@ export default function NewCarouselPage() {
       const response = await fetch("/api/v1/formats");
       const body = (await response.json()) as { formats?: FormatOption[]; message?: string };
       if (!response.ok || !body.formats) throw new Error(body.message ?? "Could not load formats.");
-      setFormats(body.formats);
-      setFormatId((current) => body.formats!.some((format) => format.id === current)
+      const available = body.formats;
+      const storyFormats = available.filter((format) => format.source === "official" && format.id !== "freeform");
+      setFormats(available);
+      setGenerateFormatId((current) => storyFormats.some((format) => format.id === current)
         ? current
-        : (body.formats!.find((format) => format.source === "official" && format.id !== "freeform")?.id ?? body.formats![0]?.id ?? ""));
+        : (storyFormats[0]?.id ?? ""));
+      setManualFormatId((current) => available.some((format) => format.id === current)
+        ? current
+        : (available[0]?.id ?? ""));
       setLoadState("ready");
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load formats.");
@@ -93,6 +99,7 @@ export default function NewCarouselPage() {
     void loadFormats();
   }, [loadFormats]);
 
+  const formatId = mode === "generate" ? generateFormatId : manualFormatId;
   const selected = useMemo(() => formats.find((format) => format.id === formatId), [formatId, formats]);
   const startByHand = formats.find((format) => format.id === "freeform");
   const workspaceFormats = formats.filter((format) => format.source === "workspace");
@@ -101,6 +108,7 @@ export default function NewCarouselPage() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected || pending) return;
+    if (mode === "generate" && (brief.trim().length < 12 || selected.source !== "official" || selected.id === "freeform")) return;
     setPending(true);
     setError(null);
     try {
@@ -211,14 +219,31 @@ export default function NewCarouselPage() {
           </div>
         ) : null}
 
-        {loadState === "ready" ? (
+        {loadState === "ready" && mode === "generate" ? (
+          <section className="mt-6 max-w-2xl rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
+            <Label htmlFor="story-shape">Story shape</Label>
+            <select
+              id="story-shape"
+              value={generateFormatId}
+              onChange={(event) => setGenerateFormatId(event.target.value)}
+              disabled={pending}
+              aria-describedby="story-shape-hint"
+              className="mt-2 h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {officialFormats.map((format) => <option key={format.id} value={format.id}>{format.name}</option>)}
+            </select>
+            <p id="story-shape-hint" className="mt-2 text-sm leading-6 text-ink-soft">{selected?.description ?? "Choose a narrative shape for your brief."}</p>
+          </section>
+        ) : null}
+
+        {loadState === "ready" && mode === "manual" ? (
           <div className="space-y-10">
             {startByHand ? (
               <fieldset className="mt-10">
                 <legend className="text-lg font-medium tracking-[-0.02em]">Blank canvas</legend>
                 <p className="mt-1 text-sm text-ink-soft">Start with three editable slides and shape the story yourself.</p>
                 <div className="mt-4 max-w-xl">
-                  <FormatChoice format={startByHand} checked={startByHand.id === formatId} onChange={() => setFormatId(startByHand.id)} />
+                  <FormatChoice format={startByHand} checked={startByHand.id === formatId} onChange={() => setManualFormatId(startByHand.id)} />
                 </div>
               </fieldset>
             ) : null}
@@ -228,7 +253,7 @@ export default function NewCarouselPage() {
               {workspaceFormats.length > 0 ? (
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {workspaceFormats.map((format) => (
-                    <FormatChoice key={format.id} format={format} checked={format.id === formatId} onChange={() => setFormatId(format.id)} />
+                    <FormatChoice key={format.id} format={format} checked={format.id === formatId} onChange={() => setManualFormatId(format.id)} />
                   ))}
                 </div>
               ) : (
@@ -244,7 +269,7 @@ export default function NewCarouselPage() {
               <p className="mt-1 text-sm text-ink-soft">Pick the narrative shape Swiper should use for the first draft.</p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {officialFormats.map((format) => (
-                  <FormatChoice key={format.id} format={format} checked={format.id === formatId} onChange={() => setFormatId(format.id)} />
+                  <FormatChoice key={format.id} format={format} checked={format.id === formatId} onChange={() => setManualFormatId(format.id)} />
                 ))}
               </div>
             </fieldset>

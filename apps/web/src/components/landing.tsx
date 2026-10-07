@@ -37,6 +37,7 @@ const ctaClass =
 export function Landing({ signedIn = false }: { signedIn?: boolean }) {
   const [stage, setStage] = useState(0);
   const startHref = signedIn ? "/new" : "/signup";
+  const startLabel = signedIn ? "New carousel" : "Start for free";
   const workspaceHref = signedIn ? "/library" : "/signup";
   const formats = FORMATS.slice(0, 6).map((format) => ({
     id: format.id,
@@ -65,34 +66,33 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
             <h1 className="text-[40px] font-light leading-[1.05] tracking-[-0.03em] text-black sm:text-[52px] lg:text-[59px] lg:leading-[60.8px]">
               <SoftBlurIn
                 segments={[
-                  { text: "Describe the post. Your " },
-                  { text: "agent", accent: true },
+                  { text: "Describe the post." },
                 ]}
               />
               <br />
               <SoftBlurIn
                 delay={TIMING.copy / 1000}
                 segments={[
-                  { text: "builds", accent: true },
+                  { text: "Build", accent: true },
                   { text: " the carousel." },
                 ]}
               />
             </h1>
             <FadeUp show={stage >= 1} className="mt-5 max-w-[540px]">
               <p className="text-[18px] font-light leading-[27px] tracking-[-0.01em] text-[#8f8f8f] sm:text-[20px]">
-                Connect Swiper in Cursor, Claude, or ChatGPT. The agent reads your brand,
-                picks a format, and hands you an editor link.
+                Generate an editable carousel from a brief right here on the web.
+                Or connect Cursor, Claude, or ChatGPT. Your brand kit guides every draft.
               </p>
             </FadeUp>
             <FadeUp show={stage >= 2} className="mt-6">
               <Magnetic>
                 <Link href={startHref} className={ctaClass}>
-                  Start for free
+                  {startLabel}
                   <ArrowRight className="motion-safe:transition-transform motion-safe:duration-150 group-hover:translate-x-0.5" />
                 </Link>
               </Magnetic>
               <p className="mt-3 text-[13px] font-light tracking-[-0.01em] text-ink-soft">
-                Free to start • No card required
+                {signedIn ? "Your brand kit is ready for the next draft" : "Free to start • No card required"}
               </p>
             </FadeUp>
           </div>
@@ -123,7 +123,7 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
           <div className="mt-16 grid gap-10 md:grid-cols-3 md:gap-12">
             <FeaturePoint
               title="A real document"
-              body="The agent returns a typed carousel. Not a screenshot, and not a pile of HTML."
+              body="Every draft is a typed carousel with editable slides, copy, and design."
             />
             <FeaturePoint
               title="You approve the line"
@@ -143,7 +143,7 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
             id="editor"
             eyebrow="Editor"
             eyebrowClass="bg-[#bbe2f5] text-blue"
-            title="Edit the slide the agent just wrote"
+            title="Make the first draft your own"
             body="Open the link, change the line, and ask for another pass on that slide only."
             href={startHref}
           >
@@ -155,7 +155,7 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
               eyebrow="Formats"
               eyebrowClass="bg-[#f8d4e4] text-pink"
               title="Start from a structure that already works"
-              body="Problem, list, before and after, myth. The agent adapts the format to your product."
+              body="Problem, list, before and after, myth. Swiper adapts the format to your brief and brand."
               href="/#formats"
             >
               <FormatMock />
@@ -164,7 +164,7 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
               id="brand"
               eyebrow="Brand"
               eyebrowClass="bg-[#d7f3e4] text-green"
-              title="Give the agent a brand kit, not a vibe"
+              title="Give every draft a brand kit"
               body="Name, audience, tone, proof, and the words you will not say."
               href={signedIn ? "/brand" : "/signup"}
             >
@@ -204,7 +204,7 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
                     href={workspaceHref}
                     className="inline-flex items-center rounded-[14px] border border-white/10 bg-white/5 px-4 py-2 text-[16px] font-medium text-white motion-safe:transition-colors motion-safe:duration-150 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
-                    Create a workspace
+                    {signedIn ? "Open library" : "Create a workspace"}
                   </Link>
                 </Magnetic>
                 <Magnetic strength={0.18}>
@@ -251,10 +251,11 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
               Connect Swiper where you already work
             </h2>
             <p className="mt-4 text-[18px] font-light leading-7 text-ink-soft">
-              Cursor, Claude, or ChatGPT. The web app is for the brand kit, the key, and the editor.
+              Generate from a brief in the browser, or use Cursor, Claude, or ChatGPT.
+              Every draft opens in the same editor, with the same brand kit.
             </p>
             <Link href={workspaceHref} className={`group mt-6 inline-flex items-center gap-1 text-[16px] font-medium ${linkClass}`}>
-              Create a workspace
+              {signedIn ? "Open library" : "Create a workspace"}
               <ArrowRight className="motion-safe:transition-transform motion-safe:duration-150 group-hover:translate-x-0.5" />
             </Link>
           </div>
@@ -358,15 +359,15 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
             Make the next carousel
           </h2>
           <p className="mt-4 max-w-xl text-[18px] font-light leading-7 text-ink-soft sm:text-[20px]">
-            Create a workspace. Connect an agent. Ask for the post.
+            Write a brief, pick a story shape, and review the draft in your browser.
           </p>
           <Magnetic className="mt-8">
             <Link href={startHref} className={ctaClass}>
-              Start for free
+              {startLabel}
               <ArrowRight />
             </Link>
           </Magnetic>
-          <p className="mt-4 text-[13px] font-light text-ink-soft">Free to start • No card required</p>
+          <p className="mt-4 text-[13px] font-light text-ink-soft">{signedIn ? "Continue with your saved brand kit" : "Free to start • No card required"}</p>
         </div>
       </section>
     </div>

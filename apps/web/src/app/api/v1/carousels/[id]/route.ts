@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/api-auth";
 import { editorUrl } from "@/lib/utils";
 import { fromUnknownError, json } from "@/lib/http";
-import { getCarousel, undoDepth, updateCarousel } from "@/server/carousels";
+import { deleteCarousel, getCarousel, undoDepth, updateCarousel } from "@/server/carousels";
 
 export async function GET(
   request: Request,
@@ -37,6 +37,19 @@ export async function PATCH(
     const { id } = await context.params;
     const body = (await request.json()) as { operations?: unknown[]; expected_version?: number; mutation_id?: string };
     return json(await updateCarousel(authContext, id, body.operations ?? [], body.expected_version, body.mutation_id));
+  } catch (error) {
+    return fromUnknownError(error);
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    const authContext = await requireAuth(request);
+    const { id } = await context.params;
+    return json(await deleteCarousel(authContext, id));
   } catch (error) {
     return fromUnknownError(error);
   }

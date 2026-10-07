@@ -22,12 +22,25 @@ export async function workspacePlan(workspaceId: string): Promise<Plan> {
 }
 
 export async function usageFor(workspaceId: string) {
-  const rows = await db
-    .select({ kind: schema.usageEvent.kind, value: count() })
-    .from(schema.usageEvent)
-    .where(and(eq(schema.usageEvent.workspaceId, workspaceId), gte(schema.usageEvent.createdAt, periodStart())))
-    .groupBy(schema.usageEvent.kind);
-  return Object.fromEntries(rows.map((row) => [row.kind, Number(row.value)])) as Partial<Record<UsageKind, number>>;
+  const start = periodStart();
+  const [rows, [carousels]] = await Promise.all([
+    db
+      .select({ kind: schema.usageEvent.kind, value: count() })
+      .from(schema.usageEvent)
+      .where(and(eq(schema.usageEvent.workspaceId, workspaceId), gte(schema.usageEvent.createdAt, start)))
+      .groupBy(schema.usageEvent.kind),
+    db
+      .select({ value: count() })
+      .from(schema.carousel)
+      .innerJoin(schema.project, eq(schema.project.id, schema.carousel.projectId))
+      .where(and(eq(schema.project.workspaceId, workspaceId), gte(schema.carousel.createdAt, start))),
+  ]);
+  // Carousel slots follow the surviving documents, so deleting a current-month
+  // draft releases its slot without refunding generation or export work.
+  return {
+    ...Object.fromEntries(rows.map((row) => [row.kind, Number(row.value)])),
+    carousel: Number(carousels?.value ?? 0),
+  } as Partial<Record<UsageKind, number>>;
 }
 
 export async function assertUsage(workspaceId: string, kind: UsageKind) {

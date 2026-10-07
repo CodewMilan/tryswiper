@@ -35,6 +35,10 @@ Track:
 
 Use server-side usage records. Never rely on frontend counters.
 
+The monthly carousel allowance counts remaining carousels created during the current UTC month.
+Deleting a current-month draft releases its carousel slot; deleting an older draft does not
+change this month's count. AI generations and exports remain metered after deletion.
+
 ## Cost control
 
 AI and image generation can create unpredictable costs.

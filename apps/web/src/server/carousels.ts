@@ -280,6 +280,23 @@ export async function getCarousel(authContext: AuthContext, id: string) {
   return row.carousel;
 }
 
+export async function deleteCarousel(authContext: AuthContext, id: string) {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ id: schema.carousel.id })
+      .from(schema.carousel)
+      .innerJoin(schema.project, eq(schema.project.id, schema.carousel.projectId))
+      .where(and(eq(schema.carousel.id, id), eq(schema.project.workspaceId, authContext.workspaceId)))
+      .for("update", { of: schema.carousel });
+    if (!row) {
+      throw Object.assign(new Error("Carousel not found"), { status: 404, code: "NOT_FOUND" });
+    }
+    // Versions and publish jobs cascade; reusable workspace formats are kept.
+    await tx.delete(schema.carousel).where(eq(schema.carousel.id, row.id));
+    return { carousel_id: row.id, deleted: true };
+  });
+}
+
 export async function listProjects(authContext: AuthContext) {
   const projects = await db
     .select()

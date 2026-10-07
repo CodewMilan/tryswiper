@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+import { testDatabaseUrl } from "./e2e/test-data";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -11,6 +12,7 @@ export default defineConfig({
     url: "http://localhost:3101/api/health",
     timeout: 120000,
     env: {
+      DATABASE_URL: testDatabaseUrl,
       SWIPER_BUILD_DIR: process.env.E2E_PRODUCTION ? ".next" : ".next-e2e",
       APP_URL: "http://localhost:3101",
       NEXT_PUBLIC_APP_URL: "http://localhost:3101",

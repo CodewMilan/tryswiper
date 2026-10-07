@@ -20,7 +20,7 @@ const geistMono = localFont({
 
 export const metadata: Metadata = {
   title: "Swiper",
-  description: "Describe the post. Your agent builds the carousel.",
+  description: "Generate an editable carousel from a brief on the web, or connect the agent you already use.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

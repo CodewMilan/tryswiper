@@ -1,6 +1,14 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 import { createCanvas } from "@napi-rs/canvas";
 import type { Carousel } from "@swiper/schema";
+import postgres from "postgres";
+import { cleanupTestUsers, testDatabaseUrl } from "./test-data";
+
+const testUserIds: string[] = [];
+
+test.afterEach(async () => {
+  await cleanupTestUsers(testUserIds.splice(0));
+});
 
 function fixtureImage(color: string) {
   const canvas = createCanvas(120, 60);
@@ -14,6 +22,9 @@ async function signUp(request: APIRequestContext) {
     headers: { Origin: "http://localhost:3101" },
   });
   expect(response.ok(), await response.text()).toBeTruthy();
+  const body = await response.json() as { user: { id: string } };
+  testUserIds.push(body.user.id);
+  return body.user.id;
 }
 async function create(request: APIRequestContext, format = "freeform") {
   const response = await request.post("/api/v1/carousels", { data: { format_id: format, title: "A better way to tell your story" } });
@@ -183,4 +194,87 @@ test("library, web generation, key revocation, plan gates, and branded 404", asy
 
   await page.goto("/a-page-that-does-not-exist");
   await expect(page.getByRole("heading", { name: "This page is not in the deck." })).toBeVisible();
+});
+
+test("landing copy and generate mode follow the web creation path", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("main").getByRole("link", { name: "Start for free", exact: true }).first()).toHaveAttribute("href", "/signup");
+  await expect(page.getByText("Generate an editable carousel from a brief right here on the web.", { exact: false })).toBeVisible();
+
+  await signUp(page.request);
+  await page.goto("/");
+  await expect(page.locator("main").getByRole("link", { name: "New carousel", exact: true }).first()).toHaveAttribute("href", "/new");
+  await expect(page.locator("main").getByRole("link", { name: "Start for free", exact: true })).toHaveCount(0);
+
+  await page.goto("/new");
+  await expect(page.getByLabel("Story shape", { exact: true })).toHaveValue("problem-insight-product");
+  await expect(page.getByText("Blank canvas", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Your workspace formats", { exact: true })).toHaveCount(0);
+  await expect(page.locator("#story-shape option[value=freeform]")).toHaveCount(0);
+  await page.getByLabel("Story shape", { exact: true }).selectOption("before-after");
+  await page.getByRole("button", { name: "Start by hand", exact: true }).click();
+  await expect(page.getByRole("radio", { name: /Blank canvas/ })).toBeChecked();
+  await page.getByRole("button", { name: "Generate from a brief", exact: true }).click();
+  await expect(page.getByLabel("Story shape", { exact: true })).toHaveValue("before-after");
+  await expect(page.getByText("Blank canvas", { exact: true })).toHaveCount(0);
+});
+
+test("confirmed deletion releases quota, preserves formats, and rejects other workspaces", async ({ page, browser }) => {
+  const request = page.request;
+  const userId = await signUp(request);
+  const sql = postgres(testDatabaseUrl, { max: 1, prepare: false });
+  try {
+    const [{ carousel_id: oldId }, { carousel_id: id }] = [await create(request), await create(request)];
+    // An older draft must never release one of this month's slots.
+    await sql`update carousel set created_at = date_trunc('month', now() at time zone 'UTC') - interval '1 day' where id = ${oldId}`;
+    for (let index = 0; index < 4; index++) await create(request);
+    const billing = async () => await (await request.get("/api/v1/billing")).json() as { usage: { carousel: number; generation?: number } };
+    expect((await billing()).usage.carousel).toBe(5);
+    const full = await request.post("/api/v1/carousels", { data: { format_id: "freeform" } });
+    expect(full.status()).toBe(429);
+
+    const other = await browser.newContext({ baseURL: "http://localhost:3101" });
+    try {
+      await signUp(other.request);
+      expect((await other.request.delete(`/api/v1/carousels/${id}`)).status()).toBe(404);
+      expect((await request.get(`/api/v1/carousels/${id}`)).status()).toBe(200);
+    } finally {
+      await other.close();
+    }
+
+    const savedFormat = await request.post("/api/v1/formats", { data: { carousel_id: id, name: "Surviving format" } });
+    expect(savedFormat.status()).toBe(201);
+    const { format } = await savedFormat.json() as { format: { id: string } };
+
+    await page.goto("/library");
+    await page.getByRole("button", { name: "Delete A better way to tell your story", exact: true }).first().click();
+    await expect(page.getByRole("dialog", { name: "Delete this carousel?" })).toBeVisible();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    expect((await billing()).usage.carousel).toBe(5);
+
+    expect((await request.delete(`/api/v1/carousels/${oldId}`)).status()).toBe(200);
+    expect((await billing()).usage.carousel).toBe(5);
+    // Give the chosen draft a distinct title so the confirmation is unambiguous.
+    await request.patch(`/api/v1/carousels/${id}`, { data: { operations: [{ op: "rename", title: "Draft to discard" }] } });
+    await page.reload();
+    await page.getByRole("button", { name: "Delete Draft to discard", exact: true }).click();
+    await page.getByRole("button", { name: "Delete carousel", exact: true }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /Draft to discard/ })).toHaveCount(0);
+    expect((await billing()).usage.carousel).toBe(4);
+    expect((await request.get(`/api/v1/carousels/${id}`)).status()).toBe(404);
+    expect((await request.delete(`/api/v1/carousels/${id}`)).status()).toBe(404);
+    expect((await billing()).usage.carousel).toBe(4);
+    await create(request, format.id);
+    expect((await billing()).usage.carousel).toBe(5);
+
+    const [{ remaining }] = await sql<{ remaining: number }[]>`
+      select count(*)::int as remaining from carousel c
+      join project p on p.id = c.project_id
+      join workspace w on w.id = p.workspace_id where w.owner_id = ${userId}
+    `;
+    expect(remaining).toBe(5);
+  } finally {
+    await sql.end();
+  }
 });

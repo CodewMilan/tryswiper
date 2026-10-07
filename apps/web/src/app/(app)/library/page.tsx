@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, Plus } from "@phosphor-icons/react";
+import { ArrowRight, Plus, Trash } from "@phosphor-icons/react";
 import { PageIntro, Settle } from "@/components/page-intro";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 
 type CarouselRow = {
   id: string;
@@ -18,6 +19,28 @@ export default function LibraryPage() {
   const [items, setItems] = useState<CarouselRow[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
+  const [deletingItem, setDeletingItem] = useState<CarouselRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function confirmDelete() {
+    if (!deletingItem || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const response = await fetch(`/api/v1/carousels/${deletingItem.id}`, { method: "DELETE" });
+      const body = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(body.message ?? "Could not delete the carousel. Try again.");
+      setItems((current) => current.filter((item) => item.id !== deletingItem.id));
+      setNotice(`“${deletingItem.title}” was deleted.`);
+      setDeletingItem(null);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Could not delete the carousel. Try again.");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   const load = useCallback(async () => {
     setState("loading");
@@ -54,6 +77,8 @@ export default function LibraryPage() {
         </Link>
       </div>
 
+      {notice ? <p role="status" className="mt-6 text-sm text-ink-soft">{notice}</p> : null}
+
       {state === "loading" ? (
         <div className="mt-10 grid gap-4 sm:grid-cols-2" aria-busy="true" aria-label="Loading carousels">
           {Array.from({ length: 4 }).map((_, index) => (
@@ -86,11 +111,11 @@ export default function LibraryPage() {
       {state === "ready" && items.length > 0 ? (
         <Settle className="mt-10 grid gap-4 sm:grid-cols-2">
           {items.map((item, index) => (
-            <Link
+            <article
               key={item.id}
-              href={`/c/${item.id}`}
-              className="group min-h-44 rounded-[24px] border border-black/8 bg-white p-6 motion-safe:transition-[transform,border-color] hover:-translate-y-0.5 hover:border-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="group min-h-44 rounded-[24px] border border-black/8 bg-white motion-safe:transition-[transform,border-color] hover:-translate-y-0.5 hover:border-black/20"
             >
+              <Link href={`/c/${item.id}`} className="block rounded-[24px] p-6 pb-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-mono text-xs text-ink-faint">{String(index + 1).padStart(2, "0")}</span>
                 <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-soft">{item.status}</span>
@@ -100,10 +125,32 @@ export default function LibraryPage() {
                 <span>{item.format_id.replaceAll("-", " ")}</span>
                 <span>{new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(item.updated_at))}</span>
               </div>
-            </Link>
+              </Link>
+              <div className="flex justify-end px-4 pb-3">
+                <Button variant="ghost" size="sm" aria-label={`Delete ${item.title}`} onClick={() => {
+                  setDeleteError(null);
+                  setDeletingItem(item);
+                }} className="text-ink-soft hover:text-destructive">
+                  <Trash size={15} /> Delete
+                </Button>
+              </div>
+            </article>
           ))}
         </Settle>
       ) : null}
+
+      <Dialog
+        open={Boolean(deletingItem)}
+        onOpenChange={(open) => { if (!open && !deleting) setDeletingItem(null); }}
+        title="Delete this carousel?"
+        description={`“${deletingItem?.title ?? "This carousel"}” and its edit history will be permanently deleted. Saved formats stay available. Deleting a carousel created this month frees a carousel slot; AI generation and export usage stays counted.`}
+      >
+        {deleteError ? <p role="alert" className="mb-4 text-sm text-destructive">{deleteError}</p> : null}
+        <div className="flex flex-wrap gap-3">
+          <Button onClick={() => void confirmDelete()} disabled={deleting} aria-busy={deleting}>{deleting ? "Deleting…" : "Delete carousel"}</Button>
+          <Button variant="outline" disabled={deleting} onClick={() => setDeletingItem(null)}>Cancel</Button>
+        </div>
+      </Dialog>
     </main>
   );
 }
