@@ -253,6 +253,8 @@ test("confirmed deletion releases quota, preserves formats, and rejects other wo
     const { format } = await savedFormat.json() as { format: { id: string } };
 
     await page.goto("/library");
+    await expect(page.getByRole("region", { name: "Monthly allowance" })).toContainText("0 of 5 carousels remaining");
+    await expect(page.getByRole("region", { name: "Monthly allowance" })).toContainText("9 of 10 AI generations remaining");
     await page.getByRole("button", { name: "Delete A better way to tell your story", exact: true }).first().click();
     await expect(page.getByRole("dialog", { name: "Delete this carousel?" })).toBeVisible();
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -267,6 +269,7 @@ test("confirmed deletion releases quota, preserves formats, and rejects other wo
     await page.getByRole("button", { name: "Delete carousel", exact: true }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByRole("link", { name: /Draft to discard/ })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Monthly allowance" })).toContainText("1 of 5 carousels remaining");
     expect((await billing()).usage.carousel).toBe(4);
     expect((await billing()).usage.generation).toBe(1);
     expect((await request.get(`/api/v1/carousels/${id}`)).status()).toBe(404);
@@ -284,4 +287,120 @@ test("confirmed deletion releases quota, preserves formats, and rejects other wo
   } finally {
     await sql.end();
   }
+});
+
+test("Connect keeps one-time-secret setup templates after refresh", async ({ page }) => {
+  await signUp(page.request);
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/connect");
+  await expect(page.getByRole("heading", { name: "Mint a key to connect your agent" })).toBeVisible();
+  const minted = page.waitForResponse((response) => response.url().endsWith("/api/v1/mcp-keys") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "Mint API key", exact: true }).click();
+  const { key } = await (await minted).json() as { key: string };
+  await expect(page.getByLabel("New key", { exact: true })).toHaveValue(key);
+  const chatgpt = page.locator("section").filter({ has: page.getByRole("heading", { name: "ChatGPT", exact: true }) });
+  await expect(chatgpt).toContainText("Keep this URL private: the ?key= value is your secret.");
+  await chatgpt.getByRole("button", { name: "Copy ChatGPT URL", exact: true }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`http://localhost:3101/mcp?key=${encodeURIComponent(key)}`);
+  await expect(page.getByRole("link", { name: "Add to Cursor", exact: true })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Mint a new key", exact: true })).toBeVisible();
+  await expect(page.getByText(/its secret was shown only once/)).toBeVisible();
+  await expect(page.getByLabel("New key", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Add to Cursor", exact: true })).toHaveCount(0);
+  const cursor = page.locator("section").filter({ has: page.getByRole("heading", { name: "Cursor", exact: true }) });
+  await expect(cursor.locator("pre")).toContainText("http://localhost:3101/mcp");
+  await expect(cursor.locator("pre")).toContainText("Authorization");
+  await expect(cursor.locator("pre")).toContainText("YOUR_SAVED_KEY");
+  await expect(page.locator("main")).not.toContainText(key);
+  await cursor.getByRole("button", { name: "Copy Cursor template", exact: true }).click();
+  const template = JSON.parse(await page.evaluate(() => navigator.clipboard.readText())) as { mcpServers: { swiper: { headers: { Authorization: string } } } };
+  expect(template.mcpServers.swiper.headers.Authorization).toBe("Bearer YOUR_SAVED_KEY");
+  for (const width of [375, 768, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(chatgpt.getByRole("button", { name: "Copy ChatGPT URL template", exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+  }
+  await page.getByRole("button", { name: "Mint a new key", exact: true }).click();
+  await expect(page.getByLabel("New key", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Revoke", exact: true }).last().click();
+  await expect(page.getByRole("button", { name: "Revoke", exact: true })).toHaveCount(1);
+  await page.getByRole("button", { name: "Revoke", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Mint a key to connect your agent" })).toBeVisible();
+});
+
+test("Prepare files shows the Free gate upfront and preserves the Pro handoff", async ({ page }) => {
+  await signUp(page.request);
+  const { carousel_id: id } = await create(page.request);
+  let preparations = 0;
+  page.on("request", (request) => { if (request.method() === "POST" && request.url().endsWith(`/carousels/${id}/publish`)) preparations++; });
+  await page.goto(`/c/${id}`);
+  await page.getByRole("button", { name: "Prepare files", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Prepare files", exact: true });
+  await expect(dialog).toContainText("Prepare files requires Pro.");
+  await expect(dialog).toContainText("Swiper does not post to social accounts.");
+  await expect(dialog.getByRole("link", { name: "Upgrade to Pro", exact: true })).toHaveAttribute("href", "/pricing");
+  await expect(dialog.getByRole("button", { name: "Validate and prepare files", exact: true })).toHaveCount(0);
+  expect(preparations).toBe(0);
+  await dialog.getByRole("button", { name: "Export PNG or PDF", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Ready to share", exact: true })).toBeVisible();
+  expect(preparations).toBe(0);
+
+  // Exercise the Pro UI without changing real billing or consuming file-preparation usage.
+  await page.route("**/api/v1/billing", (route) => route.fulfill({ json: { plan: "pro", usage: {}, limits: { carousel: 100, generation: 250, export: 1000, publish: 100, jpg: true } } }));
+  await page.route(`**/api/v1/carousels/${id}/publish`, (route) => route.fulfill({ json: { status: "ready" } }));
+  await page.reload();
+  await page.getByRole("button", { name: "Prepare files", exact: true }).click();
+  await expect(dialog).toContainText("Your Pro plan includes this publishing handoff.");
+  await dialog.getByRole("button", { name: "Validate and prepare files", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Ready to share", exact: true })).toBeVisible();
+  await expect(page.getByText("Files ready to download. Swiper does not post to your social accounts.", { exact: true })).toBeVisible();
+  expect(preparations).toBe(1);
+});
+
+test("monthly allowances guide creation and usage errors preserve the brief", async ({ page }) => {
+  await signUp(page.request);
+  const limits = { carousel: 5, generation: 10, export: 20, publish: 0, jpg: false };
+  let usage = { carousel: 2, generation: 10 };
+  await page.route("**/api/v1/billing", (route) => route.fulfill({ json: { plan: "free", usage, limits } }));
+  await page.goto("/library");
+  await expect(page.getByRole("region", { name: "Monthly allowance" })).toContainText("3 of 5 carousels remaining");
+  await page.goto("/new");
+  await expect(page.getByRole("region", { name: "Monthly allowance" })).toContainText("0 of 10 AI generations remaining");
+  const brief = "Explain how a concise brief becomes a useful editable draft.";
+  await page.getByLabel("What should this carousel say?").fill(brief);
+  await expect(page.getByRole("button", { name: "Generate carousel", exact: true })).toBeDisabled();
+  await expect(page.getByText(/Start by hand without an AI generation/)).toBeVisible();
+  await page.getByRole("button", { name: "Start by hand", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Open in editor", exact: true })).toBeEnabled();
+
+  usage = { carousel: 5, generation: 0 };
+  await page.reload();
+  await expect(page.getByText(/Delete a carousel created this month to free a slot/)).toBeVisible();
+  await page.getByRole("button", { name: "Start by hand", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Open in editor", exact: true })).toBeDisabled();
+
+  usage = { carousel: 0, generation: 0 };
+  await page.reload();
+  await page.getByLabel("What should this carousel say?").fill(brief);
+  await page.route("**/api/v1/carousels", (route) => route.fulfill({ status: 429, json: { code: "USAGE_LIMIT", message: "Raw server message", details: { kind: "generation", used: 10, limit: 10, plan: "free" } } }));
+  await page.getByRole("button", { name: "Generate carousel", exact: true }).click();
+  const error = page.getByRole("alert").filter({ hasText: "You’ve used all 10 AI generations" });
+  await expect(error).toBeVisible();
+  await expect(error).toContainText("first of next month (UTC)");
+  await expect(error.getByRole("link", { name: "View plans and limits" })).toHaveAttribute("href", "/pricing");
+  await expect(page.getByLabel("What should this carousel say?")).toHaveValue(brief);
+});
+
+test("404 recovery links respect guest and signed-in sessions", async ({ page }) => {
+  await page.goto("/this-page-does-not-exist");
+  const main = page.locator("main");
+  await expect(main.getByRole("link", { name: "Start for free", exact: true })).toHaveAttribute("href", "/signup");
+  await expect(main.getByRole("link", { name: "Go home", exact: true })).toHaveAttribute("href", "/");
+  await expect(main.getByRole("link", { name: "Open library", exact: true })).toHaveCount(0);
+  await signUp(page.request);
+  await page.reload();
+  await expect(main.getByRole("link", { name: "Open library", exact: true })).toHaveAttribute("href", "/library");
+  await expect(main.getByRole("link", { name: "Start for free", exact: true })).toHaveCount(0);
 });

@@ -6,6 +6,8 @@ import { ArrowRight, Plus, Trash } from "@phosphor-icons/react";
 import { PageIntro, Settle } from "@/components/page-intro";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { MonthlyAllowance } from "@/components/monthly-allowance";
+import { useWorkspaceUsage } from "@/lib/use-workspace-usage";
 
 type CarouselRow = {
   id: string;
@@ -16,6 +18,7 @@ type CarouselRow = {
 };
 
 export default function LibraryPage() {
+  const workspaceUsage = useWorkspaceUsage();
   const [items, setItems] = useState<CarouselRow[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +38,7 @@ export default function LibraryPage() {
       setItems((current) => current.filter((item) => item.id !== deletingItem.id));
       setNotice(`“${deletingItem.title}” was deleted.`);
       setDeletingItem(null);
+      void workspaceUsage.refresh();
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : "Could not delete the carousel. Try again.");
     } finally {
@@ -77,6 +81,7 @@ export default function LibraryPage() {
         </Link>
       </div>
 
+      <MonthlyAllowance workspace={workspaceUsage} />
       {notice ? <p role="status" className="mt-6 text-sm text-ink-soft">{notice}</p> : null}
 
       {state === "loading" ? (

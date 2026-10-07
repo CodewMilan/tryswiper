@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowUUpLeft, DownloadSimple, ImageSquare, TextT, Plus, Copy, Trash, CaretLeft, CaretRight, CheckCircle, CircleNotch, FloppyDisk, Minus, CornersOut, ShareNetwork } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowUUpLeft, DownloadSimple, ImageSquare, TextT, Plus, Copy, Trash, CaretLeft, CaretRight, CheckCircle, CircleNotch, FloppyDisk, Minus, CornersOut, Files } from "@phosphor-icons/react";
 import { getFormat, planFromFormat, renderPlanToCarousel, type CarouselElement } from "@swiper/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog } from "@/components/ui/dialog";
 import { Mark } from "@/components/mark";
 import { AccountMenu } from "@/components/account-menu";
+import { useWorkspaceUsage, usageLimitMessage, type UsageApiError } from "@/lib/use-workspace-usage";
 import { Inspector, uploadImage, type UploadedAsset } from "./editor/inspector";
 import { SlideCanvas } from "./editor/slide-canvas";
 import { SlideRail } from "./editor/slide-rail";
@@ -18,12 +19,14 @@ import { clampBox, type Box } from "./editor/slide-frame";
 import { useCarousel } from "./editor/use-carousel";
 
 export function Editor({ carouselId }: { carouselId: string }) {
+  const workspaceUsage = useWorkspaceUsage();
   const { doc, meta, undoCount, loading, loadError, saveState, saveError, setSaveError,
     reload, mutate, undo, settle, retry, conflict, discardLocal } = useCarousel(carouselId);
   const [index, setIndex] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<"png" | "jpg" | "pdf" | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [usageLimited, setUsageLimited] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const publishKeyRef = useRef<string | null>(null);
@@ -122,11 +125,17 @@ export function Editor({ carouselId }: { carouselId: string }) {
   async function download(format: "png" | "jpg" | "pdf") {
     setExporting(format);
     setSaveError(null);
+    setUsageLimited(false);
     try {
       if (!(await settle())) throw new Error("Save your latest edits before exporting. Your draft is kept on this device.");
       const response = await fetch(`/api/v1/carousels/${carouselId}/export?format=${format}`);
       if (!response.ok) {
-        const body = await response.json() as { message?: string };
+        const body = await response.json() as UsageApiError;
+        if (body.code === "USAGE_LIMIT") {
+          setUsageLimited(true);
+          void workspaceUsage.refresh();
+          throw new Error(usageLimitMessage(body));
+        }
         throw new Error(body.message ?? "Export failed. Please try again.");
       }
       const blob = await response.blob();
@@ -142,22 +151,29 @@ export function Editor({ carouselId }: { carouselId: string }) {
     finally { setExporting(null); }
   }
   async function preparePublish() {
+    if (publishing || workspaceUsage.loading || workspaceUsage.data?.plan !== "pro") return;
     setPublishing(true);
     setSaveError(null);
+    setUsageLimited(false);
     try {
-      if (!(await settle())) throw new Error("Save your latest edits before preparing this carousel to publish.");
+      if (!(await settle())) throw new Error("Save your latest edits before preparing files.");
       publishKeyRef.current ??= crypto.randomUUID();
       const response = await fetch(`/api/v1/carousels/${carouselId}/publish`, {
         method: "POST",
         headers: { "Idempotency-Key": publishKeyRef.current },
       });
-      const body = await response.json() as { message?: string };
-      if (!response.ok) throw new Error(body.message ?? "Could not prepare this carousel to publish.");
-      setNotice("Carousel approved. Download the image set, then post it from your social account.");
+      const body = await response.json() as UsageApiError;
+      if (body.code === "USAGE_LIMIT") {
+        setUsageLimited(true);
+        void workspaceUsage.refresh();
+        throw new Error(usageLimitMessage(body));
+      }
+      if (!response.ok) throw new Error(body.message ?? "Could not prepare files. Please try again.");
+      setNotice("Files ready to download. Swiper does not post to your social accounts.");
       setPublishOpen(false);
       setExportOpen(true);
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "Could not prepare this carousel to publish.");
+      setSaveError(error instanceof Error ? error.message : "Could not prepare files. Please try again.");
     } finally {
       setPublishing(false);
     }
@@ -202,14 +218,14 @@ export function Editor({ carouselId }: { carouselId: string }) {
           <Link href="/connect" className="rounded-lg px-2 py-2 text-sm text-ink-soft hover:bg-secondary hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Connect</Link>
         </nav>
         <Button variant="outline" className="hidden sm:inline-flex" onClick={() => { setFormatName(meta.title.slice(0, 80)); setFormatError(null); setFormatOpen(true); }}><FloppyDisk size={16} /> Save as format</Button>
-        <Button variant="outline" aria-label="Publish" onClick={() => setPublishOpen(true)}><ShareNetwork size={16} /><span className="hidden sm:inline">Publish</span></Button>
+        <Button variant="outline" aria-label="Prepare files" title="Prepare files · Pro · Does not post to social accounts" onClick={() => setPublishOpen(true)}><Files size={16} aria-hidden /><span className="hidden sm:inline">Prepare files</span></Button>
         <Button onClick={() => setExportOpen(true)}><DownloadSimple size={16} /> Export</Button>
         <AccountMenu tone="light" className="hidden sm:block" links={[{ href: "/pricing", label: "Pricing" }]} />
       </header>
 
       {saveError ? <div className="flex flex-wrap items-center gap-3 border-b border-destructive/20 bg-card px-5 py-3 text-sm" role="alert">
         <span className="flex-1 text-destructive">{saveError}</span>
-        {conflict ? <><Button variant="outline" onClick={downloadLocal}>Download local draft</Button><Button variant="outline" onClick={discardLocal}>Load latest version</Button></> : <Button variant="outline" onClick={() => void retry()}>Retry save</Button>}
+        {usageLimited ? <Link href="/pricing" className="inline-flex min-h-10 items-center rounded-[14px] px-3 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">View plans and limits</Link> : conflict ? <><Button variant="outline" onClick={downloadLocal}>Download local draft</Button><Button variant="outline" onClick={discardLocal}>Load latest version</Button></> : <Button variant="outline" onClick={() => void retry()}>Retry save</Button>}
       </div> : null}
       {notice ? <div className="flex flex-wrap items-center justify-center gap-3 border-b border-border bg-card px-4 py-2 text-sm" role="status"><span>{notice}</span><Link href="/new" className="underline underline-offset-4">Your formats</Link><button onClick={() => setNotice(null)} className="min-h-8 px-2 text-ink-soft">Dismiss</button></div> : null}
 
@@ -270,18 +286,23 @@ export function Editor({ carouselId }: { carouselId: string }) {
           <button className="export-option" disabled={!!exporting} onClick={() => void download("png")}><ImageSquare size={28} /><span className="flex-1"><strong className="block text-sm font-medium">PNG images</strong><span className="mt-1 block text-xs text-ink-soft">1080 × 1350 · One image per slide · ZIP</span></span>{exporting === "png" ? <CircleNotch className="motion-safe:animate-spin" size={20} /> : <DownloadSimple size={20} />}</button>
           <button className="export-option" disabled={!!exporting} onClick={() => void download("jpg")}><ImageSquare size={28} /><span className="flex-1"><strong className="block text-sm font-medium">JPG images · Pro</strong><span className="mt-1 block text-xs text-ink-soft">Smaller files · One image per slide · ZIP</span></span>{exporting === "jpg" ? <CircleNotch className="motion-safe:animate-spin" size={20} /> : <DownloadSimple size={20} />}</button>
           <button className="export-option" disabled={!!exporting} onClick={() => void download("pdf")}><Copy size={28} /><span className="flex-1"><strong className="block text-sm font-medium">PDF document</strong><span className="mt-1 block text-xs text-ink-soft">One page per slide · Ready for LinkedIn</span></span>{exporting === "pdf" ? <CircleNotch className="motion-safe:animate-spin" size={20} /> : <DownloadSimple size={20} />}</button>
-          {saveError ? <p role="alert" className="text-sm text-destructive">{saveError}</p> : null}
+          {saveError ? <div role="alert" className="text-sm"><p className="text-destructive">{saveError}</p>{usageLimited ? <Link href="/pricing" className="inline-flex min-h-10 items-center rounded-[14px] px-3 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">View plans and limits</Link> : null}</div> : null}
         </div>
       </Dialog>
-      <Dialog open={publishOpen} onOpenChange={(open) => { if (!publishing) setPublishOpen(open); }} title="Approve for publishing" description="Swiper validates the carousel and prepares platform-ready files. Direct social account publishing is not enabled, so you stay in control of the final post.">
+      <Dialog open={publishOpen} onOpenChange={(open) => { if (!publishing) setPublishOpen(open); }} title="Prepare files" description="A Pro file-preparation step: validate your carousel, then download files to post yourself. Swiper does not post to social accounts.">
         <div className="space-y-4">
-          <div className="rounded-xl bg-secondary p-4 text-sm leading-6 text-ink-soft">
-            Pro includes the publishing handoff, JPG files, and a larger monthly allowance. Repeating this action is safe; Swiper uses an idempotency key.
-          </div>
-          {saveError ? <p role="alert" className="text-sm text-destructive">{saveError}</p> : null}
+          {workspaceUsage.loading ? <div className="rounded-xl bg-secondary p-4 text-sm text-ink-soft" role="status">Checking your plan…</div>
+            : workspaceUsage.error ? <div className="space-y-3" role="alert"><p className="text-sm text-destructive">{workspaceUsage.error}</p><Button variant="outline" onClick={() => void workspaceUsage.refresh()}>Retry plan check</Button></div>
+            : <div className="rounded-xl bg-secondary p-4 text-sm leading-6 text-ink-soft">
+              {workspaceUsage.data?.plan === "free"
+                ? "Prepare files requires Pro. Your Free plan still includes PNG and PDF exports. Upgrade for the publishing handoff, JPG files, and a larger monthly allowance."
+                : "Your Pro plan includes this publishing handoff. We check the carousel and prepare the download; you choose where and when to post."}
+            </div>}
+          {saveError ? <div role="alert" className="text-sm"><p className="text-destructive">{saveError}</p>{usageLimited ? <Link href="/pricing" className="inline-flex min-h-10 items-center rounded-[14px] px-3 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">View plans and limits</Link> : null}</div> : null}
           <div className="flex flex-wrap gap-3">
-            <Button disabled={publishing} onClick={() => void preparePublish()}>{publishing ? "Validating…" : "Approve and prepare"}</Button>
-            <Link href="/pricing" className="inline-flex min-h-10 items-center rounded-xl px-3 text-sm font-medium text-ink-soft hover:bg-secondary hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">View Pro</Link>
+            {workspaceUsage.data?.plan === "pro" ? <Button disabled={publishing || workspaceUsage.loading} onClick={() => void preparePublish()}>{publishing ? "Preparing…" : "Validate and prepare files"}</Button> : null}
+            <Link href="/pricing" className="inline-flex min-h-10 items-center rounded-[14px] bg-black px-4 text-sm font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">{workspaceUsage.data?.plan === "free" ? "Upgrade to Pro" : "View plans"}</Link>
+            {workspaceUsage.data?.plan === "free" ? <Button variant="outline" onClick={() => { setPublishOpen(false); setExportOpen(true); }}>Export PNG or PDF</Button> : null}
           </div>
         </div>
       </Dialog>

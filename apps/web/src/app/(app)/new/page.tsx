@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { MonthlyAllowance } from "@/components/monthly-allowance";
+import { useWorkspaceUsage, usageLimitMessage, type UsageApiError } from "@/lib/use-workspace-usage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,6 +64,7 @@ function FormatChoice({ format, checked, onChange }: {
 
 export default function NewCarouselPage() {
   const router = useRouter();
+  const workspaceUsage = useWorkspaceUsage();
   const [formats, setFormats] = useState<FormatOption[]>([]);
   const [generateFormatId, setGenerateFormatId] = useState("problem-insight-product");
   const [manualFormatId, setManualFormatId] = useState("freeform");
@@ -71,6 +75,11 @@ export default function NewCarouselPage() {
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [usageLimited, setUsageLimited] = useState(false);
+  const usage = workspaceUsage.data;
+  const carouselFull = !!usage && (usage.usage.carousel ?? 0) >= usage.limits.carousel;
+  const generationFull = !!usage && (usage.usage.generation ?? 0) >= usage.limits.generation;
+  const allowanceBlocked = carouselFull || (mode === "generate" && generationFull);
 
   const loadFormats = useCallback(async () => {
     try {
@@ -107,10 +116,11 @@ export default function NewCarouselPage() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selected || pending) return;
+    if (!selected || pending || allowanceBlocked) return;
     if (mode === "generate" && (brief.trim().length < 12 || selected.source !== "official" || selected.id === "freeform")) return;
     setPending(true);
     setError(null);
+    setUsageLimited(false);
     try {
       const response = await fetch("/api/v1/carousels", {
         method: "POST",
@@ -122,7 +132,12 @@ export default function NewCarouselPage() {
           reference_url: mode === "generate" && referenceUrl.trim() ? referenceUrl.trim() : undefined,
         }),
       });
-      const body = (await response.json()) as { carousel_id?: string; message?: string };
+      const body = (await response.json()) as UsageApiError & { carousel_id?: string };
+      if (body.code === "USAGE_LIMIT") {
+        setUsageLimited(true);
+        void workspaceUsage.refresh();
+        throw new Error(usageLimitMessage(body));
+      }
       if (!response.ok || !body.carousel_id) throw new Error(body.message ?? "Could not start the carousel.");
       router.push(`/c/${body.carousel_id}`);
     } catch (submitError) {
@@ -141,6 +156,7 @@ export default function NewCarouselPage() {
         </p>
       </div>
 
+      <MonthlyAllowance workspace={workspaceUsage} />
       <form onSubmit={onSubmit} className="mt-10">
         <div className="inline-flex rounded-[14px] border border-black/8 bg-white p-1" aria-label="Creation method">
           <button type="button" aria-pressed={mode === "generate"} onClick={() => setMode("generate")} className={`min-h-10 rounded-[10px] px-4 text-sm font-medium motion-safe:transition-colors ${mode === "generate" ? "bg-black text-white" : "text-ink-soft hover:text-black"}`}>Generate from a brief</button>
@@ -276,11 +292,19 @@ export default function NewCarouselPage() {
           </div>
         ) : null}
 
-        {loadState === "ready" && error ? <p className="mt-6 text-sm text-destructive" role="alert">{error}</p> : null}
+        {allowanceBlocked ? (
+          <div className="mt-6 max-w-2xl rounded-[24px] border border-black/8 bg-white p-6 text-sm leading-6" role="status">
+            <p>{carouselFull
+              ? "You’ve used all your carousel slots this month. Delete a carousel created this month to free a slot, wait for the monthly reset, or upgrade your plan."
+              : "You’ve used all your AI generations this month. Start by hand without an AI generation, wait for the monthly reset, or upgrade your plan."}</p>
+            <Link href="/pricing" className="mt-3 inline-flex min-h-10 items-center rounded-[14px] bg-black px-4 font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">View plans and limits</Link>
+          </div>
+        ) : null}
+        {loadState === "ready" && error ? <div className="mt-6 text-sm" role="alert"><p className="text-destructive">{error}</p>{usageLimited ? <Link href="/pricing" className="mt-2 inline-flex min-h-10 items-center rounded-[14px] px-3 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">View plans and limits</Link> : null}</div> : null}
 
         {loadState === "ready" ? (
           <div className="sticky bottom-4 mt-10 flex flex-wrap items-center gap-4 rounded-xl border border-border bg-card/95 p-3 shadow-md backdrop-blur">
-            <Button type="submit" disabled={pending || !selected || (mode === "generate" && brief.trim().length < 12)} aria-busy={pending}>{pending ? (mode === "generate" ? "Generating…" : "Opening…") : mode === "generate" ? "Generate carousel" : "Open in editor"}</Button>
+            <Button type="submit" disabled={pending || allowanceBlocked || !selected || (mode === "generate" && brief.trim().length < 12)} aria-busy={pending}>{pending ? (mode === "generate" ? "Generating…" : "Opening…") : mode === "generate" ? "Generate carousel" : "Open in editor"}</Button>
             <p className="text-sm text-ink-soft">{selected ? `${selected.name} · ${selected.roles.length} slides` : "Choose a format"}</p>
           </div>
         ) : null}
