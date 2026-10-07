@@ -266,6 +266,41 @@ export const billing = pgTable("billing", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const usageEvent = pgTable(
+  "usage_event",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [index("usage_event_workspace_kind_created_idx").on(table.workspaceId, table.kind, table.createdAt)],
+);
+
+export const publishJob = pgTable(
+  "publish_job",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    carouselId: text("carousel_id")
+      .notNull()
+      .references(() => carousel.id, { onDelete: "cascade" }),
+    platform: text("platform").notNull().default("manual"),
+    status: text("status").notNull().default("ready"),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("publish_job_workspace_idx").on(table.workspaceId),
+    uniqueIndex("publish_job_workspace_idempotency_idx").on(table.workspaceId, table.idempotencyKey),
+  ],
+);
+
 export const schema = {
   user,
   session,
@@ -281,4 +316,6 @@ export const schema = {
   asset,
   mcpKey,
   billing,
+  usageEvent,
+  publishJob,
 };

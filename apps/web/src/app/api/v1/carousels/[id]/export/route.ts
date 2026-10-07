@@ -5,6 +5,7 @@ import { appUrl, editorUrl } from "@/lib/utils";
 import { apiError, fromUnknownError, json } from "@/lib/http";
 import { assetsForWorkspace } from "@/server/assets";
 import { getCarousel } from "@/server/carousels";
+import { assertUsage, recordUsage, requireFeature } from "@/server/usage";
 
 export const runtime = "nodejs";
 
@@ -29,9 +30,10 @@ export async function GET(
     const authContext = await requireAuth(request);
     const { id } = await context.params;
     const url = new URL(request.url);
-    const format = url.searchParams.get("format") ?? "pdf";
-    if (format !== "png" && format !== "pdf" && format !== "json") {
-      return apiError("INVALID_FORMAT", "Format must be png, pdf, or json.");
+    const requestedFormat = url.searchParams.get("format") ?? "pdf";
+    const format = requestedFormat === "jpeg" ? "jpg" : requestedFormat;
+    if (format !== "png" && format !== "jpg" && format !== "pdf" && format !== "json") {
+      return apiError("INVALID_FORMAT", "Format must be png, jpg, pdf, or json.");
     }
 
     const row = await getCarousel(authContext, id);
@@ -55,6 +57,9 @@ export async function GET(
       return fileResponse(bytes, "application/json", fileName(row.title, "json"));
     }
 
+    if (format === "jpg") await requireFeature(authContext.workspaceId, "jpg");
+    await assertUsage(authContext.workspaceId, "export");
+
     const assetIds = parsed.data.slides.flatMap((slide) =>
       slide.elements.map((element) => element.assetId).filter((id): id is string => id != null),
     );
@@ -64,11 +69,12 @@ export async function GET(
 
     const rendered = await renderExport(parsed.data, format, slideIndex, assets);
     const extension =
-      format === "png" && slideIndex != null ? "png" : rendered.extension;
+      (format === "png" || format === "jpg") && slideIndex != null ? format : rendered.extension;
     const name =
-      format === "png" && slideIndex != null
-        ? fileName(row.title, "png").replace(/\.png$/, `-${String(slideIndex + 1).padStart(2, "0")}.png`)
+      (format === "png" || format === "jpg") && slideIndex != null
+        ? fileName(row.title, format).replace(new RegExp(`\\.${format}$`), `-${String(slideIndex + 1).padStart(2, "0")}.${format}`)
         : fileName(row.title, extension);
+    await recordUsage(authContext.workspaceId, "export");
     return fileResponse(rendered.bytes, rendered.contentType, name);
   } catch (error) {
     return fromUnknownError(error);
@@ -90,12 +96,13 @@ export async function POST(
       downloads: {
         pdf: downloadUrl(id, "pdf"),
         png: downloadUrl(id, "png"),
+        jpg: downloadUrl(id, "jpg"),
         json: downloadUrl(id, "json"),
       },
-      formats: ["pdf", "png", "json"],
+      formats: ["pdf", "png", "jpg", "json"],
       width: CANVAS_WIDTH,
       height: CANVAS_HEIGHT,
-      note: "PDF is one page per slide. PNG is a zip of 1080×1350 images. Add ?slide=1 for a single PNG.",
+      note: "PDF is one page per slide. PNG and JPG are ZIPs of 1080×1350 images. Add ?slide=1 for one image.",
     });
   } catch (error) {
     return fromUnknownError(error);

@@ -1,7 +1,7 @@
 const BLOCKED = ["/login", "/signup", "/sso-callback"];
 
 /** Same-origin path only. Auth screens are never a post-login destination. */
-export function safeNextPath(value: string | null | undefined, fallback = "/connect") {
+export function safeNextPath(value: string | null | undefined, fallback = "/library") {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) {
     return fallback;
   }

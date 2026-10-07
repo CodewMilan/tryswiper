@@ -12,8 +12,9 @@ function cursorInstallHref(origin: string, key: string) {
   return `cursor://anysphere.cursor-deeplink/mcp/install?name=swiper&config=${encoded}`;
 }
 
-export function AgentConfigs({ origin, apiKey }: { origin: string; apiKey: string }) {
+export function AgentConfigs({ origin, apiKey }: { origin: string; apiKey: string | null }) {
   const [copied, setCopied] = useState<string | null>(null);
+  const usableKey = apiKey ?? "";
   const mcpUrl = `${origin}/mcp`;
   const localConfig = useMemo(
     () =>
@@ -25,7 +26,7 @@ export function AgentConfigs({ origin, apiKey }: { origin: string; apiKey: strin
               args: ["--filter", "@swiper/mcp", "start"],
               env: {
                 SWIPER_API_URL: origin,
-                SWIPER_API_KEY: apiKey,
+                SWIPER_API_KEY: usableKey,
               },
             },
           },
@@ -33,7 +34,7 @@ export function AgentConfigs({ origin, apiKey }: { origin: string; apiKey: strin
         null,
         2,
       ),
-    [apiKey, origin],
+    [usableKey, origin],
   );
   const cards = useMemo(
     () => [
@@ -46,7 +47,7 @@ export function AgentConfigs({ origin, apiKey }: { origin: string; apiKey: strin
             mcpServers: {
               swiper: {
                 url: mcpUrl,
-                headers: { Authorization: `Bearer ${apiKey}` },
+                headers: { Authorization: `Bearer ${usableKey}` },
               },
             },
           },
@@ -54,20 +55,20 @@ export function AgentConfigs({ origin, apiKey }: { origin: string; apiKey: strin
           2,
         ),
         copy: "Copy Cursor config",
-        href: cursorInstallHref(origin, apiKey),
+        href: cursorInstallHref(origin, usableKey),
         hrefLabel: "Add to Cursor",
       },
       {
         id: "claude",
         title: "Claude",
         body: "Add a custom connector in Claude Desktop or claude.ai. Use the URL, and the Authorization header if it asks. The JSON is for claude_desktop_config.json.",
-        config: `URL\n${mcpUrl}\n\nHeader\nAuthorization: Bearer ${apiKey}\n\n${JSON.stringify(
+        config: `URL\n${mcpUrl}\n\nHeader\nAuthorization: Bearer ${usableKey}\n\n${JSON.stringify(
           {
             mcpServers: {
               swiper: {
                 type: "http",
                 url: mcpUrl,
-                headers: { Authorization: `Bearer ${apiKey}` },
+                headers: { Authorization: `Bearer ${usableKey}` },
               },
             },
           },
@@ -80,11 +81,11 @@ export function AgentConfigs({ origin, apiKey }: { origin: string; apiKey: strin
         id: "chatgpt",
         title: "ChatGPT",
         body: "Create an app or developer-mode connector, set authentication to None, and paste this URL. ChatGPT does not send a custom header, so the key stays in the URL.",
-        config: `${mcpUrl}?key=${encodeURIComponent(apiKey)}`,
+        config: `${mcpUrl}?key=${encodeURIComponent(usableKey)}`,
         copy: "Copy ChatGPT URL",
       },
     ],
-    [apiKey, mcpUrl, origin],
+    [usableKey, mcpUrl, origin],
   );
 
   async function copy(id: string, value: string) {
@@ -93,6 +94,17 @@ export function AgentConfigs({ origin, apiKey }: { origin: string; apiKey: strin
     window.setTimeout(() => {
       setCopied((current) => (current === id ? null : current));
     }, 1500);
+  }
+
+  if (!apiKey) {
+    return (
+      <div className="rounded-[24px] border border-dashed border-black/15 bg-white p-6 sm:p-8">
+        <h2 className="text-[18px] font-medium tracking-[-0.02em]">Your configs appear after you mint a key</h2>
+        <p className="mt-2 max-w-xl text-[15px] font-light leading-6 text-ink-soft">
+          Swiper never inserts a fake secret into a connector URL. Mint a key above, copy it once, then install the client you use.
+        </p>
+      </div>
+    );
   }
 
   return (

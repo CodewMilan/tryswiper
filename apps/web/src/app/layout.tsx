@@ -35,8 +35,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <ClerkProvider
             signInUrl="/login"
             signUpUrl="/signup"
-            signInFallbackRedirectUrl="/connect"
-            signUpFallbackRedirectUrl="/connect"
+            signInFallbackRedirectUrl="/library"
+            signUpFallbackRedirectUrl="/library"
           >
             {children}
           </ClerkProvider>

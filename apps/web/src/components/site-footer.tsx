@@ -8,9 +8,7 @@ const columns = [
       { href: "/#editor", label: "Editor" },
       { href: "/#formats", label: "Formats" },
       { href: "/#brand", label: "Brand kit" },
-      { href: "/#export", label: "Export" },
       { href: "/pricing", label: "Pricing" },
-      { href: "/#product", label: "How it works" },
     ],
   },
   {
@@ -18,10 +16,9 @@ const columns = [
     links: [
       { href: "/signup", label: "Create account" },
       { href: "/login", label: "Sign in" },
-      { href: "/brand", label: "Brand kit" },
+      { href: "/library", label: "Carousel library" },
       { href: "/new", label: "Start a carousel" },
       { href: "/connect", label: "Connect an agent" },
-      { href: "/pricing", label: "Pricing" },
     ],
   },
   {
@@ -31,24 +28,6 @@ const columns = [
       { href: "/#agents", label: "Claude" },
       { href: "/#agents", label: "ChatGPT" },
       { href: "/connect", label: "MCP config" },
-    ],
-  },
-  {
-    title: "Formats",
-    links: [
-      { href: "/#formats", label: "Problem → Insight" },
-      { href: "/#formats", label: "5 things" },
-      { href: "/#formats", label: "Before → After" },
-      { href: "/#formats", label: "Myth → Reality" },
-    ],
-  },
-  {
-    title: "Learn",
-    links: [
-      { href: "/#document", label: "Typed document" },
-      { href: "/#editor", label: "Review a slide" },
-      { href: "/#export", label: "Export" },
-      { href: "/signup", label: "Start for free" },
     ],
   },
 ];
@@ -67,7 +46,7 @@ export function SiteFooter() {
           </Link>
           <p className="mt-8 font-mono text-[13px] text-ink-soft">© 2026. All rights reserved.</p>
         </div>
-        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
           {columns.map((column) => (
             <div key={column.title}>
               <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-black">

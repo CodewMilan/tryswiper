@@ -40,8 +40,13 @@ export async function createDodoCheckout(input: {
 }) {
   const config = dodoConfig();
   if (!config.ready) {
+    console.error("billing_checkout_not_configured", {
+      hasApiKey: Boolean(config.apiKey),
+      hasProductId: Boolean(config.productId),
+      environment: config.environment,
+    });
     throw Object.assign(
-      new Error("Add DODO_PAYMENTS_API_KEY and DODO_PAYMENTS_PRODUCT_ID."),
+      new Error("Checkout is temporarily unavailable. Please try again later."),
       { status: 503, code: "PAYMENTS_NOT_CONFIGURED" },
     );
   }
@@ -70,16 +75,15 @@ export async function createDodoCheckout(input: {
     message?: string;
   };
   if (!response.ok) {
-    const message =
-      response.status === 401
-        ? "Dodo rejected the API key. Check DODO_PAYMENTS_API_KEY and DODO_PAYMENTS_ENVIRONMENT."
-        : body.message || "Dodo could not start checkout.";
+    console.error("billing_checkout_provider_error", { status: response.status, message: body.message });
+    const message = "Checkout could not start. Please try again later.";
     throw Object.assign(new Error(message), { status: 502, code: "CHECKOUT_FAILED" });
   }
 
   const checkoutUrl = body.checkout_url ?? body.payment_link ?? body.url;
   if (!checkoutUrl) {
-    throw Object.assign(new Error("Dodo did not return a checkout URL."), {
+    console.error("billing_checkout_missing_url");
+    throw Object.assign(new Error("Checkout could not start. Please try again later."), {
       status: 502,
       code: "CHECKOUT_FAILED",
     });

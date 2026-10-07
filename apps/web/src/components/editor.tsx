@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowUUpLeft, DownloadSimple, ImageSquare, TextT, Plus, Copy, Trash, CaretLeft, CaretRight, CheckCircle, CircleNotch, FloppyDisk, Minus, CornersOut } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowUUpLeft, DownloadSimple, ImageSquare, TextT, Plus, Copy, Trash, CaretLeft, CaretRight, CheckCircle, CircleNotch, FloppyDisk, Minus, CornersOut, ShareNetwork } from "@phosphor-icons/react";
 import { getFormat, planFromFormat, renderPlanToCarousel, type CarouselElement } from "@swiper/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog } from "@/components/ui/dialog";
 import { Mark } from "@/components/mark";
+import { AccountMenu } from "@/components/account-menu";
 import { Inspector, uploadImage, type UploadedAsset } from "./editor/inspector";
 import { SlideCanvas } from "./editor/slide-canvas";
 import { SlideRail } from "./editor/slide-rail";
@@ -21,8 +22,11 @@ export function Editor({ carouselId }: { carouselId: string }) {
     reload, mutate, undo, settle, retry, conflict, discardLocal } = useCarousel(carouselId);
   const [index, setIndex] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [exporting, setExporting] = useState<"png" | "pdf" | null>(null);
+  const [exporting, setExporting] = useState<"png" | "jpg" | "pdf" | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const publishKeyRef = useRef<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
   const [formatName, setFormatName] = useState("");
@@ -115,7 +119,7 @@ export function Editor({ carouselId }: { carouselId: string }) {
     const link = document.createElement("a"); link.href = url; link.download = "recovered-carousel.json"; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  async function download(format: "png" | "pdf") {
+  async function download(format: "png" | "jpg" | "pdf") {
     setExporting(format);
     setSaveError(null);
     try {
@@ -137,6 +141,27 @@ export function Editor({ carouselId }: { carouselId: string }) {
     } catch (error) { setSaveError(error instanceof Error ? error.message : "Export failed."); }
     finally { setExporting(null); }
   }
+  async function preparePublish() {
+    setPublishing(true);
+    setSaveError(null);
+    try {
+      if (!(await settle())) throw new Error("Save your latest edits before preparing this carousel to publish.");
+      publishKeyRef.current ??= crypto.randomUUID();
+      const response = await fetch(`/api/v1/carousels/${carouselId}/publish`, {
+        method: "POST",
+        headers: { "Idempotency-Key": publishKeyRef.current },
+      });
+      const body = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(body.message ?? "Could not prepare this carousel to publish.");
+      setNotice("Carousel approved. Download the image set, then post it from your social account.");
+      setPublishOpen(false);
+      setExportOpen(true);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Could not prepare this carousel to publish.");
+    } finally {
+      setPublishing(false);
+    }
+  }
   async function saveFormat(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (formatSaving) return;
@@ -156,12 +181,12 @@ export function Editor({ carouselId }: { carouselId: string }) {
   }
 
   if (loading) return <main className="grid min-h-dvh grid-cols-[180px_1fr] gap-8 p-6" aria-label="Loading editor" aria-busy="true"><div className="rounded-xl bg-muted motion-safe:animate-pulse" /><div className="mx-auto my-auto aspect-[4/5] w-full max-w-md rounded-xl bg-muted motion-safe:animate-pulse" /></main>;
-  if (loadError || !doc || !meta) return <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 p-6"><h1 className="text-2xl font-medium">Couldn’t open this carousel</h1><p role="alert">{loadError ?? "Carousel missing."}</p><Button onClick={reload}>Try again</Button><Link href="/new" className="text-sm underline">Create a new carousel</Link></main>;
+  if (loadError || !doc || !meta) return <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 p-6"><h1 className="text-2xl font-medium">Couldn’t open this carousel</h1><p role="alert">{loadError ?? "Carousel missing."}</p><Button onClick={reload}>Try again</Button><Link href="/library" className="text-sm underline">Back to your library</Link></main>;
 
   return (
     <main className="editor-shell">
       <header className="editor-header">
-        <Link href="/new" aria-label="Back to carousels" className="flex shrink-0 items-center gap-2 rounded-lg focus-visible:ring-2 focus-visible:ring-ring"><ArrowLeft size={18} /><Mark /></Link>
+        <Link href="/library" aria-label="Back to library" className="flex shrink-0 items-center gap-2 rounded-lg focus-visible:ring-2 focus-visible:ring-ring"><ArrowLeft size={18} /><Mark /></Link>
         <div className="min-w-0 flex-1">
           <input aria-label="Carousel title" className="w-full max-w-md rounded border border-transparent bg-transparent px-2 py-1 text-sm font-medium hover:border-border focus:border-ring focus:outline-none" value={meta.title} maxLength={120}
             onChange={(event) => { if (event.target.value.trim()) mutate([{ op: "rename", title: event.target.value }]); }} />
@@ -171,8 +196,15 @@ export function Editor({ carouselId }: { carouselId: string }) {
           </p>
         </div>
         <Button variant="ghost" aria-label="Undo" title="Undo (⌘Z)" disabled={!undoCount || saveState === "saving"} onClick={() => void undo()}><ArrowUUpLeft size={18} /></Button>
+        <nav className="hidden items-center lg:flex" aria-label="Workspace">
+          <Link href="/new" className="rounded-lg px-2 py-2 text-sm text-ink-soft hover:bg-secondary hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">New</Link>
+          <Link href="/brand" className="rounded-lg px-2 py-2 text-sm text-ink-soft hover:bg-secondary hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Brand</Link>
+          <Link href="/connect" className="rounded-lg px-2 py-2 text-sm text-ink-soft hover:bg-secondary hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Connect</Link>
+        </nav>
         <Button variant="outline" className="hidden sm:inline-flex" onClick={() => { setFormatName(meta.title.slice(0, 80)); setFormatError(null); setFormatOpen(true); }}><FloppyDisk size={16} /> Save as format</Button>
+        <Button variant="outline" aria-label="Publish" onClick={() => setPublishOpen(true)}><ShareNetwork size={16} /><span className="hidden sm:inline">Publish</span></Button>
         <Button onClick={() => setExportOpen(true)}><DownloadSimple size={16} /> Export</Button>
+        <AccountMenu tone="light" className="hidden sm:block" links={[{ href: "/pricing", label: "Pricing" }]} />
       </header>
 
       {saveError ? <div className="flex flex-wrap items-center gap-3 border-b border-destructive/20 bg-card px-5 py-3 text-sm" role="alert">
@@ -236,8 +268,21 @@ export function Editor({ carouselId }: { carouselId: string }) {
       <Dialog open={exportOpen} onOpenChange={(open) => { if (!exporting) setExportOpen(open); }} title="Ready to share" description={`Export all ${doc.slides.length} slides at full resolution. Your latest edits are saved before downloading.`}>
         <div className="space-y-3">
           <button className="export-option" disabled={!!exporting} onClick={() => void download("png")}><ImageSquare size={28} /><span className="flex-1"><strong className="block text-sm font-medium">PNG images</strong><span className="mt-1 block text-xs text-ink-soft">1080 × 1350 · One image per slide · ZIP</span></span>{exporting === "png" ? <CircleNotch className="motion-safe:animate-spin" size={20} /> : <DownloadSimple size={20} />}</button>
+          <button className="export-option" disabled={!!exporting} onClick={() => void download("jpg")}><ImageSquare size={28} /><span className="flex-1"><strong className="block text-sm font-medium">JPG images · Pro</strong><span className="mt-1 block text-xs text-ink-soft">Smaller files · One image per slide · ZIP</span></span>{exporting === "jpg" ? <CircleNotch className="motion-safe:animate-spin" size={20} /> : <DownloadSimple size={20} />}</button>
           <button className="export-option" disabled={!!exporting} onClick={() => void download("pdf")}><Copy size={28} /><span className="flex-1"><strong className="block text-sm font-medium">PDF document</strong><span className="mt-1 block text-xs text-ink-soft">One page per slide · Ready for LinkedIn</span></span>{exporting === "pdf" ? <CircleNotch className="motion-safe:animate-spin" size={20} /> : <DownloadSimple size={20} />}</button>
           {saveError ? <p role="alert" className="text-sm text-destructive">{saveError}</p> : null}
+        </div>
+      </Dialog>
+      <Dialog open={publishOpen} onOpenChange={(open) => { if (!publishing) setPublishOpen(open); }} title="Approve for publishing" description="Swiper validates the carousel and prepares platform-ready files. Direct social account publishing is not enabled, so you stay in control of the final post.">
+        <div className="space-y-4">
+          <div className="rounded-xl bg-secondary p-4 text-sm leading-6 text-ink-soft">
+            Pro includes the publishing handoff, JPG files, and a larger monthly allowance. Repeating this action is safe; Swiper uses an idempotency key.
+          </div>
+          {saveError ? <p role="alert" className="text-sm text-destructive">{saveError}</p> : null}
+          <div className="flex flex-wrap gap-3">
+            <Button disabled={publishing} onClick={() => void preparePublish()}>{publishing ? "Validating…" : "Approve and prepare"}</Button>
+            <Link href="/pricing" className="inline-flex min-h-10 items-center rounded-xl px-3 text-sm font-medium text-ink-soft hover:bg-secondary hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">View Pro</Link>
+          </div>
         </div>
       </Dialog>
     </main>

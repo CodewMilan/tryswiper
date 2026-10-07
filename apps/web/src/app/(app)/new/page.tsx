@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { DEFAULT_THEME, getFormat, planFromFormat, renderPlanToCarousel, type Slide, type Theme } from "@swiper/schema";
 import { SlidePreview } from "@/components/editor/slide-frame";
 import { Check, Plus } from "@phosphor-icons/react";
@@ -61,8 +62,11 @@ function FormatChoice({ format, checked, onChange }: {
 export default function NewCarouselPage() {
   const router = useRouter();
   const [formats, setFormats] = useState<FormatOption[]>([]);
-  const [formatId, setFormatId] = useState("freeform");
+  const [formatId, setFormatId] = useState("");
   const [title, setTitle] = useState("");
+  const [brief, setBrief] = useState("");
+  const [referenceUrl, setReferenceUrl] = useState("");
+  const [mode, setMode] = useState<"generate" | "manual">("generate");
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -75,7 +79,7 @@ export default function NewCarouselPage() {
       setFormats(body.formats);
       setFormatId((current) => body.formats!.some((format) => format.id === current)
         ? current
-        : (body.formats![0]?.id ?? ""));
+        : (body.formats!.find((format) => format.source === "official" && format.id !== "freeform")?.id ?? body.formats![0]?.id ?? ""));
       setLoadState("ready");
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load formats.");
@@ -103,7 +107,12 @@ export default function NewCarouselPage() {
       const response = await fetch("/api/v1/carousels", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ format_id: selected.id, title: title.trim() || undefined }),
+        body: JSON.stringify({
+          format_id: selected.id,
+          title: title.trim() || undefined,
+          brief: mode === "generate" ? brief.trim() : undefined,
+          reference_url: mode === "generate" && referenceUrl.trim() ? referenceUrl.trim() : undefined,
+        }),
       });
       const body = (await response.json()) as { carousel_id?: string; message?: string };
       if (!response.ok || !body.carousel_id) throw new Error(body.message ?? "Could not start the carousel.");
@@ -120,13 +129,47 @@ export default function NewCarouselPage() {
         <p className="font-mono text-xs uppercase tracking-wider text-ink-soft">Create</p>
         <h1 className="mt-3 text-4xl font-light leading-tight tracking-[-0.03em] text-foreground sm:text-5xl">Start a carousel</h1>
         <p className="mt-3 max-w-xl text-base leading-7 text-ink-soft">
-          Build by hand, reuse something your workspace already made, or begin with a proven story structure. No agent connection required.
+          Describe the post and get an editable first draft, or start from a format and write it yourself.
         </p>
       </div>
 
       <form onSubmit={onSubmit} className="mt-10">
+        <div className="inline-flex rounded-[14px] border border-black/8 bg-white p-1" aria-label="Creation method">
+          <button type="button" aria-pressed={mode === "generate"} onClick={() => setMode("generate")} className={`min-h-10 rounded-[10px] px-4 text-sm font-medium motion-safe:transition-colors ${mode === "generate" ? "bg-black text-white" : "text-ink-soft hover:text-black"}`}>Generate from a brief</button>
+          <button type="button" aria-pressed={mode === "manual"} onClick={() => setMode("manual")} className={`min-h-10 rounded-[10px] px-4 text-sm font-medium motion-safe:transition-colors ${mode === "manual" ? "bg-black text-white" : "text-ink-soft hover:text-black"}`}>Start by hand</button>
+        </div>
+
+        {mode === "generate" ? (
+          <section className="mt-6 max-w-2xl rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
+            <Label htmlFor="brief">What should this carousel say?</Label>
+            <Textarea
+              id="brief"
+              value={brief}
+              onChange={(event) => setBrief(event.target.value)}
+              placeholder="Explain why small product teams should review AI-generated marketing before it ships. Keep it direct and practical."
+              className="mt-2 min-h-32"
+              minLength={12}
+              maxLength={10000}
+              required
+            />
+            <div className="mt-5">
+              <Label htmlFor="reference-url">Reference post URL <span className="font-normal text-ink-faint">(optional)</span></Label>
+              <Input
+                id="reference-url"
+                type="url"
+                value={referenceUrl}
+                onChange={(event) => setReferenceUrl(event.target.value)}
+                placeholder="https://www.linkedin.com/posts/..."
+                className="mt-2"
+                maxLength={2000}
+              />
+              <p className="mt-2 text-sm leading-6 text-ink-soft">Swiper adapts structure and pacing only. It always writes original copy and never copies creative assets.</p>
+            </div>
+          </section>
+        ) : null}
+
         <div className="max-w-lg">
-          <Label htmlFor="title">Carousel title</Label>
+          <Label htmlFor="title" className="mt-8 block">Carousel title</Label>
           <Input
             id="title"
             value={title}
@@ -137,7 +180,7 @@ export default function NewCarouselPage() {
             autoComplete="off"
             aria-describedby="title-hint"
           />
-          <p id="title-hint" className="mt-2 text-sm text-ink-soft">Optional. Story formats use your brand kit; workspace formats keep their saved design.</p>
+          <p id="title-hint" className="mt-2 text-sm text-ink-soft">Optional. Your brand kit is applied automatically.</p>
         </div>
 
         {loadState === "loading" ? (
@@ -198,7 +241,7 @@ export default function NewCarouselPage() {
 
             <fieldset>
               <legend className="text-lg font-medium tracking-[-0.02em]">Story formats</legend>
-              <p className="mt-1 text-sm text-ink-soft">Pick a narrative shape, then replace the placeholder copy in the editor.</p>
+              <p className="mt-1 text-sm text-ink-soft">Pick the narrative shape Swiper should use for the first draft.</p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {officialFormats.map((format) => (
                   <FormatChoice key={format.id} format={format} checked={format.id === formatId} onChange={() => setFormatId(format.id)} />
@@ -212,7 +255,7 @@ export default function NewCarouselPage() {
 
         {loadState === "ready" ? (
           <div className="sticky bottom-4 mt-10 flex flex-wrap items-center gap-4 rounded-xl border border-border bg-card/95 p-3 shadow-md backdrop-blur">
-            <Button type="submit" disabled={pending || !selected} aria-busy={pending}>{pending ? "Opening…" : "Open in editor"}</Button>
+            <Button type="submit" disabled={pending || !selected || (mode === "generate" && brief.trim().length < 12)} aria-busy={pending}>{pending ? (mode === "generate" ? "Generating…" : "Opening…") : mode === "generate" ? "Generate carousel" : "Open in editor"}</Button>
             <p className="text-sm text-ink-soft">{selected ? `${selected.name} · ${selected.roles.length} slides` : "Choose a format"}</p>
           </div>
         ) : null}

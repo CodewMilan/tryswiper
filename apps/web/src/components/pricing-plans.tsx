@@ -7,15 +7,17 @@ import { PageIntro, Settle } from "@/components/page-intro";
 import { Button } from "@/components/ui/button";
 
 type Plan = "free" | "pro";
+type Usage = Partial<Record<"carousel" | "generation" | "export" | "publish", number>>;
+type Limits = Record<"carousel" | "generation" | "export" | "publish", number> & { jpg: boolean };
 
 async function readPlan() {
   const response = await fetch("/api/v1/billing");
-  if (response.status === 401) return { signedIn: false, plan: "free" as Plan, error: null };
-  const body = (await response.json()) as { plan?: Plan; message?: string };
+  if (response.status === 401) return { signedIn: false, plan: "free" as Plan, usage: {} as Usage, limits: null as Limits | null, error: null };
+  const body = (await response.json()) as { plan?: Plan; usage?: Usage; limits?: Limits; message?: string };
   if (!response.ok) {
-    return { signedIn: false, plan: "free" as Plan, error: body.message ?? "Could not load the plan." };
+    return { signedIn: false, plan: "free" as Plan, usage: {} as Usage, limits: null as Limits | null, error: body.message ?? "Could not load the plan." };
   }
-  return { signedIn: true, plan: body.plan === "pro" ? "pro" : "free", error: null };
+  return { signedIn: true, plan: (body.plan === "pro" ? "pro" : "free") as Plan, usage: body.usage ?? {}, limits: body.limits ?? null, error: null };
 }
 
 export function PricingPlans({ priceLabel }: { priceLabel: string | null }) {
@@ -24,6 +26,8 @@ export function PricingPlans({ priceLabel }: { priceLabel: string | null }) {
   const returned = search.get("status") === "success";
   const [plan, setPlan] = useState<Plan>("free");
   const [signedIn, setSignedIn] = useState(false);
+  const [usage, setUsage] = useState<Usage>({});
+  const [limits, setLimits] = useState<Limits | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +38,8 @@ export function PricingPlans({ priceLabel }: { priceLabel: string | null }) {
       if (cancelled) return;
       setSignedIn(next.signedIn);
       setPlan(next.plan);
+      setUsage(next.usage);
+      setLimits(next.limits);
       if (next.error) setError(next.error);
       setLoaded(true);
     });
@@ -76,11 +82,11 @@ export function PricingPlans({ priceLabel }: { priceLabel: string | null }) {
   return (
     <div className="mx-auto w-full max-w-[1200px] px-6 py-16 sm:py-20">
       <PageIntro title="Pricing">
-        Start on Free. Pro is billed by Dodo, and this workspace is marked Pro after the payment confirms.
+        Create and export for free. Pro adds higher monthly limits, JPG files, and the publishing handoff.
       </PageIntro>
       {returned && plan !== "pro" ? (
         <p className="mt-6 max-w-xl text-[15px] font-light leading-6 text-ink-soft">
-          Checkout finished. This page updates when Dodo confirms the payment.
+          Checkout finished. Your plan will update as soon as the payment confirmation arrives.
         </p>
       ) : null}
       {error ? <p className="mt-6 text-sm text-destructive">{error}</p> : null}
@@ -90,8 +96,8 @@ export function PricingPlans({ priceLabel }: { priceLabel: string | null }) {
           <p className="mt-4 text-[40px] font-light tracking-[-0.04em] text-black">$0</p>
           <ul className="mt-6 space-y-2 text-[15px] font-light leading-6 text-ink-soft">
             <li>Brand kit, editor, and PNG or PDF export</li>
-            <li>Cursor, Claude, and ChatGPT</li>
-            <li>A key for the agents you already use</li>
+            <li>5 carousels and 10 AI generations each month</li>
+            <li>20 exports for Cursor, Claude, ChatGPT, or the web app</li>
           </ul>
           <div className="mt-8">
             <Link
@@ -112,20 +118,33 @@ export function PricingPlans({ priceLabel }: { priceLabel: string | null }) {
           </p>
           <ul className="mt-6 space-y-2 text-[15px] font-light leading-6 text-ink-soft">
             <li>Everything on Free</li>
-            <li>Cursor, Claude, and ChatGPT</li>
-            <li>{plan === "pro" ? "This workspace is on Pro" : "Marked Pro once payment confirms"}</li>
+            <li>100 carousels, 250 AI generations, and 1,000 exports each month</li>
+            <li>JPG export and an approval-first publishing handoff</li>
           </ul>
           <div className="mt-8">
             {plan === "pro" ? (
               <p className="inline-flex min-h-10 items-center text-sm font-medium text-black">Current plan</p>
             ) : (
-              <Button onClick={() => void checkout()} disabled={busy || !loaded}>
-                {busy ? "Opening checkout…" : signedIn ? "Continue to checkout" : "Sign in to upgrade"}
+              <Button onClick={() => void checkout()} disabled={busy}>
+                {busy ? "Opening checkout…" : !loaded ? "Choose Pro" : signedIn ? "Upgrade to Pro" : "Sign in to upgrade"}
               </Button>
             )}
           </div>
         </section>
       </Settle>
+      {signedIn && limits ? (
+        <section className="mt-6 rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
+          <h2 className="text-lg font-medium tracking-[-0.02em]">This month</h2>
+          <div className="mt-5 grid gap-4 sm:grid-cols-3">
+            {(["carousel", "generation", "export"] as const).map((kind) => (
+              <div key={kind}>
+                <p className="font-mono text-2xl tabular-nums">{usage[kind] ?? 0} <span className="text-sm text-ink-faint">/ {limits[kind]}</span></p>
+                <p className="mt-1 text-sm capitalize text-ink-soft">{kind === "carousel" ? "carousels" : `${kind}s`}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -71,6 +71,22 @@ test("a single slide exports as png", async () => {
   assert.deepEqual(pngSize(file.bytes), { width: 1080, height: 1350 });
 });
 
+test("jpg export is a zip of 1080×1350 slides", async () => {
+  const carousel = renderPlanToCarousel(plan, DEFAULT_THEME);
+  const file = await renderExport(carousel, "jpg");
+  assert.equal(file.contentType, "application/zip");
+  const entries = unzipSync(file.bytes);
+  const names = Object.keys(entries).sort();
+  assert.equal(names.length, carousel.slides.length);
+  assert.ok(names[0]?.endsWith(".jpg"));
+  const first = entries[names[0]!];
+  assert.ok(first);
+  assert.equal(first[0], 0xff);
+  assert.equal(first[1], 0xd8);
+  const image = await loadImage(Buffer.from(first));
+  assert.deepEqual({ width: image.width, height: image.height }, { width: 1080, height: 1350 });
+});
+
 test("an uploaded image is painted into the slide", async () => {
   const source = createCanvas(4, 4);
   const sourceCtx = source.getContext("2d");

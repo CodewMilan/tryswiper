@@ -11,9 +11,13 @@ const menuLinkClass =
 export function AccountMenu({
   links = [],
   fallbackClassName,
+  className,
+  tone = "dark",
 }: {
   links?: { href: string; label: string }[];
   fallbackClassName?: string;
+  className?: string;
+  tone?: "dark" | "light";
 }) {
   const { isLoaded, isSignedIn, user } = useUser();
   const clerk = useClerk();
@@ -44,13 +48,13 @@ export function AccountMenu({
   const initial = name.slice(0, 1).toUpperCase();
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className={`relative ${className ?? ""}`}>
       <button
         type="button"
         aria-label={name}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="ml-0.5 inline-flex size-9 items-center justify-center overflow-hidden rounded-full bg-white/15 ring-1 ring-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+        className={`ml-0.5 inline-flex size-9 items-center justify-center overflow-hidden rounded-full ring-1 focus-visible:outline-none focus-visible:ring-2 ${tone === "light" ? "bg-black text-white ring-black/20 focus-visible:ring-ring" : "bg-white/15 text-white ring-white/40 focus-visible:ring-white/80"}`}
         onClick={() => setOpen((value) => !value)}
       >
         {user.imageUrl ? (
@@ -58,7 +62,7 @@ export function AccountMenu({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={user.imageUrl} alt="" className="size-full object-cover" />
         ) : (
-          <span className="text-[13px] font-medium text-white">{initial}</span>
+          <span className="text-[13px] font-medium">{initial}</span>
         )}
       </button>
       {open ? (

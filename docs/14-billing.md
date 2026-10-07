@@ -2,17 +2,18 @@
 
 ## Example plans
 
-Free:
-- limited projects
-- limited exports
-- limited AI generations
+Free (implemented monthly limits):
+- 5 carousels
+- 20 exports
+- 10 AI generations
+- PNG and PDF export
 
-Pro:
-- higher generation limits
-- more assets
-- advanced templates
-- publishing
-- analytics
+Pro (implemented monthly limits):
+- 100 carousels
+- 1,000 exports
+- 250 AI generations
+- JPG export
+- 100 approval-first manual publishing handoffs
 
 Team:
 - multiple seats
@@ -20,7 +21,7 @@ Team:
 - approval workflows
 - higher limits
 
-These are placeholders. Validate pricing after usage-cost analysis.
+Team remains a future plan. Revisit the implemented limits after usage-cost analysis.
 
 ## Metering
 

@@ -26,8 +26,10 @@ type BrandForm = {
   tone: string;
   cta: string;
   website: string;
+  wordsToUse: string;
   wordsToAvoid: string;
   proofPoints: string;
+  guidelines: string;
   colors: BrandColors;
   fonts: BrandFonts;
   logoAssetId: string | null;
@@ -48,8 +50,10 @@ const empty: BrandForm = {
   tone: "",
   cta: "",
   website: "",
+  wordsToUse: "",
   wordsToAvoid: "",
   proofPoints: "",
+  guidelines: "",
   colors: DEFAULT_BRAND_COLORS,
   fonts: DEFAULT_BRAND_FONTS,
   logoAssetId: null,
@@ -95,8 +99,10 @@ export default function BrandPage() {
           tone: String(brand.tone ?? ""),
           cta: String(brand.cta ?? ""),
           website: String(brand.website ?? ""),
+          wordsToUse: Array.isArray(brand.wordsToUse) ? brand.wordsToUse.join(", ") : "",
           wordsToAvoid: Array.isArray(brand.wordsToAvoid) ? brand.wordsToAvoid.join(", ") : "",
           proofPoints: Array.isArray(brand.proofPoints) ? brand.proofPoints.join("\n") : "",
+          guidelines: String(brand.guidelines ?? ""),
           colors: {
             background: colors.background ?? DEFAULT_BRAND_COLORS.background,
             primary: colors.primary ?? DEFAULT_BRAND_COLORS.primary,
@@ -182,6 +188,10 @@ export default function BrandPage() {
           tone: form.tone,
           cta: form.cta,
           website: form.website,
+          wordsToUse: form.wordsToUse
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean),
           wordsToAvoid: form.wordsToAvoid
             .split(",")
             .map((item) => item.trim())
@@ -190,6 +200,7 @@ export default function BrandPage() {
             .split("\n")
             .map((item) => item.trim())
             .filter(Boolean),
+          guidelines: form.guidelines,
           colors: {
             background: normalizeHex(form.colors.background),
             primary: normalizeHex(form.colors.primary),
@@ -270,6 +281,11 @@ export default function BrandPage() {
               <Input id="website" type="url" autoComplete="url" {...field("website")} />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="use">Words to use</Label>
+              <Input id="use" placeholder="plainspoken, specific, practical" {...field("wordsToUse")} />
+              <p className="text-[12px] font-light text-ink-faint">Comma separated.</p>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="avoid">Words to avoid</Label>
               <Input id="avoid" placeholder="unlock, seamless, revolutionize" {...field("wordsToAvoid")} />
               <p className="text-[12px] font-light text-ink-faint">Comma separated.</p>
@@ -278,6 +294,11 @@ export default function BrandPage() {
               <Label htmlFor="proof">Proof points</Label>
               <Textarea id="proof" {...field("proofPoints")} />
               <p className="text-[12px] font-light text-ink-faint">One per line.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="guidelines">Writing guidelines</Label>
+              <Textarea id="guidelines" placeholder="Use short sentences. Lead with the customer problem. Never compare us to named competitors." {...field("guidelines")} />
+              <p className="text-[12px] font-light text-ink-faint">These instructions are passed to every generation.</p>
             </div>
           </div>
         </section>

@@ -102,7 +102,7 @@ function drawText(
   ctx.restore();
 }
 
-export function renderSlidePng(slide: Slide, theme: Theme, assets?: DecodedAssets): Buffer {
+function renderSlideCanvas(slide: Slide, theme: Theme, assets?: DecodedAssets) {
   registerFonts();
   const canvas = createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
   const ctx = canvas.getContext("2d");
@@ -129,7 +129,15 @@ export function renderSlidePng(slide: Slide, theme: Theme, assets?: DecodedAsset
     }
   }
 
-  return canvas.toBuffer("image/png");
+  return canvas;
+}
+
+export function renderSlidePng(slide: Slide, theme: Theme, assets?: DecodedAssets): Buffer {
+  return renderSlideCanvas(slide, theme, assets).toBuffer("image/png");
+}
+
+export function renderSlideJpeg(slide: Slide, theme: Theme, assets?: DecodedAssets): Buffer {
+  return renderSlideCanvas(slide, theme, assets).toBuffer("image/jpeg", 90);
 }
 
 export function renderSlidePngs(
@@ -140,4 +148,14 @@ export function renderSlidePngs(
   const slides =
     slideIndex == null ? carousel.slides : carousel.slides.slice(slideIndex, slideIndex + 1);
   return slides.map((slide) => renderSlidePng(slide, carousel.theme, assets));
+}
+
+export function renderSlideJpegs(
+  carousel: Carousel,
+  slideIndex?: number,
+  assets?: DecodedAssets,
+): Buffer[] {
+  const slides =
+    slideIndex == null ? carousel.slides : carousel.slides.slice(slideIndex, slideIndex + 1);
+  return slides.map((slide) => renderSlideJpeg(slide, carousel.theme, assets));
 }

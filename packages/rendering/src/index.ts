@@ -5,6 +5,8 @@ export {
   readImageSize,
   renderSlidePng,
   renderSlidePngs,
+  renderSlideJpeg,
+  renderSlideJpegs,
   type AssetMap,
   type DecodedAssets,
 } from "./paint";

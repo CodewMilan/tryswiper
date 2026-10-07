@@ -16,8 +16,8 @@ export function apiError(
 export function fromUnknownError(error: unknown) {
   if (error instanceof SyntaxError) return apiError("INVALID_JSON", "Send a valid JSON request.", 400);
   if (error && typeof error === "object" && "status" in error && "message" in error) {
-    const err = error as { status: number; message: string; code?: string };
-    return apiError(err.code ?? "ERROR", err.message, err.status);
+    const err = error as { status: number; message: string; code?: string; details?: Record<string, unknown> };
+    return apiError(err.code ?? "ERROR", err.message, err.status, err.details);
   }
   console.error(error);
   return apiError("INTERNAL", "Something went wrong", 500);

@@ -43,6 +43,7 @@ test("brand visuals, manual creation, editor gestures, format reuse, and downloa
   await expect(page.locator("#font-heading")).toHaveValue("Lora");
   await expect(page.locator("#color-background")).toHaveValue("#F3EEE5");
   await page.goto("/new");
+  await page.getByRole("button", { name: "Start by hand" }).click();
   await page.getByLabel("Carousel title", { exact: true }).fill("A better way to tell your story");
   await page.getByRole("button", { name: "Open in editor" }).click();
   await expect(page.getByTestId("slide-canvas")).toBeVisible();
@@ -90,6 +91,7 @@ test("brand visuals, manual creation, editor gestures, format reuse, and downloa
   await expect(page.getByText("“Launch story” is ready in your workspace formats.")).toBeVisible();
   const source = await state(request, id);
   await page.goto("/new");
+  await page.getByRole("button", { name: "Start by hand" }).click();
   await page.getByText("Launch story", { exact: true }).click();
   await expect(page.getByRole("radio", { name: /Launch story/ })).toBeChecked();
   await page.getByRole("button", { name: "Open in editor" }).click();
@@ -150,4 +152,35 @@ test("pending edits survive refresh and saves reject stale or unauthorized write
   expect((await other.request.post("/api/v1/carousels", { data: { format_id: fmt } })).status()).toBe(400);
   expect((await other.request.post("/api/v1/formats", { data: { carousel_id: id, name: "Stolen" } })).status()).toBe(404);
   await other.close();
+});
+
+test("library, web generation, key revocation, plan gates, and branded 404", async ({ page }) => {
+  const request = page.request;
+  await signUp(request);
+
+  await page.goto("/library");
+  await expect(page.getByRole("heading", { name: "Your carousels" })).toBeVisible();
+  await expect(page.getByText("Turn one sentence into an editable carousel.")).toBeVisible();
+
+  await page.goto("/new");
+  await page.getByLabel("What should this carousel say?").fill("Explain why a product brief should become an editable carousel before it gets published.");
+  await page.getByRole("button", { name: "Generate carousel" }).click();
+  await expect(page.getByTestId("slide-canvas")).toBeVisible();
+  const id = page.url().split("/").at(-1)!;
+
+  await page.getByRole("link", { name: "Back to library" }).click();
+  await expect(page.getByRole("link", { name: /Explain why a product brief/ })).toBeVisible();
+
+  const minted = await request.post("/api/v1/mcp-keys", { data: { name: "Test agent" } });
+  expect(minted.status()).toBe(200);
+  const key = await minted.json() as { id: string };
+  expect((await request.delete(`/api/v1/mcp-keys/${key.id}`)).status()).toBe(200);
+  const keys = await (await request.get("/api/v1/mcp-keys")).json() as { keys: { id: string; revokedAt: string | null }[] };
+  expect(keys.keys.find((item) => item.id === key.id)?.revokedAt).not.toBeNull();
+
+  expect((await request.get(`/api/v1/carousels/${id}/export?format=jpg`)).status()).toBe(403);
+  expect((await request.post(`/api/v1/carousels/${id}/publish`, { headers: { "Idempotency-Key": crypto.randomUUID() } })).status()).toBe(403);
+
+  await page.goto("/a-page-that-does-not-exist");
+  await expect(page.getByRole("heading", { name: "This page is not in the deck." })).toBeVisible();
 });

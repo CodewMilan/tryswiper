@@ -19,6 +19,8 @@ Implement platforms independently.
 
 Start with export/manual publishing if direct APIs are unavailable or restricted. Add official platform APIs only after verifying current API capabilities and terms.
 
+The current product implements the first stage: Pro users approve a valid carousel, Swiper creates an idempotent manual publish job, marks the carousel approved, and returns PNG/JPG/PDF downloads. Direct platform adapters and stored OAuth credentials are not enabled yet.
+
 ## Publish lifecycle
 
 ```text

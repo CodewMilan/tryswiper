@@ -12,6 +12,7 @@ export type BrandContext = {
   colors?: { background?: string; primary?: string; secondary?: string; accent?: string };
   fonts?: { heading?: string; body?: string };
   hasLogo?: boolean;
+  guidelines?: string | null;
 };
 
 export function compactBrand(brand: BrandContext) {
@@ -25,6 +26,7 @@ export function compactBrand(brand: BrandContext) {
     brand.proofPoints?.length ? `Proof: ${brand.proofPoints.join("; ")}` : null,
     brand.wordsToAvoid?.length ? `Avoid: ${brand.wordsToAvoid.join(", ")}` : null,
     brand.wordsToUse?.length ? `Prefer: ${brand.wordsToUse.join(", ")}` : null,
+    brand.guidelines ? `Guidelines: ${brand.guidelines}` : null,
     brand.colors
       ? `Colors: background ${brand.colors.background ?? ""}, text ${brand.colors.primary ?? ""}, body ${brand.colors.secondary ?? ""}, accent ${brand.colors.accent ?? ""}`
       : null,

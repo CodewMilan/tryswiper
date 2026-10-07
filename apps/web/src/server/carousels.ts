@@ -29,6 +29,7 @@ import { editorUrl } from "../lib/utils";
 import { getWorkspaceBrand } from "../lib/workspace";
 import { getWorkspaceFormat } from "./workspace-formats";
 import { getAsset } from "./assets";
+import { assertUsage, recordUsage } from "./usage";
 
 function themeFromBrand(brand: NonNullable<Awaited<ReturnType<typeof getWorkspaceBrand>>>): Theme {
   return {
@@ -58,6 +59,7 @@ function toBrandContext(
     colors: brand.colors,
     fonts: brand.fonts,
     hasLogo: Boolean(brand.logoAssetId),
+    guidelines: brand.guidelines,
   };
 }
 
@@ -121,6 +123,8 @@ export async function generateCarousel(input: {
   formatId?: string;
   slideCount?: number;
 }) {
+  await assertUsage(input.auth.workspaceId, "carousel");
+  await assertUsage(input.auth.workspaceId, "generation");
   const brandRow = await getWorkspaceBrand(input.auth.workspaceId);
   if (!brandRow) {
     throw Object.assign(new Error("Brand kit missing"), { status: 400, code: "NO_BRAND" });
@@ -150,6 +154,8 @@ export async function generateCarousel(input: {
     planJson: result.plan,
     createdBy: input.auth.userId,
   });
+  await recordUsage(input.auth.workspaceId, "carousel");
+  await recordUsage(input.auth.workspaceId, "generation");
   return {
     carousel_id: id,
     editor_url: editorUrl(id),
@@ -166,6 +172,7 @@ export async function startCarouselFromFormat(input: {
   formatId: string;
   title?: string;
 }) {
+  await assertUsage(input.auth.workspaceId, "carousel");
   const format = getFormat(input.formatId);
   const brandRow = await getWorkspaceBrand(input.auth.workspaceId);
   if (!brandRow) {
@@ -203,6 +210,7 @@ export async function startCarouselFromFormat(input: {
       planJson: plan,
       createdBy: input.auth.userId,
     });
+    await recordUsage(input.auth.workspaceId, "carousel");
     console.info("carousel_started_from_workspace_format", {
       carouselId: id,
       formatId: workspaceFormat.id,
@@ -244,6 +252,7 @@ export async function startCarouselFromFormat(input: {
     planJson: result.plan,
     createdBy: input.auth.userId,
   });
+  await recordUsage(input.auth.workspaceId, "carousel");
   return {
     carousel_id: id,
     editor_url: editorUrl(id),
@@ -406,6 +415,7 @@ export async function generateSlide(
   slideId: string,
   instruction: string,
 ) {
+  await assertUsage(authContext.workspaceId, "generation");
   const current = await getCarousel(authContext, id);
   const brandRow = await getWorkspaceBrand(authContext.workspaceId);
   if (!brandRow) {
@@ -444,6 +454,7 @@ export async function generateSlide(
       updatedAt: new Date(),
     })
     .where(eq(schema.carousel.id, id));
+  await recordUsage(authContext.workspaceId, "generation");
   return {
     carousel_id: id,
     editor_url: editorUrl(id),

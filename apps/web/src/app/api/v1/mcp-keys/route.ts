@@ -30,8 +30,9 @@ export async function POST(request: Request) {
     const authContext = await requireAuth(request);
     const body = (await request.json().catch(() => ({}))) as { name?: string };
     const minted = createMcpKey();
+    const id = sid("key");
     await db.insert(schema.mcpKey).values({
-      id: sid("key"),
+      id,
       workspaceId: authContext.workspaceId,
       userId: authContext.userId,
       name: body.name?.trim() || "Cursor",
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
       keyPrefix: minted.keyPrefix,
     });
     return json({
+      id,
       key: minted.key,
       prefix: minted.keyPrefix,
       warning: "Copy this key now. Swiper will not show it again.",

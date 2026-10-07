@@ -15,6 +15,7 @@ const guestLinks = [
 ];
 
 const memberLinks = [
+  { href: "/library", label: "Library" },
   { href: "/brand", label: "Brand" },
   { href: "/connect", label: "Connect" },
   { href: "/pricing", label: "Pricing" },
@@ -28,21 +29,21 @@ const newButtonClass =
 
 type Mode = "guest" | "member" | "pending";
 
-export function SiteNav() {
-  if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return <NavBar mode="guest" />;
-  return <ClerkNav />;
+export function SiteNav({ initialMode, hideSignIn = false }: { initialMode?: Mode; hideSignIn?: boolean } = {}) {
+  if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return <NavBar mode={initialMode ?? "guest"} hideSignIn={hideSignIn} />;
+  return <ClerkNav initialMode={initialMode} hideSignIn={hideSignIn} />;
 }
 
-function ClerkNav() {
+function ClerkNav({ initialMode, hideSignIn }: { initialMode?: Mode; hideSignIn: boolean }) {
   const { isLoaded, isSignedIn } = useUser();
-  const mode: Mode = !isLoaded ? "pending" : isSignedIn ? "member" : "guest";
-  return <NavBar mode={mode} />;
+  const mode: Mode = !isLoaded ? (initialMode ?? "pending") : isSignedIn ? "member" : "guest";
+  return <NavBar mode={mode} hideSignIn={hideSignIn} />;
 }
 
-function NavBar({ mode }: { mode: Mode }) {
+function NavBar({ mode, hideSignIn }: { mode: Mode; hideSignIn: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const reduced = useReducedMotion();
-  const links = mode === "member" ? memberLinks : guestLinks.filter((item) => mode === "guest" || item.href !== "/login");
+  const links = mode === "member" ? memberLinks : guestLinks.filter((item) => (mode === "guest" || item.href !== "/login") && (!hideSignIn || item.href !== "/login"));
 
   return (
     <header className="pointer-events-none fixed inset-x-0 top-4 z-40 flex justify-center px-3">
@@ -76,7 +77,9 @@ function NavBar({ mode }: { mode: Mode }) {
           </Magnetic>
         ) : null}
         {mode === "pending" ? <span className="ml-1 size-9 rounded-full bg-white/15" aria-hidden /> : null}
-        {mode === "member" ? <AccountMenu /> : null}
+        {mode === "member" ? <AccountMenu className="hidden md:block" links={[{ href: "/pricing", label: "Pricing" }]} /> : null}
+        {mode === "member" ? <AccountMenu className="md:hidden" links={[...memberLinks, { href: "/new", label: "New carousel" }]} /> : null}
+        {mode !== "member" ? (
         <button
           type="button"
           className="inline-flex size-9 items-center justify-center rounded-xl text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 md:hidden"
@@ -96,6 +99,7 @@ function NavBar({ mode }: { mode: Mode }) {
             />
           </span>
         </button>
+        ) : null}
       </div>
       <AnimatePresence>
         {mobileOpen ? (

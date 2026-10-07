@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type Brand = { name?: string; description?: string; audience?: string } | null;
 type KeyRow = {
   id: string;
   name: string;
@@ -17,38 +16,17 @@ type KeyRow = {
   createdAt: string;
   revokedAt: string | null;
 };
-type CarouselRow = {
-  id: string;
-  title: string;
-  status: string;
-  format_id: string;
-  editor_url: string;
-};
-
 async function readWorkspace() {
-  const [brandRes, keysRes, projectsRes] = await Promise.all([
-    fetch("/api/v1/brand"),
-    fetch("/api/v1/mcp-keys"),
-    fetch("/api/v1/projects"),
-  ]);
-  if (!brandRes.ok || !keysRes.ok || !projectsRes.ok) {
-    throw new Error("Could not load workspace.");
-  }
-  const brandJson = (await brandRes.json()) as { brand: Brand };
+  const keysRes = await fetch("/api/v1/mcp-keys");
+  if (!keysRes.ok) throw new Error("Could not load your agent keys.");
   const keysJson = (await keysRes.json()) as { keys: KeyRow[] };
-  const projectsJson = (await projectsRes.json()) as { carousels: CarouselRow[] };
-  return {
-    brand: brandJson.brand,
-    keys: keysJson.keys,
-    carousels: projectsJson.carousels ?? [],
-  };
+  return { keys: keysJson.keys };
 }
 
 export default function ConnectPage() {
-  const [brand, setBrand] = useState<Brand>(null);
   const [keys, setKeys] = useState<KeyRow[]>([]);
-  const [carousels, setCarousels] = useState<CarouselRow[]>([]);
   const [freshKey, setFreshKey] = useState<string | null>(null);
+  const [freshKeyId, setFreshKeyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [minting, setMinting] = useState(false);
@@ -58,9 +36,7 @@ export default function ConnectPage() {
     setError(null);
     try {
       const next = await readWorkspace();
-      setBrand(next.brand);
       setKeys(next.keys);
-      setCarousels(next.carousels);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load workspace.");
     } finally {
@@ -73,9 +49,7 @@ export default function ConnectPage() {
     void readWorkspace()
       .then((next) => {
         if (cancelled) return;
-        setBrand(next.brand);
         setKeys(next.keys);
-        setCarousels(next.carousels);
       })
       .catch((loadError: unknown) => {
         if (cancelled) return;
@@ -98,11 +72,12 @@ export default function ConnectPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: "Agent" }),
       });
-      const body = (await response.json()) as { key?: string; message?: string };
+      const body = (await response.json()) as { id?: string; key?: string; message?: string };
       if (!response.ok || !body.key) {
         throw new Error(body.message ?? "Could not mint a key.");
       }
       setFreshKey(body.key);
+      setFreshKeyId(body.id ?? null);
       await load();
     } catch (mintError) {
       setError(mintError instanceof Error ? mintError.message : "Could not mint a key.");
@@ -111,15 +86,29 @@ export default function ConnectPage() {
     }
   }
 
+  async function revokeKey(id: string) {
+    setError(null);
+    try {
+      const response = await fetch(`/api/v1/mcp-keys/${id}`, { method: "DELETE" });
+      const body = (await response.json()) as { message?: string };
+      if (!response.ok) throw new Error(body.message ?? "Could not revoke the key.");
+      if (freshKeyId === id) {
+        setFreshKey(null);
+        setFreshKeyId(null);
+      }
+      await load();
+    } catch (revokeError) {
+      setError(revokeError instanceof Error ? revokeError.message : "Could not revoke the key.");
+    }
+  }
+
   const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3100";
 
   return (
     <main className="mx-auto w-full max-w-[800px] px-6 py-12">
       <PageIntro title="Connect an agent">
-        Mint a key, then add Swiper to Cursor, Claude, or ChatGPT. Or{" "}
-        <Link href="/new" className="text-black underline decoration-black/20 underline-offset-4 motion-safe:transition-colors motion-safe:duration-150 hover:text-accent hover:decoration-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          start one in the browser
-        </Link>.
+        Mint a key, then add Swiper to Cursor, Claude, or ChatGPT. Your carousels stay in the{" "}
+        <Link href="/library" className="text-black underline decoration-black/20 underline-offset-4 motion-safe:transition-colors motion-safe:duration-150 hover:text-accent hover:decoration-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">library</Link>.
       </PageIntro>
 
       {loading ? (
@@ -141,22 +130,7 @@ export default function ConnectPage() {
       {!loading ? (
         <Settle className="mt-8 space-y-4">
           <section className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
-            <h2 className="text-[18px] font-medium tracking-[-0.02em]">1. Brand kit</h2>
-            <p className="mt-2 text-[15px] font-light leading-6 text-ink-soft">
-              {brand?.description
-                ? `${brand.name ?? "Product"} is ready for the agent.`
-                : "Add a product description so the agent is not guessing."}
-            </p>
-            <Link
-              href="/brand"
-              className="mt-5 inline-flex min-h-10 items-center rounded-[14px] border border-black/10 bg-white px-4 text-sm font-medium motion-safe:transition-colors motion-safe:duration-150 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              {brand?.description ? "Edit brand" : "Add brand context"}
-            </Link>
-          </section>
-
-          <section className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
-            <h2 className="text-[18px] font-medium tracking-[-0.02em]">2. MCP key</h2>
+            <h2 className="text-[18px] font-medium tracking-[-0.02em]">1. Create a private key</h2>
             <p className="mt-2 text-[15px] font-light leading-6 text-ink-soft">
               Keys are hashed at rest. You only see the full value once.
             </p>
@@ -178,9 +152,9 @@ export default function ConnectPage() {
                 keys
                   .filter((key) => !key.revokedAt)
                   .map((key) => (
-                    <li key={key.id}>
-                      {key.name} · {key.keyPrefix}…{" "}
-                      {key.lastUsedAt ? "used" : "never used"}
+                    <li key={key.id} className="flex min-h-10 items-center justify-between gap-4 rounded-xl bg-[#f7f7f6] px-3 py-2">
+                      <span>{key.name} · {key.keyPrefix}… · {key.lastUsedAt ? "used" : "never used"}</span>
+                      <button type="button" onClick={() => void revokeKey(key.id)} className="shrink-0 rounded-lg px-2 py-1 font-medium text-destructive hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Revoke</button>
                     </li>
                   ))
               )}
@@ -188,39 +162,12 @@ export default function ConnectPage() {
           </section>
 
           <div>
-            <h2 className="text-[18px] font-medium tracking-[-0.02em]">3. Add the agent</h2>
+            <h2 className="text-[18px] font-medium tracking-[-0.02em]">2. Add the agent</h2>
             <p className="mt-2 mb-4 text-[15px] font-light leading-6 text-ink-soft">
               Mint a key first so these configs include it. Then ask: “Make a carousel explaining why we’re different.”
             </p>
-            <AgentConfigs origin={origin} apiKey={freshKey ?? "sk_swiper_YOUR_KEY"} />
+            <AgentConfigs origin={origin} apiKey={freshKey} />
           </div>
-
-          <section className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
-            <h2 className="text-[18px] font-medium tracking-[-0.02em]">Recent carousels</h2>
-            {carousels.length === 0 ? (
-              <p className="mt-2 text-[15px] font-light leading-6 text-ink-soft">
-                None yet.{" "}
-                <Link href="/new" className="text-black underline decoration-black/20 underline-offset-4 motion-safe:transition-colors motion-safe:duration-150 hover:text-accent hover:decoration-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  Start one from a format
-                </Link>
-                , or wait for the agent.
-              </p>
-            ) : (
-              <ul className="mt-4 space-y-2">
-                {carousels.map((carousel) => (
-                  <li key={carousel.id}>
-                    <Link
-                      href={`/c/${carousel.id}`}
-                      className="flex min-h-11 items-center justify-between rounded-2xl px-3 py-2 text-[15px] font-light motion-safe:transition-colors motion-safe:duration-150 hover:bg-[#f7f7f6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <span className="text-black">{carousel.title}</span>
-                      <span className="font-mono text-[12px] text-ink-faint">{carousel.format_id}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
         </Settle>
       ) : null}
     </main>

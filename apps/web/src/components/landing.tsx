@@ -34,8 +34,10 @@ const linkClass =
 const ctaClass =
   "group inline-flex items-center gap-2 rounded-[14px] bg-black px-[17px] py-[9px] text-[16px] font-medium tracking-[-0.01em] text-white shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-2px_rgba(0,0,0,0.1)] motion-safe:transition-[transform,box-shadow,opacity] motion-safe:duration-150 hover:opacity-90 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
-export function Landing() {
+export function Landing({ signedIn = false }: { signedIn?: boolean }) {
   const [stage, setStage] = useState(0);
+  const startHref = signedIn ? "/new" : "/signup";
+  const workspaceHref = signedIn ? "/library" : "/signup";
   const formats = FORMATS.slice(0, 6).map((format) => ({
     id: format.id,
     name: format.name,
@@ -84,7 +86,7 @@ export function Landing() {
             </FadeUp>
             <FadeUp show={stage >= 2} className="mt-6">
               <Magnetic>
-                <Link href="/signup" className={ctaClass}>
+                <Link href={startHref} className={ctaClass}>
                   Start for free
                   <ArrowRight className="motion-safe:transition-transform motion-safe:duration-150 group-hover:translate-x-0.5" />
                 </Link>
@@ -143,7 +145,7 @@ export function Landing() {
             eyebrowClass="bg-[#bbe2f5] text-blue"
             title="Edit the slide the agent just wrote"
             body="Open the link, change the line, and ask for another pass on that slide only."
-            href="/signup"
+            href={startHref}
           >
             <EditorMock />
           </FeatureCard>
@@ -164,7 +166,7 @@ export function Landing() {
               eyebrowClass="bg-[#d7f3e4] text-green"
               title="Give the agent a brand kit, not a vibe"
               body="Name, audience, tone, proof, and the words you will not say."
-              href="/signup"
+              href={signedIn ? "/brand" : "/signup"}
             >
               <BrandMock />
             </FeatureCard>
@@ -175,7 +177,7 @@ export function Landing() {
             eyebrowClass="bg-[#ffd9cf] text-accent"
             title="Ask in the chat you already have open"
             body="Mint a key, paste one config, and tell the agent what the post is for."
-            href="/signup"
+            href={signedIn ? "/connect" : "/signup"}
             wide
           >
             <AgentMock />
@@ -199,7 +201,7 @@ export function Landing() {
               <div className="mt-6 flex flex-wrap gap-3">
                 <Magnetic strength={0.18}>
                   <Link
-                    href="/signup"
+                    href={workspaceHref}
                     className="inline-flex items-center rounded-[14px] border border-white/10 bg-white/5 px-4 py-2 text-[16px] font-medium text-white motion-safe:transition-colors motion-safe:duration-150 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
                     Create a workspace
@@ -251,7 +253,7 @@ export function Landing() {
             <p className="mt-4 text-[18px] font-light leading-7 text-ink-soft">
               Cursor, Claude, or ChatGPT. The web app is for the brand kit, the key, and the editor.
             </p>
-            <Link href="/signup" className={`group mt-6 inline-flex items-center gap-1 text-[16px] font-medium ${linkClass}`}>
+            <Link href={workspaceHref} className={`group mt-6 inline-flex items-center gap-1 text-[16px] font-medium ${linkClass}`}>
               Create a workspace
               <ArrowRight className="motion-safe:transition-transform motion-safe:duration-150 group-hover:translate-x-0.5" />
             </Link>
@@ -271,7 +273,7 @@ export function Landing() {
             <p className="mt-4 max-w-md text-[16px] font-light leading-6 text-ink-soft">
               Set the voice once. The next carousel starts from the same brand, not a blank prompt.
             </p>
-            <Link href="/signup" className={`group mt-5 inline-flex items-center gap-1 text-[16px] font-medium ${linkClass}`}>
+            <Link href={signedIn ? "/brand" : "/signup"} className={`group mt-5 inline-flex items-center gap-1 text-[16px] font-medium ${linkClass}`}>
               Set up brand
               <ArrowRight className="motion-safe:transition-transform motion-safe:duration-150 group-hover:translate-x-0.5" />
             </Link>
@@ -359,7 +361,7 @@ export function Landing() {
             Create a workspace. Connect an agent. Ask for the post.
           </p>
           <Magnetic className="mt-8">
-            <Link href="/signup" className={ctaClass}>
+            <Link href={startHref} className={ctaClass}>
               Start for free
               <ArrowRight />
             </Link>
