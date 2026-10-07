@@ -1,3 +1,5 @@
+import { REFERENCE_FALLBACK_NOTICE, type GenerationWarning } from "@/lib/generation-notices";
+
 const SUPPORTED_HOSTS = ["linkedin.com", "x.com", "twitter.com", "threads.net", "instagram.com"];
 
 function decodeEntities(value: string) {
@@ -22,7 +24,10 @@ function meta(html: string, key: string) {
   return null;
 }
 
-export async function referenceContext(value: string) {
+export async function referenceContext(value: string, fetchPost: typeof fetch = fetch): Promise<{
+  context: string | null;
+  warning: GenerationWarning | null;
+}> {
   let url: URL;
   try {
     url = new URL(value);
@@ -35,7 +40,7 @@ export async function referenceContext(value: string) {
   }
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchPost(url, {
       headers: { "User-Agent": "SwiperReferenceBot/1.0" },
       signal: AbortSignal.timeout(6000),
       redirect: "error",
@@ -45,16 +50,14 @@ export async function referenceContext(value: string) {
     const title = meta(html, "og:title") ?? meta(html, "twitter:title");
     const description = meta(html, "og:description") ?? meta(html, "twitter:description") ?? meta(html, "description");
     if (!title && !description) throw new Error("no public metadata");
-    return [
+    const context = [
       `Reference post URL: ${url.toString()}`,
       title ? `Reference title: ${title.slice(0, 500)}` : null,
       description ? `Reference summary: ${description.slice(0, 2000)}` : null,
       "Adapt only the structural pattern, pacing, hook style, hierarchy, and CTA placement. Write original copy and do not copy protected text or imagery.",
     ].filter(Boolean).join("\n");
+    return { context, warning: null };
   } catch {
-    throw Object.assign(new Error("Swiper could not read that public post. Describe its structure in the brief and try again."), {
-      status: 422,
-      code: "REFERENCE_UNAVAILABLE",
-    });
+    return { context: null, warning: { code: "REFERENCE_UNAVAILABLE", message: REFERENCE_FALLBACK_NOTICE } };
   }
 }

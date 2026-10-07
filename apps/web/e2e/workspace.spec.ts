@@ -3,6 +3,8 @@ import { createCanvas } from "@napi-rs/canvas";
 import type { Carousel } from "@swiper/schema";
 import postgres from "postgres";
 import { cleanupTestUsers, testDatabaseUrl } from "./test-data";
+import { referenceContext } from "../src/server/reference-post";
+import { REFERENCE_FALLBACK_NOTICE } from "../src/lib/generation-notices";
 
 const testUserIds: string[] = [];
 
@@ -96,6 +98,7 @@ test("brand visuals, manual creation, editor gestures, format reuse, and downloa
   await saved(page);
   await page.reload();
   await expect(page.getByTestId("slide-canvas").getByText("Good stories deserve a better canvas.")).toBeVisible();
+  await page.getByRole("button", { name: "More carousel options", exact: true }).click();
   await page.getByRole("button", { name: "Save as format", exact: true }).click();
   await page.getByLabel("Format name", { exact: true }).fill("Launch story");
   await page.getByRole("button", { name: "Save format", exact: true }).click();
@@ -336,6 +339,7 @@ test("Prepare files shows the Free gate upfront and preserves the Pro handoff", 
   let preparations = 0;
   page.on("request", (request) => { if (request.method() === "POST" && request.url().endsWith(`/carousels/${id}/publish`)) preparations++; });
   await page.goto(`/c/${id}`);
+  await page.getByRole("button", { name: "More carousel options", exact: true }).click();
   await page.getByRole("button", { name: "Prepare files", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Prepare files", exact: true });
   await expect(dialog).toContainText("Prepare files requires Pro.");
@@ -351,6 +355,7 @@ test("Prepare files shows the Free gate upfront and preserves the Pro handoff", 
   await page.route("**/api/v1/billing", (route) => route.fulfill({ json: { plan: "pro", usage: {}, limits: { carousel: 100, generation: 250, export: 1000, publish: 100, jpg: true } } }));
   await page.route(`**/api/v1/carousels/${id}/publish`, (route) => route.fulfill({ json: { status: "ready" } }));
   await page.reload();
+  await page.getByRole("button", { name: "More carousel options", exact: true }).click();
   await page.getByRole("button", { name: "Prepare files", exact: true }).click();
   await expect(dialog).toContainText("Your Pro plan includes this publishing handoff.");
   await dialog.getByRole("button", { name: "Validate and prepare files", exact: true }).click();
@@ -403,4 +408,123 @@ test("404 recovery links respect guest and signed-in sessions", async ({ page })
   await page.reload();
   await expect(main.getByRole("link", { name: "Open library", exact: true })).toHaveAttribute("href", "/library");
   await expect(main.getByRole("link", { name: "Start for free", exact: true })).toHaveCount(0);
+});
+
+test("new carousel cards and editor overflow match the light workspace", async ({ page }, testInfo) => {
+  await signUp(page.request);
+  await page.goto("/new");
+  await page.getByRole("button", { name: "Start by hand", exact: true }).click();
+  const cards = page.locator("label:has(input[name=format])");
+  await expect(cards.first()).toBeVisible();
+  for (const width of [375, 768, 1280]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const styles = await cards.evaluateAll((elements) => elements.map((element) => {
+      const style = getComputedStyle(element);
+      return { radius: style.borderRadius, shadow: style.boxShadow, background: style.backgroundColor };
+    }));
+    expect(styles.length).toBeGreaterThan(1);
+    for (const style of styles) expect(style).toEqual({ radius: "24px", shadow: "none", background: "rgb(255, 255, 255)" });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+    await page.screenshot({ path: testInfo.outputPath(`new-${width}.png`) });
+  }
+  await page.getByRole("button", { name: "Open in editor", exact: true }).click();
+  await expect(page.getByTestId("slide-canvas")).toBeVisible();
+  const header = page.locator("header.editor-header");
+  const more = header.getByRole("button", { name: "More carousel options", exact: true });
+  for (const width of [375, 768, 1280]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expect(header.getByRole("link", { name: "Back to library", exact: true })).toBeVisible();
+    await expect(header.getByRole("button", { name: "Undo", exact: true })).toBeVisible();
+    await expect(header.getByRole("button", { name: "Export", exact: true })).toBeVisible();
+    expect((await header.boundingBox())!.height).toBeLessThanOrEqual(80);
+    await expect(header.getByRole("button", { name: "Save as format", exact: true })).toHaveCount(0);
+    await expect(header.getByRole("button", { name: "Prepare files", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("navigation", { name: "Workspace", exact: true })).toHaveCount(0);
+    await more.focus();
+    await page.keyboard.press("Enter");
+    const options = page.getByRole("region", { name: "Carousel options", exact: true });
+    await expect(options.getByRole("button", { name: "Save as format", exact: true })).toBeVisible();
+    await expect(options.getByRole("button", { name: "Prepare files", exact: true })).toBeVisible();
+    await expect(options.getByRole("link", { name: "Brand", exact: true })).toHaveAttribute("href", "/brand");
+    await expect(options.getByRole("link", { name: "Connect", exact: true })).toHaveAttribute("href", "/connect");
+    await page.keyboard.press("Tab");
+    await expect(options.getByRole("button", { name: "Save as format", exact: true })).toBeFocused();
+    await page.screenshot({ path: testInfo.outputPath(`editor-overflow-${width}.png`) });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+    await page.keyboard.press("Escape");
+    await expect(options).toHaveCount(0);
+    await expect(more).toBeFocused();
+  }
+});
+
+test("footer follows session and auth pages never offer Start for free", async ({ page }) => {
+  await page.goto("/");
+  const footer = page.locator("footer");
+  await expect(footer.getByRole("link", { name: "Create account", exact: true })).toHaveAttribute("href", "/signup");
+  await expect(footer.getByRole("link", { name: "Sign in", exact: true })).toHaveAttribute("href", "/login");
+  for (const path of ["/signup", "/login"]) {
+    await page.goto(path);
+    await expect(page.getByRole("link", { name: "Start for free", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Continue with Google", exact: true })).toBeVisible();
+  }
+  await expect(page.getByRole("link", { name: "Create an account", exact: true })).toHaveAttribute("href", "/signup");
+  await signUp(page.request);
+  for (const path of ["/", "/pricing"]) {
+    await page.goto(path);
+    await expect(footer.getByRole("link", { name: "Carousel library", exact: true })).toHaveAttribute("href", "/library");
+    await expect(footer.getByRole("link", { name: "Create account", exact: true })).toHaveCount(0);
+    await expect(footer.getByRole("link", { name: "Sign in", exact: true })).toHaveCount(0);
+  }
+});
+
+test("reference metadata failures are non-fatal while unsafe URLs still fail validation", async () => {
+  const url = "https://www.linkedin.com/posts/qa";
+  const failures: (typeof fetch)[] = [
+    async () => new Response("Unauthorized", { status: 401 }),
+    async () => new Response("Forbidden", { status: 403 }),
+    async () => new Response("<html><body>No metadata</body></html>"),
+    async () => { throw new TypeError("Network unavailable"); },
+    async () => { throw new DOMException("Timed out", "TimeoutError"); },
+  ];
+  for (const fetchPost of failures) {
+    expect(await referenceContext(url, fetchPost)).toEqual({ context: null, warning: { code: "REFERENCE_UNAVAILABLE", message: REFERENCE_FALLBACK_NOTICE } });
+  }
+  const success = await referenceContext(url, async () => new Response('<meta property="og:title" content="Useful &amp; original"><meta content="A clear structure" name="og:description">'));
+  expect(success.warning).toBeNull();
+  expect(success.context).toContain("Useful & original");
+  expect(success.context).toContain("A clear structure");
+  let fetched = false;
+  const forbiddenFetch: typeof fetch = async () => { fetched = true; throw new Error("Should not fetch"); };
+  for (const value of ["not a URL", "http://linkedin.com/posts/qa", "https://localhost/", "https://linkedin.com.evil.example/posts/qa"]) {
+    await expect(referenceContext(value, forbiddenFetch)).rejects.toMatchObject({ status: 400 });
+  }
+  expect(fetched).toBe(false);
+});
+
+test("unreadable reference posts still create drafts through both generation endpoints", async ({ page }) => {
+  await signUp(page.request);
+  // Fetch rejects port 1 before network I/O: a deterministic unreadable reference.
+  const reference = "https://www.linkedin.com:1/posts/swiper-qa-unavailable";
+  const brief = "Explain why a short brief should become an editable draft before a team shares it.";
+  await page.goto("/new");
+  await page.getByLabel("What should this carousel say?").fill(brief);
+  await page.getByLabel("Reference post URL", { exact: false }).fill(reference);
+  const created = page.waitForResponse((response) => response.url().endsWith("/api/v1/carousels") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "Generate carousel", exact: true }).click();
+  const response = await created;
+  expect(response.status()).toBe(201);
+  const body = await response.json() as { carousel_id: string; editor_url: string; warnings: { code: string; message: string }[] };
+  expect(body.warnings).toEqual([{ code: "REFERENCE_UNAVAILABLE", message: REFERENCE_FALLBACK_NOTICE }]);
+  expect(body.editor_url).toContain("?reference=unavailable");
+  await expect(page.getByTestId("slide-canvas")).toBeVisible();
+  await expect(page.getByText(REFERENCE_FALLBACK_NOTICE, { exact: true })).toBeVisible();
+  expect((await page.request.get(`/api/v1/carousels/${body.carousel_id}`)).status()).toBe(200);
+  const generated = await page.request.post("/api/v1/carousels/generate", { data: { brief, reference_url: reference, format_id: "before-after" } });
+  expect(generated.status()).toBe(201);
+  expect((await generated.json()).warnings).toEqual(body.warnings);
+  const invalid = await page.request.post("/api/v1/carousels", { data: { brief, reference_url: "https://localhost/" } });
+  expect(invalid.status()).toBe(400);
+  const billing = await (await page.request.get("/api/v1/billing")).json() as { usage: { carousel: number; generation: number } };
+  expect(billing.usage.carousel).toBe(2);
+  expect(billing.usage.generation).toBe(2);
 });

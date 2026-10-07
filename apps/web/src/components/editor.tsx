@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowUUpLeft, DownloadSimple, ImageSquare, TextT, Plus, Copy, Trash, CaretLeft, CaretRight, CheckCircle, CircleNotch, FloppyDisk, Minus, CornersOut, Files } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowUUpLeft, DownloadSimple, ImageSquare, TextT, Plus, Copy, Trash, CaretLeft, CaretRight, CheckCircle, CircleNotch, Minus, CornersOut } from "@phosphor-icons/react";
 import { getFormat, planFromFormat, renderPlanToCarousel, type CarouselElement } from "@swiper/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog } from "@/components/ui/dialog";
 import { Mark } from "@/components/mark";
-import { AccountMenu } from "@/components/account-menu";
+import { EditorOverflow } from "./editor/overflow";
 import { useWorkspaceUsage, usageLimitMessage, type UsageApiError } from "@/lib/use-workspace-usage";
 import { Inspector, uploadImage, type UploadedAsset } from "./editor/inspector";
 import { SlideCanvas } from "./editor/slide-canvas";
@@ -18,7 +18,7 @@ import { SlideRail } from "./editor/slide-rail";
 import { clampBox, type Box } from "./editor/slide-frame";
 import { useCarousel } from "./editor/use-carousel";
 
-export function Editor({ carouselId }: { carouselId: string }) {
+export function Editor({ carouselId, initialNotice }: { carouselId: string; initialNotice?: string }) {
   const workspaceUsage = useWorkspaceUsage();
   const { doc, meta, undoCount, loading, loadError, saveState, saveError, setSaveError,
     reload, mutate, undo, settle, retry, conflict, discardLocal } = useCarousel(carouselId);
@@ -36,7 +36,7 @@ export function Editor({ carouselId }: { carouselId: string }) {
   const [formatDescription, setFormatDescription] = useState("");
   const [formatSaving, setFormatSaving] = useState(false);
   const [formatError, setFormatError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(initialNotice ?? null);
   const [zoom, setZoom] = useState(1);
   const [availableWidth, setAvailableWidth] = useState(520);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -202,25 +202,18 @@ export function Editor({ carouselId }: { carouselId: string }) {
   return (
     <main className="editor-shell">
       <header className="editor-header">
-        <Link href="/library" aria-label="Back to library" className="flex shrink-0 items-center gap-2 rounded-lg focus-visible:ring-2 focus-visible:ring-ring"><ArrowLeft size={18} /><Mark /></Link>
+        <Link href="/library" aria-label="Back to library" className="flex min-h-10 min-w-10 shrink-0 items-center justify-center gap-2 rounded-[14px] focus-visible:ring-2 focus-visible:ring-ring"><ArrowLeft size={18} aria-hidden /><span className="hidden sm:inline-flex"><Mark /></span></Link>
         <div className="min-w-0 flex-1">
           <input aria-label="Carousel title" className="w-full max-w-md rounded border border-transparent bg-transparent px-2 py-1 text-sm font-medium hover:border-border focus:border-ring focus:outline-none" value={meta.title} maxLength={120}
             onChange={(event) => { if (event.target.value.trim()) mutate([{ op: "rename", title: event.target.value }]); }} />
           <p className="flex items-center gap-1.5 px-2 text-xs text-ink-soft" role="status">
-            {saveState === "saving" ? <CircleNotch className="motion-safe:animate-spin" size={12} /> : <CheckCircle size={12} />}
-            {saveState === "saving" ? "Saving changes…" : saveState === "error" ? "Saved on this device" : "All changes saved"}
+            {saveState === "saving" ? <CircleNotch className="shrink-0 motion-safe:animate-spin" size={12} aria-hidden /> : <CheckCircle className="shrink-0" size={12} aria-hidden />}
+            <span className="truncate">{saveState === "saving" ? "Saving changes…" : saveState === "error" ? "Saved on this device" : "All changes saved"}</span>
           </p>
         </div>
-        <Button variant="ghost" aria-label="Undo" title="Undo (⌘Z)" disabled={!undoCount || saveState === "saving"} onClick={() => void undo()}><ArrowUUpLeft size={18} /></Button>
-        <nav className="hidden items-center lg:flex" aria-label="Workspace">
-          <Link href="/new" className="rounded-lg px-2 py-2 text-sm text-ink-soft hover:bg-secondary hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">New</Link>
-          <Link href="/brand" className="rounded-lg px-2 py-2 text-sm text-ink-soft hover:bg-secondary hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Brand</Link>
-          <Link href="/connect" className="rounded-lg px-2 py-2 text-sm text-ink-soft hover:bg-secondary hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Connect</Link>
-        </nav>
-        <Button variant="outline" className="hidden sm:inline-flex" onClick={() => { setFormatName(meta.title.slice(0, 80)); setFormatError(null); setFormatOpen(true); }}><FloppyDisk size={16} /> Save as format</Button>
-        <Button variant="outline" aria-label="Prepare files" title="Prepare files · Pro · Does not post to social accounts" onClick={() => setPublishOpen(true)}><Files size={16} aria-hidden /><span className="hidden sm:inline">Prepare files</span></Button>
+        <Button variant="ghost" className="size-10 shrink-0 px-0" aria-label="Undo" title="Undo (⌘Z)" disabled={!undoCount || saveState === "saving"} onClick={() => void undo()}><ArrowUUpLeft size={18} aria-hidden /></Button>
         <Button onClick={() => setExportOpen(true)}><DownloadSimple size={16} /> Export</Button>
-        <AccountMenu tone="light" className="hidden sm:block" links={[{ href: "/pricing", label: "Pricing" }]} />
+        <EditorOverflow onSaveFormat={() => { setFormatName(meta.title.slice(0, 80)); setFormatError(null); setFormatOpen(true); }} onPrepareFiles={() => setPublishOpen(true)} />
       </header>
 
       {saveError ? <div className="flex flex-wrap items-center gap-3 border-b border-destructive/20 bg-card px-5 py-3 text-sm" role="alert">
@@ -269,7 +262,6 @@ export function Editor({ carouselId }: { carouselId: string }) {
             onMove={moveElement} onReplaceImage={replaceImage}
             onDelete={(elementId) => { if (slide) mutate([{ op: "delete_element", slideId: slide.id, elementId }], { immediate: true }); setSelectedId(null); }} />
           {slide ? <div className="mt-6 border-t border-border pt-5"><Label htmlFor="slide-background">Slide background</Label><div className="mt-2 flex items-center gap-3"><input id="slide-background" type="color" value={slide.background.value.startsWith("#") ? slide.background.value : doc.theme.background} className="size-10 rounded-lg border border-border p-1" onChange={(event) => mutate([{ op: "set_background", slideId: slide.id, background: { type: "solid", value: event.target.value } }])} /><span className="font-mono text-xs text-ink-soft">{slide.background.value}</span></div></div> : null}
-          <Button variant="outline" className="mt-6 w-full sm:hidden" onClick={() => { setFormatName(meta.title.slice(0, 80)); setFormatOpen(true); }}>Save as format</Button>
         </aside>
       </div>
 

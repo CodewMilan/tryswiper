@@ -32,7 +32,7 @@ const columns = [
   },
 ];
 
-export function SiteFooter() {
+export function SiteFooter({ signedIn }: { signedIn: boolean }) {
   return (
     <footer className="bg-background px-6 py-14 sm:px-10">
       <div className="mx-auto grid max-w-[1200px] gap-10 md:grid-cols-[220px_1fr]">
@@ -53,7 +53,7 @@ export function SiteFooter() {
                 {column.title}
               </p>
               <ul className="mt-4 space-y-2.5">
-                {column.links.map((link) => (
+                {column.links.filter((link) => !signedIn || (link.href !== "/signup" && link.href !== "/login")).map((link) => (
                   <li key={link.label}>
                     <Link
                       href={link.href}

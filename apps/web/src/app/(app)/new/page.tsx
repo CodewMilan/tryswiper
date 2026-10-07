@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { MonthlyAllowance } from "@/components/monthly-allowance";
+import type { GenerationWarning } from "@/lib/generation-notices";
 import { useWorkspaceUsage, usageLimitMessage, type UsageApiError } from "@/lib/use-workspace-usage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,14 +39,14 @@ function FormatChoice({ format, checked, onChange }: {
     : `${format.slideCount.min}–${format.slideCount.max} slides`;
   return (
     <label
-      className={`group block min-h-44 cursor-pointer rounded-[24px] border bg-white p-5 motion-safe:transition-[border-color,box-shadow,transform] motion-safe:duration-150 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background ${
-        checked ? "border-foreground shadow-sm" : "border-border hover:-translate-y-0.5 hover:border-foreground/20"
+      className={`group block min-h-44 cursor-pointer rounded-[24px] border bg-white p-6 motion-safe:transition-[border-color,transform] motion-safe:duration-150 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background ${
+        checked ? "border-black" : "border-black/8 hover:-translate-y-0.5 hover:border-black/20"
       }`}
     >
       <input type="radio" name="format" value={format.id} checked={checked} onChange={onChange} className="sr-only" />
       <span className="mb-4 flex items-center gap-5 rounded-lg bg-secondary p-4">
         {format.id === "freeform" ? <span className="grid h-28 w-24 shrink-0 place-items-center rounded-md border border-dashed border-ink-soft/40 bg-card"><Plus size={24} className="text-ink-soft" /></span>
-          : preview ? <span aria-hidden className="pointer-events-none shrink-0 shadow-sm"><SlidePreview slide={preview.slide} theme={preview.theme} width={92} /></span> : null}
+          : preview ? <span aria-hidden className="pointer-events-none shrink-0"><SlidePreview slide={preview.slide} theme={preview.theme} width={92} /></span> : null}
         <span className="min-w-0 space-y-2">
           {format.roles.slice(0, 3).map((role, index) => <span key={index} className="block truncate text-xs capitalize text-ink-soft"><span className="mr-2 font-mono opacity-70">{String(index + 1).padStart(2, "0")}</span>{role.replaceAll("-", " ")}</span>)}
           {format.roles.length > 3 ? <span className="block text-xs text-ink-soft">+{format.roles.length - 3} more slides</span> : null}
@@ -132,14 +133,15 @@ export default function NewCarouselPage() {
           reference_url: mode === "generate" && referenceUrl.trim() ? referenceUrl.trim() : undefined,
         }),
       });
-      const body = (await response.json()) as UsageApiError & { carousel_id?: string };
+      const body = (await response.json()) as UsageApiError & { carousel_id?: string; warnings?: GenerationWarning[] };
       if (body.code === "USAGE_LIMIT") {
         setUsageLimited(true);
         void workspaceUsage.refresh();
         throw new Error(usageLimitMessage(body));
       }
       if (!response.ok || !body.carousel_id) throw new Error(body.message ?? "Could not start the carousel.");
-      router.push(`/c/${body.carousel_id}`);
+      const referenceUnavailable = body.warnings?.some((warning) => warning.code === "REFERENCE_UNAVAILABLE");
+      router.push(`/c/${body.carousel_id}${referenceUnavailable ? "?reference=unavailable" : ""}`);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Could not start the carousel.");
       setPending(false);
@@ -147,7 +149,7 @@ export default function NewCarouselPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
+    <main className="mx-auto w-full max-w-[1100px] px-6 py-12">
       <div className="max-w-2xl">
         <p className="font-mono text-xs uppercase tracking-wider text-ink-soft">Create</p>
         <h1 className="mt-3 text-4xl font-light leading-tight tracking-[-0.03em] text-foreground sm:text-5xl">Start a carousel</h1>
@@ -159,8 +161,8 @@ export default function NewCarouselPage() {
       <MonthlyAllowance workspace={workspaceUsage} />
       <form onSubmit={onSubmit} className="mt-10">
         <div className="inline-flex rounded-[14px] border border-black/8 bg-white p-1" aria-label="Creation method">
-          <button type="button" aria-pressed={mode === "generate"} onClick={() => setMode("generate")} className={`min-h-10 rounded-[10px] px-4 text-sm font-medium motion-safe:transition-colors ${mode === "generate" ? "bg-black text-white" : "text-ink-soft hover:text-black"}`}>Generate from a brief</button>
-          <button type="button" aria-pressed={mode === "manual"} onClick={() => setMode("manual")} className={`min-h-10 rounded-[10px] px-4 text-sm font-medium motion-safe:transition-colors ${mode === "manual" ? "bg-black text-white" : "text-ink-soft hover:text-black"}`}>Start by hand</button>
+          <button type="button" aria-pressed={mode === "generate"} onClick={() => setMode("generate")} className={`min-h-10 rounded-[14px] px-4 text-sm font-medium motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${mode === "generate" ? "bg-black text-white" : "text-ink-soft hover:text-black"}`}>Generate from a brief</button>
+          <button type="button" aria-pressed={mode === "manual"} onClick={() => setMode("manual")} className={`min-h-10 rounded-[14px] px-4 text-sm font-medium motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${mode === "manual" ? "bg-black text-white" : "text-ink-soft hover:text-black"}`}>Start by hand</button>
         </div>
 
         {mode === "generate" ? (
@@ -187,7 +189,7 @@ export default function NewCarouselPage() {
                 className="mt-2"
                 maxLength={2000}
               />
-              <p className="mt-2 text-sm leading-6 text-ink-soft">Swiper adapts structure and pacing only. It always writes original copy and never copies creative assets.</p>
+              <p className="mt-2 text-sm leading-6 text-ink-soft">Swiper adapts structure and pacing only, with original copy and no copied assets. If the post is private or unreadable, we’ll generate from your brief.</p>
             </div>
           </section>
         ) : null}
@@ -209,15 +211,15 @@ export default function NewCarouselPage() {
 
         {loadState === "loading" ? (
           <div className="mt-10" aria-busy="true" aria-label="Loading formats">
-            <div className="h-5 w-32 animate-pulse rounded bg-muted" />
+            <div className="h-5 w-32 motion-safe:animate-pulse rounded bg-muted" />
             <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-44 animate-pulse rounded-xl bg-muted" />)}
+              {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-44 motion-safe:animate-pulse rounded-[24px] bg-white" />)}
             </div>
           </div>
         ) : null}
 
         {loadState === "error" ? (
-          <div className="mt-10 max-w-lg rounded-xl border border-destructive/20 bg-card p-5" role="alert">
+          <div className="mt-10 max-w-lg rounded-[24px] border border-black/8 bg-white p-6" role="alert">
             <p className="text-sm font-medium text-destructive">Couldn’t load your format library</p>
             <p className="mt-1 text-sm text-ink-soft">{error}</p>
             <Button
@@ -256,7 +258,7 @@ export default function NewCarouselPage() {
           <div className="space-y-10">
             {startByHand ? (
               <fieldset className="mt-10">
-                <legend className="text-lg font-medium tracking-[-0.02em]">Blank canvas</legend>
+                <legend className="text-xl font-light tracking-[-0.02em]">Blank canvas</legend>
                 <p className="mt-1 text-sm text-ink-soft">Start with three editable slides and shape the story yourself.</p>
                 <div className="mt-4 max-w-xl">
                   <FormatChoice format={startByHand} checked={startByHand.id === formatId} onChange={() => setManualFormatId(startByHand.id)} />
@@ -265,7 +267,7 @@ export default function NewCarouselPage() {
             ) : null}
 
             <fieldset>
-              <legend className="text-lg font-medium tracking-[-0.02em]">Your workspace formats</legend>
+              <legend className="text-xl font-light tracking-[-0.02em]">Your workspace formats</legend>
               {workspaceFormats.length > 0 ? (
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {workspaceFormats.map((format) => (
@@ -273,7 +275,7 @@ export default function NewCarouselPage() {
                   ))}
                 </div>
               ) : (
-                <div className="mt-4 rounded-xl border border-dashed border-border bg-card p-5">
+                <div className="mt-4 rounded-[24px] border border-dashed border-black/15 bg-white p-6">
                   <p className="text-sm font-medium">No saved formats yet</p>
                   <p className="mt-1 text-sm leading-6 text-ink-soft">Open any carousel and choose “Save as format” to make its structure reusable here.</p>
                 </div>
@@ -281,7 +283,7 @@ export default function NewCarouselPage() {
             </fieldset>
 
             <fieldset>
-              <legend className="text-lg font-medium tracking-[-0.02em]">Story formats</legend>
+              <legend className="text-xl font-light tracking-[-0.02em]">Story formats</legend>
               <p className="mt-1 text-sm text-ink-soft">Pick the narrative shape Swiper should use for the first draft.</p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {officialFormats.map((format) => (
@@ -303,7 +305,7 @@ export default function NewCarouselPage() {
         {loadState === "ready" && error ? <div className="mt-6 text-sm" role="alert"><p className="text-destructive">{error}</p>{usageLimited ? <Link href="/pricing" className="mt-2 inline-flex min-h-10 items-center rounded-[14px] px-3 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">View plans and limits</Link> : null}</div> : null}
 
         {loadState === "ready" ? (
-          <div className="sticky bottom-4 mt-10 flex flex-wrap items-center gap-4 rounded-xl border border-border bg-card/95 p-3 shadow-md backdrop-blur">
+          <div className="sticky bottom-4 mt-10 flex flex-wrap items-center gap-4 rounded-[24px] border border-black/8 bg-white p-4">
             <Button type="submit" disabled={pending || allowanceBlocked || !selected || (mode === "generate" && brief.trim().length < 12)} aria-busy={pending}>{pending ? (mode === "generate" ? "Generating…" : "Opening…") : mode === "generate" ? "Generate carousel" : "Open in editor"}</Button>
             <p className="text-sm text-ink-soft">{selected ? `${selected.name} · ${selected.roles.length} slides` : "Choose a format"}</p>
           </div>

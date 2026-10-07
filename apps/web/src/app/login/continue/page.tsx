@@ -46,7 +46,7 @@ export default function ContinueSignUpPage() {
 
   return (
     <div className="hero-grid min-h-full">
-      <SiteNav />
+      <SiteNav hideSignIn hideStartForFree />
       <div className="mx-auto flex min-h-full w-full max-w-[440px] flex-col justify-center px-4 pb-16 pt-28">
         <div className="rounded-[24px] border border-black/8 bg-white px-6 py-8 sm:px-8">
           <h1 className="text-[32px] font-light leading-tight tracking-[-0.03em] text-black">

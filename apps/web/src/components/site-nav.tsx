@@ -29,18 +29,18 @@ const newButtonClass =
 
 type Mode = "guest" | "member" | "pending";
 
-export function SiteNav({ initialMode, hideSignIn = false }: { initialMode?: Mode; hideSignIn?: boolean } = {}) {
-  if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return <NavBar mode={initialMode ?? "guest"} hideSignIn={hideSignIn} />;
-  return <ClerkNav initialMode={initialMode} hideSignIn={hideSignIn} />;
+export function SiteNav({ initialMode, hideSignIn = false, hideStartForFree = false }: { initialMode?: Mode; hideSignIn?: boolean; hideStartForFree?: boolean } = {}) {
+  if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return <NavBar mode={initialMode ?? "guest"} hideSignIn={hideSignIn} hideStartForFree={hideStartForFree} />;
+  return <ClerkNav initialMode={initialMode} hideSignIn={hideSignIn} hideStartForFree={hideStartForFree} />;
 }
 
-function ClerkNav({ initialMode, hideSignIn }: { initialMode?: Mode; hideSignIn: boolean }) {
+function ClerkNav({ initialMode, hideSignIn, hideStartForFree }: { initialMode?: Mode; hideSignIn: boolean; hideStartForFree: boolean }) {
   const { isLoaded, isSignedIn } = useUser();
   const mode: Mode = !isLoaded ? (initialMode ?? "pending") : isSignedIn ? "member" : "guest";
-  return <NavBar mode={mode} hideSignIn={hideSignIn} />;
+  return <NavBar mode={mode} hideSignIn={hideSignIn} hideStartForFree={hideStartForFree} />;
 }
 
-function NavBar({ mode, hideSignIn }: { mode: Mode; hideSignIn: boolean }) {
+function NavBar({ mode, hideSignIn, hideStartForFree }: { mode: Mode; hideSignIn: boolean; hideStartForFree: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const reduced = useReducedMotion();
   const links = mode === "member" ? memberLinks : guestLinks.filter((item) => (mode === "guest" || item.href !== "/login") && (!hideSignIn || item.href !== "/login"));
@@ -69,7 +69,7 @@ function NavBar({ mode, hideSignIn }: { mode: Mode; hideSignIn: boolean }) {
             </Link>
           </Magnetic>
         ) : null}
-        {mode === "guest" ? (
+        {mode === "guest" && !hideStartForFree ? (
           <Magnetic strength={0.16}>
             <Link href="/signup" className={newButtonClass}>
               Start for free

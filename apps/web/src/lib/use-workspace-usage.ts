@@ -51,6 +51,9 @@ export function useWorkspaceUsage() {
       if (version === requestVersion.current) setLoading(false);
     }
   }, []);
+  const invalidateRequests = useCallback(() => {
+    requestVersion.current++;
+  }, []);
 
   useEffect(() => {
     // Synchronize the client with its authenticated billing resource.
@@ -59,10 +62,10 @@ export function useWorkspaceUsage() {
     const onFocus = () => void refresh();
     window.addEventListener("focus", onFocus);
     return () => {
-      requestVersion.current++;
+      invalidateRequests();
       window.removeEventListener("focus", onFocus);
     };
-  }, [refresh]);
+  }, [refresh, invalidateRequests]);
 
   return { data, loading, error, refresh };
 }

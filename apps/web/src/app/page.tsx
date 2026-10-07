@@ -13,7 +13,7 @@ export default async function Home() {
       <main>
         <Landing signedIn={Boolean(session)} />
       </main>
-      <SiteFooter />
+      <SiteFooter signedIn={Boolean(session)} />
     </div>
   );
 }

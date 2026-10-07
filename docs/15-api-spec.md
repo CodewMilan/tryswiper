@@ -21,6 +21,14 @@ Use REST for MVP. Keep contracts typed.
 `POST /v1/carousels/:id/render`
 `POST /v1/carousels/:id/export`
 
+Browser generation (`POST /api/v1/carousels` with a brief) and
+`POST /api/v1/carousels/generate` accept an optional `reference_url`.
+If a supported post cannot be fetched or has no public metadata, generation
+continues using the brief. The successful response includes a `warnings` array
+with code `REFERENCE_UNAVAILABLE` and a human-readable message. Its `editor_url`
+carries the non-fatal notice into the editor. Invalid or unsupported URLs still
+return a validation error before creating a draft.
+
 ## Slides
 
 `POST /v1/carousels/:id/slides`

@@ -22,12 +22,16 @@ export async function POST(request: Request) {
     const reference = body.reference_url?.trim() ? await referenceContext(body.reference_url.trim()) : null;
     const result = await generateCarousel({
       auth: authContext,
-      brief: [body.brief.trim(), reference].filter(Boolean).join("\n\n"),
+      brief: [body.brief.trim(), reference?.context].filter(Boolean).join("\n\n"),
       title: body.title,
       formatId: body.format_id,
       slideCount: body.slide_count,
     });
-    return json(result, 201);
+    return json({
+      ...result,
+      editor_url: `${result.editor_url}${reference?.warning ? "?reference=unavailable" : ""}`,
+      warnings: reference?.warning ? [reference.warning] : [],
+    }, 201);
   } catch (error) {
     return fromUnknownError(error);
   }

@@ -21,7 +21,7 @@ export default async function PricingPage() {
           <PricingPlans priceLabel={proPriceLabel()} />
         </Suspense>
       </main>
-      <SiteFooter />
+      <SiteFooter signedIn={Boolean(session)} />
     </div>
   );
 }
