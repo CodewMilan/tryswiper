@@ -12,9 +12,10 @@ function cursorInstallHref(origin: string, key: string) {
   return `cursor://anysphere.cursor-deeplink/mcp/install?name=swiper&config=${encoded}`;
 }
 
-export function AgentConfigs({ origin, apiKey }: { origin: string; apiKey: string | null }) {
+export function AgentConfigs({ origin, apiKey, savedKeyPrefix }: { origin: string; apiKey: string | null; savedKeyPrefix: string | null }) {
   const [copied, setCopied] = useState<string | null>(null);
-  const usableKey = apiKey ?? "";
+  const [copyError, setCopyError] = useState<string | null>(null);
+  const usableKey = apiKey ?? "YOUR_SAVED_KEY";
   const mcpUrl = `${origin}/mcp`;
   const localConfig = useMemo(
     () =>
@@ -54,8 +55,8 @@ export function AgentConfigs({ origin, apiKey }: { origin: string; apiKey: strin
           null,
           2,
         ),
-        copy: "Copy Cursor config",
-        href: cursorInstallHref(origin, usableKey),
+        copy: apiKey ? "Copy Cursor config" : "Copy Cursor template",
+        href: apiKey ? cursorInstallHref(origin, apiKey) : null,
         hrefLabel: "Add to Cursor",
       },
       {
@@ -75,31 +76,36 @@ export function AgentConfigs({ origin, apiKey }: { origin: string; apiKey: strin
           null,
           2,
         )}`,
-        copy: "Copy Claude config",
+        copy: apiKey ? "Copy Claude config" : "Copy Claude template",
       },
       {
         id: "chatgpt",
         title: "ChatGPT",
         body: "Create an app or developer-mode connector, set authentication to None, and paste this URL. ChatGPT does not send a custom header, so the key stays in the URL.",
         config: `${mcpUrl}?key=${encodeURIComponent(usableKey)}`,
-        copy: "Copy ChatGPT URL",
+        copy: apiKey ? "Copy ChatGPT URL" : "Copy ChatGPT URL template",
       },
     ],
-    [usableKey, mcpUrl, origin],
+    [usableKey, mcpUrl, origin, apiKey],
   );
 
   async function copy(id: string, value: string) {
-    await navigator.clipboard.writeText(value);
-    setCopied(id);
-    window.setTimeout(() => {
-      setCopied((current) => (current === id ? null : current));
-    }, 1500);
+    setCopyError(null);
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(id);
+      window.setTimeout(() => {
+        setCopied((current) => (current === id ? null : current));
+      }, 1500);
+    } catch {
+      setCopyError("Could not copy. Select and copy the snippet above instead.");
+    }
   }
 
-  if (!apiKey) {
+  if (!apiKey && !savedKeyPrefix) {
     return (
       <div className="rounded-[24px] border border-dashed border-black/15 bg-white p-6 sm:p-8">
-        <h2 className="text-[18px] font-medium tracking-[-0.02em]">Your configs appear after you mint a key</h2>
+        <h2 className="text-[18px] font-medium tracking-[-0.02em]">Mint a key to connect your agent</h2>
         <p className="mt-2 max-w-xl text-[15px] font-light leading-6 text-ink-soft">
           Swiper never inserts a fake secret into a connector URL. Mint a key above, copy it once, then install the client you use.
         </p>
@@ -109,6 +115,14 @@ export function AgentConfigs({ origin, apiKey }: { origin: string; apiKey: strin
 
   return (
     <div className="space-y-4">
+      {!apiKey ? (
+        <div className="rounded-[24px] border border-black/8 bg-white p-6 text-[15px] font-light leading-6 text-ink-soft">
+          Your key {savedKeyPrefix}… is active, but its secret was shown only once. These are setup templates:
+          replace YOUR_SAVED_KEY with the secret you saved. If you no longer have it, mint a new key above
+          to get complete configs. Revoke the old key if you no longer use it.
+        </div>
+      ) : null}
+      {copyError ? <p role="alert" className="text-sm text-destructive">{copyError}</p> : null}
       {cards.map((card) => (
         <section key={card.id} className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
           <h2 className="text-[18px] font-medium tracking-[-0.02em]">{card.title}</h2>
@@ -129,6 +143,12 @@ export function AgentConfigs({ origin, apiKey }: { origin: string; apiKey: strin
               </a>
             ) : null}
           </div>
+          {card.id === "chatgpt" ? (
+            <p className="mt-3 text-sm leading-6 text-ink-soft">
+              Keep this URL private: the ?key= value is your secret. Anyone with the full URL can access
+              your workspace. Do not share it or include it in screenshots.
+            </p>
+          ) : null}
         </section>
       ))}
       <details className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
@@ -142,7 +162,7 @@ export function AgentConfigs({ origin, apiKey }: { origin: string; apiKey: strin
           {localConfig}
         </pre>
         <Button className="mt-3" variant="secondary" onClick={() => void copy("local", localConfig)}>
-          {copied === "local" ? "Copied" : "Copy local config"}
+          {copied === "local" ? "Copied" : apiKey ? "Copy local config" : "Copy local template"}
         </Button>
       </details>
       <p className="text-[14px] font-light leading-6 text-ink-soft">

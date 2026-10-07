@@ -103,6 +103,7 @@ export default function ConnectPage() {
   }
 
   const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3100";
+  const activeKeys = keys.filter((key) => !key.revokedAt);
 
   return (
     <main className="mx-auto w-full max-w-[800px] px-6 py-12">
@@ -136,7 +137,7 @@ export default function ConnectPage() {
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <Button onClick={() => void mintKey()} disabled={minting}>
-                {minting ? "Minting…" : "Mint API key"}
+                {minting ? "Minting…" : activeKeys.length ? "Mint a new key" : "Mint API key"}
               </Button>
             </div>
             {freshKey ? (
@@ -164,9 +165,10 @@ export default function ConnectPage() {
           <div>
             <h2 className="text-[18px] font-medium tracking-[-0.02em]">2. Add the agent</h2>
             <p className="mt-2 mb-4 text-[15px] font-light leading-6 text-ink-soft">
-              Mint a key first so these configs include it. Then ask: “Make a carousel explaining why we’re different.”
+              Use your saved key with the setup snippets below, or mint a new key for complete configs.
+              Then ask: “Make a carousel explaining why we’re different.”
             </p>
-            <AgentConfigs origin={origin} apiKey={freshKey} />
+            <AgentConfigs origin={origin} apiKey={freshKey} savedKeyPrefix={activeKeys[0]?.keyPrefix ?? null} />
           </div>
         </Settle>
       ) : null}

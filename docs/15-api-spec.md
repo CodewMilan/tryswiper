@@ -14,6 +14,7 @@ Use REST for MVP. Keep contracts typed.
 
 `POST /v1/carousels`
 `GET /v1/carousels/:id`
+`DELETE /v1/carousels/:id` — delete an authorized carousel and release its current-month carousel slot; saved formats remain available
 `PATCH /v1/carousels/:id`
 `POST /v1/carousels/:id/generate`
 `POST /v1/carousels/:id/validate`

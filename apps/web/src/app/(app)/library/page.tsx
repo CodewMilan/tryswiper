@@ -116,15 +116,15 @@ export default function LibraryPage() {
               className="group min-h-44 rounded-[24px] border border-black/8 bg-white motion-safe:transition-[transform,border-color] hover:-translate-y-0.5 hover:border-black/20"
             >
               <Link href={`/c/${item.id}`} className="block rounded-[24px] p-6 pb-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-mono text-xs text-ink-faint">{String(index + 1).padStart(2, "0")}</span>
-                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-soft">{item.status}</span>
-              </div>
-              <h2 className="mt-8 text-xl font-medium tracking-[-0.025em] text-black">{item.title}</h2>
-              <div className="mt-4 flex items-center justify-between gap-3 text-xs text-ink-soft">
-                <span>{item.format_id.replaceAll("-", " ")}</span>
-                <span>{new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(item.updated_at))}</span>
-              </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-mono text-xs text-ink-faint">{String(index + 1).padStart(2, "0")}</span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-soft">{item.status}</span>
+                </div>
+                <h2 className="mt-8 text-xl font-medium tracking-[-0.025em] text-black">{item.title}</h2>
+                <div className="mt-4 flex items-center justify-between gap-3 text-xs text-ink-soft">
+                  <span>{item.format_id.replaceAll("-", " ")}</span>
+                  <span>{new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(item.updated_at))}</span>
+                </div>
               </Link>
               <div className="flex justify-end px-4 pb-3">
                 <Button variant="ghost" size="sm" aria-label={`Delete ${item.title}`} onClick={() => {

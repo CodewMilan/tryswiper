@@ -213,7 +213,7 @@ test("landing copy and generate mode follow the web creation path", async ({ pag
   await expect(page.locator("#story-shape option[value=freeform]")).toHaveCount(0);
   await page.getByLabel("Story shape", { exact: true }).selectOption("before-after");
   await page.getByRole("button", { name: "Start by hand", exact: true }).click();
-  await expect(page.getByRole("radio", { name: /Blank canvas/ })).toBeChecked();
+  await expect(page.getByRole("radio", { name: /Start by hand/ })).toBeChecked();
   await page.getByRole("button", { name: "Generate from a brief", exact: true }).click();
   await expect(page.getByLabel("Story shape", { exact: true })).toHaveValue("before-after");
   await expect(page.getByText("Blank canvas", { exact: true })).toHaveCount(0);
@@ -224,12 +224,18 @@ test("confirmed deletion releases quota, preserves formats, and rejects other wo
   const userId = await signUp(request);
   const sql = postgres(testDatabaseUrl, { max: 1, prepare: false });
   try {
-    const [{ carousel_id: oldId }, { carousel_id: id }] = [await create(request), await create(request)];
+    const { carousel_id: oldId } = await create(request);
+    const generated = await request.post("/api/v1/carousels", {
+      data: { format_id: "problem-insight-product", brief: "Explain why a product brief should become a draft people can edit.", title: "A better way to tell your story" },
+    });
+    expect(generated.status()).toBe(201);
+    const { carousel_id: id } = await generated.json() as { carousel_id: string };
     // An older draft must never release one of this month's slots.
     await sql`update carousel set created_at = date_trunc('month', now() at time zone 'UTC') - interval '1 day' where id = ${oldId}`;
     for (let index = 0; index < 4; index++) await create(request);
     const billing = async () => await (await request.get("/api/v1/billing")).json() as { usage: { carousel: number; generation?: number } };
     expect((await billing()).usage.carousel).toBe(5);
+    expect((await billing()).usage.generation).toBe(1);
     const full = await request.post("/api/v1/carousels", { data: { format_id: "freeform" } });
     expect(full.status()).toBe(429);
 
@@ -262,6 +268,7 @@ test("confirmed deletion releases quota, preserves formats, and rejects other wo
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByRole("link", { name: /Draft to discard/ })).toHaveCount(0);
     expect((await billing()).usage.carousel).toBe(4);
+    expect((await billing()).usage.generation).toBe(1);
     expect((await request.get(`/api/v1/carousels/${id}`)).status()).toBe(404);
     expect((await request.delete(`/api/v1/carousels/${id}`)).status()).toBe(404);
     expect((await billing()).usage.carousel).toBe(4);
