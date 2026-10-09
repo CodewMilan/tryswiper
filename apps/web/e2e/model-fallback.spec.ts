@@ -34,9 +34,9 @@ test("missing, rejected, and successful model calls report the actual generation
 
     const modelPlan = { ...plan, title: "Copy produced by the model" };
     globalThis.fetch = async () => Response.json({
-      id: "chatcmpl-test", object: "chat.completion", created: 1, model: "gpt-4.1",
-      choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify(modelPlan) }, finish_reason: "stop" }],
-      usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+      id: "resp-test", object: "response", created_at: 1, model: "gpt-4.1", status: "completed",
+      output: [{ id: "msg-test", type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: JSON.stringify(modelPlan), annotations: [] }] }],
+      usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
     });
     const generated = await generatePlan(input);
     expect(generated.source).toBe("model");
