@@ -26,7 +26,7 @@ AI: provider abstraction supporting OpenAI/Anthropic
 
 MCP: TypeScript MCP server (`@swiper/mcp`)
 
-Auth: Better Auth sessions for the web; hashed API keys for MCP
+Auth: Clerk social sign-in for the web; hashed API keys for MCP
 
 ## Local development
 
@@ -99,5 +99,7 @@ Images and logos are stored in Postgres. A database backup includes them. There 
 Local schema changes still use `pnpm db:push`. Production and CI use `pnpm db:migrate`. After a schema change, generate a migration with `pnpm --filter @swiper/db exec drizzle-kit generate --name <change>`.
 
 ## Repository docs
+
+Start with [How to use Swiper](docs/02-user-flows.md) for the implemented product workflow and [UX review and readiness](docs/22-ux-review-and-readiness.md) for changes, verification, and remaining launch checks. The customer-facing guide is at `/guide`.
 
 See `docs/` for the full specification. Build order for this repo: MCP loop first, web generation flow second.

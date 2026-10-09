@@ -659,3 +659,17 @@ test("Free export checks flag copy issues, lead back to the slide, and gate JPG 
   await expect(dialog).not.toContainText("uses generic AI phrasing");
   expect(jpgRequests).toBe(0);
 });
+
+test("authentication recovery preserves a safe destination when the provider is unavailable", async ({ page }) => {
+  await page.goto("/login");
+  await page.evaluate(() => sessionStorage.setItem("swiper-next", "/connect"));
+  for (const path of ["/sso-callback", "/login/continue"]) {
+    await page.goto(path);
+    await expect(page.getByRole("heading", { name: "We couldn’t finish signing you in", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Return to sign in", exact: true })).toHaveAttribute("href", "/login?next=%2Fconnect");
+    await expect(page.getByRole("link", { name: "Start for free", exact: true })).toHaveCount(0);
+  }
+  await page.evaluate(() => sessionStorage.setItem("swiper-next", "https://outside.example/"));
+  await page.reload();
+  await expect(page.getByRole("link", { name: "Return to sign in", exact: true })).toHaveAttribute("href", "/login?next=%2Flibrary");
+});
