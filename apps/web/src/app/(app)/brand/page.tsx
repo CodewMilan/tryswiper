@@ -270,8 +270,8 @@ export default function BrandPage() {
       </PageIntro>
       <UnsavedChangesGuard dirty={dirty} />
       <Settle>
-      <form onSubmit={onSubmit} className="mt-8 grid items-start gap-4 lg:grid-cols-2">
-        <fieldset disabled={status === "saving" || logoBusy} className="contents">
+      <form onSubmit={onSubmit} className="mt-8">
+        <fieldset disabled={status === "saving" || logoBusy} className="grid min-w-0 items-start gap-4 lg:grid-cols-2">
         <section className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
           <h2 className="text-[18px] font-medium tracking-[-0.02em]">The essentials</h2>
           <p className="mt-2 text-sm leading-6 text-ink-soft">Product name is required. A short description and audience help your agent write a useful first draft.</p>
@@ -447,7 +447,7 @@ export default function BrandPage() {
         </section>
         </fieldset>
 
-        <div className="sticky bottom-4 z-10 flex flex-wrap items-center gap-4 rounded-[24px] border border-border bg-card p-4 shadow-sm lg:col-span-2">
+        <div className="sticky bottom-4 z-10 mt-5 flex flex-wrap items-center gap-4 rounded-[24px] border border-border bg-card p-4 shadow-sm">
           {error ? (
             <p className="w-full text-sm text-destructive" role="alert">
               {error}

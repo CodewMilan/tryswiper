@@ -306,6 +306,7 @@ test("Connect keeps one-time-secret setup templates after refresh", async ({ pag
   await expect(chatgpt).toContainText("Keep this URL private: the ?key= value is your secret.");
   await chatgpt.getByRole("button", { name: "Copy ChatGPT URL", exact: true }).click();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`http://localhost:3101/mcp?key=${encodeURIComponent(key)}`);
+  await page.getByRole("tab", { name: "Cursor", exact: true }).click();
   await expect(page.getByRole("link", { name: "Add to Cursor", exact: true })).toBeVisible();
 
   await page.reload();
@@ -393,6 +394,8 @@ test("monthly allowances guide creation and usage errors preserve the brief", as
 
   usage = { carousel: 0, generation: 0 };
   await page.reload();
+  await expect(page.getByText("Your unfinished brief was restored in this tab.")).toBeVisible();
+  await page.getByRole("tab", { name: "Generate from a brief", exact: true }).click();
   await page.getByLabel("What should this carousel say?").fill(brief);
   await page.route("**/api/v1/carousels", (route) => route.fulfill({ status: 429, json: { code: "USAGE_LIMIT", message: "Raw server message", details: { kind: "generation", used: 10, limit: 10, plan: "free" } } }));
   await page.getByRole("button", { name: "Generate carousel", exact: true }).click();
@@ -532,4 +535,127 @@ test("unreadable reference posts still create drafts through both generation end
   const billing = await (await page.request.get("/api/v1/billing")).json() as { usage: { carousel: number; generation: number } };
   expect(billing.usage.carousel).toBe(2);
   expect(billing.usage.generation).toBe(2);
+});
+
+test("onboarding reflects real progress, brand load failures recover, and unsaved edits are protected", async ({ page }, testInfo) => {
+  await signUp(page.request);
+  await page.goto("/library");
+  const journey = page.getByRole("region", { name: "Getting started", exact: true });
+  await expect(journey).toContainText("Your first post starts here");
+  await expect(journey.getByText("Done", { exact: true })).toHaveCount(0);
+  await expect(journey.getByRole("link", { name: "How Swiper works" })).toHaveAttribute("href", "/guide");
+
+  let failBrand = true;
+  await page.route("**/api/v1/brand", async (route) => {
+    if (failBrand && route.request().method() === "GET") await route.fulfill({ status: 503, json: { message: "Brand service unavailable" } });
+    else await route.continue();
+  });
+  await page.goto("/brand");
+  await expect(page.getByRole("heading", { name: "Your brand kit didn’t load" })).toBeVisible();
+  await expect(page.getByLabel("Product name", { exact: true })).toHaveCount(0);
+  failBrand = false;
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await page.getByLabel("Product name", { exact: true }).fill("Fieldnotes");
+  await page.getByLabel("What it is", { exact: true }).fill("A writing tool that turns customer conversations into practical product stories.");
+  await page.getByLabel("Audience", { exact: true }).fill("Founders at small software teams");
+  await expect(page.getByLabel("Positioning", { exact: true })).not.toBeVisible();
+  await page.getByRole("link", { name: "Create", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Leave without saving?" })).toBeVisible();
+  await page.getByRole("button", { name: "Keep editing", exact: true }).click();
+  await expect(page.getByLabel("Product name", { exact: true })).toHaveValue("Fieldnotes");
+  await page.getByRole("button", { name: "Save brand", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Saved", exact: true })).toBeVisible();
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+    await page.screenshot({ path: testInfo.outputPath(`brand-${width}.png`) });
+  }
+  await page.getByRole("link", { name: "Library", exact: true }).click();
+  await expect(journey.getByText("Done", { exact: true })).toHaveCount(1);
+});
+
+test("unfinished briefs survive refresh, creation tabs work with a keyboard, and successful creation clears the brief", async ({ page }, testInfo) => {
+  await signUp(page.request);
+  await page.goto("/new");
+  await expect(page.getByLabel("Story shape", { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => Object.keys(sessionStorage).some((key) => key.startsWith("swiper:brief:")))).toBeTruthy();
+  const brief = "Explain why founders should turn customer feedback into specific product stories.";
+  await page.getByLabel("What should this carousel say?", { exact: true }).fill(brief);
+  await page.getByLabel("Carousel title", { exact: true }).fill("Customer stories");
+  await page.getByLabel("Story shape", { exact: true }).selectOption("before-after");
+  await page.reload();
+  await expect(page.getByText("Your unfinished brief was restored in this tab.")).toBeVisible();
+  await expect(page.getByLabel("What should this carousel say?", { exact: true })).toHaveValue(brief);
+  await expect(page.getByLabel("Story shape", { exact: true })).toHaveValue("before-after");
+  await page.getByRole("tab", { name: "Generate from a brief", exact: true }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "Start by hand", exact: true })).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.getByLabel("What should this carousel say?", { exact: true })).toHaveValue(brief);
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+    await page.screenshot({ path: testInfo.outputPath(`brief-${width}.png`) });
+  }
+  await page.getByRole("button", { name: "Generate carousel", exact: true }).click();
+  await expect(page.getByTestId("slide-canvas")).toBeVisible();
+  await page.goto("/new");
+  await expect(page.getByLabel("What should this carousel say?", { exact: true })).toHaveValue("");
+});
+
+test("library previews, search, sorting, and no-results recovery work across screen sizes", async ({ page }, testInfo) => {
+  await signUp(page.request);
+  const first = await create(page.request);
+  await page.request.patch(`/api/v1/carousels/${first.carousel_id}`, { data: { operations: [{ op: "rename", title: "Zebra launch" }] } });
+  const second = await create(page.request);
+  await page.request.patch(`/api/v1/carousels/${second.carousel_id}`, { data: { operations: [{ op: "rename", title: "Audience insights" }] } });
+  await page.goto("/library");
+  await expect(page.getByRole("heading", { name: "Saved carousels" })).toBeVisible();
+  await page.getByLabel("Sort carousels", { exact: true }).selectOption("title");
+  await expect(page.locator("article h3").first()).toHaveText("Audience insights");
+  await page.getByLabel("Search carousels", { exact: true }).fill("zebra");
+  await expect(page.locator("article")).toHaveCount(1);
+  await expect(page.getByRole("link", { name: /Zebra launch/ })).toBeVisible();
+  await page.getByLabel("Search carousels", { exact: true }).fill("missing draft");
+  await expect(page.getByRole("heading", { name: "No matching carousels" })).toBeVisible();
+  await page.getByRole("button", { name: "Clear search", exact: true }).click();
+  await expect(page.locator("article")).toHaveCount(2);
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+    await page.screenshot({ path: testInfo.outputPath(`library-${width}.png`) });
+  }
+  await page.goto("/guide");
+  await expect(page.getByRole("heading", { name: "Export and share", exact: true })).toBeVisible();
+  await expect(page.locator("main")).toContainText("Swiper does not post to your social accounts.");
+  await page.screenshot({ path: testInfo.outputPath("guide-mobile.png"), fullPage: true });
+});
+
+test("Free export checks flag copy issues, lead back to the slide, and gate JPG before a request", async ({ page }) => {
+  await signUp(page.request);
+  const { carousel_id: id, carousel } = await create(page.request);
+  const slide = carousel.slides[0]!;
+  const headline = slide.elements.find((element) => element.role === "headline")!;
+  const update = await page.request.patch(`/api/v1/carousels/${id}`, { data: { operations: [{ op: "update_text", slideId: slide.id, elementId: headline.id, text: "A revolutionary way to tell your product story." }] } });
+  expect(update.ok()).toBeTruthy();
+  let jpgRequests = 0;
+  page.on("request", (request) => { if (request.url().includes(`/carousels/${id}/export?format=jpg`)) jpgRequests++; });
+  await page.goto(`/c/${id}`);
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Ready to share", exact: true });
+  await expect(dialog.getByRole("link", { name: /Upgrade for JPG images/ })).toHaveAttribute("href", "/pricing");
+  await expect(dialog.getByRole("button", { name: /JPG images/ })).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Check carousel", exact: true }).click();
+  await expect(dialog).toContainText("uses generic AI phrasing");
+  await dialog.getByRole("button", { name: "Edit slide 1", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.getByTestId("slide-canvas").getByRole("button", { name: "headline element", exact: true }).click();
+  await page.locator("#element-text").fill("Good product stories start with a real customer problem.");
+  await saved(page);
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await expect(dialog).not.toContainText("uses generic AI phrasing");
+  await dialog.getByRole("button", { name: "Check carousel", exact: true }).click();
+  await expect(dialog).not.toContainText("uses generic AI phrasing");
+  expect(jpgRequests).toBe(0);
 });

@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { ClerkProvider } from "@clerk/nextjs";
+import { headers } from "next/headers";
+import { e2eEnabled } from "@/lib/auth-env";
+import { AuthRuntimeProvider } from "@/components/auth-runtime";
 import "./globals.css";
 
 const inter = localFont({
@@ -23,7 +26,9 @@ export const metadata: Metadata = {
   description: "Generate an editable carousel from a brief on the web, or connect the agent you already use.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const fixtureMode = e2eEnabled((await headers()).get("host"));
+  const authEnabled = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && !fixtureMode;
   return (
     <html
       lang="en"
@@ -32,7 +37,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col font-sans">
         <a href="#main-content" className="sr-only fixed left-4 top-4 z-[60] rounded-xl bg-card px-4 py-3 text-sm font-medium shadow-lg focus:not-sr-only focus:ring-2 focus:ring-ring">Skip to content</a>
-        {process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? (
+        <AuthRuntimeProvider enabled={authEnabled}>
+        {authEnabled ? (
           <ClerkProvider
             signInUrl="/login"
             signUpUrl="/signup"
@@ -44,6 +50,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         ) : (
           children
         )}
+        </AuthRuntimeProvider>
       </body>
     </html>
   );

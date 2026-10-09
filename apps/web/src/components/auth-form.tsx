@@ -10,6 +10,7 @@ import { Magnetic } from "@/components/motion/magnetic";
 import { FadeUp, SoftBlurIn } from "@/components/motion/soft-blur-in";
 import { Button } from "@/components/ui/button";
 import { safeNextPath } from "@/lib/paths";
+import { useAuthRuntime } from "@/components/auth-runtime";
 
 const providers = [
   { strategy: "oauth_google", label: "Continue with Google", icon: GoogleLogo },
@@ -22,7 +23,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const destination = safeNextPath(next);
   const [ready, setReady] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
-  const configured = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+  const configured = useAuthRuntime();
   const otherHref = mode === "signup" ? "/login" : "/signup";
   const otherWithNext = next ? `${otherHref}?next=${encodeURIComponent(next)}` : otherHref;
 

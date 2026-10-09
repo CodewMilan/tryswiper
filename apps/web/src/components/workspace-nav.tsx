@@ -29,7 +29,7 @@ export function WorkspaceNav() {
           <Mark />
           <span className="hidden text-[15px] font-medium tracking-[-0.03em] text-white sm:inline">Swiper</span>
         </Link>
-        <nav className="flex items-center" aria-label="Workspace">
+        <nav className="flex min-w-0 flex-wrap items-center" aria-label="Workspace">
           {links.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (

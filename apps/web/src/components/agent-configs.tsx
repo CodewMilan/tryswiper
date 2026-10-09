@@ -59,32 +59,23 @@ export function AgentConfigs({ origin, apiKey, savedKeyPrefix }: { origin: strin
         copy: apiKey ? "Copy Cursor config" : "Copy Cursor template",
         href: apiKey ? cursorInstallHref(origin, apiKey) : null,
         hrefLabel: "Add to Cursor",
+        docs: "https://docs.cursor.com/context/model-context-protocol",
       },
       {
         id: "claude",
         title: "Claude",
-        body: "For Claude Code, run the command below in your terminal, then check /mcp in Claude. For Claude Desktop, use the local process instructions below.",
-        config: `claude mcp add --transport http swiper ${mcpUrl} --header "Authorization: Bearer ${usableKey}"\n\n${JSON.stringify(
-          {
-            mcpServers: {
-              swiper: {
-                type: "http",
-                url: mcpUrl,
-                headers: { Authorization: `Bearer ${usableKey}` },
-              },
-            },
-          },
-          null,
-          2,
-        )}`,
+        body: "In Claude, open Customize → Connectors → Add custom connector. Name it Swiper and paste the URL below. Choose No sign in and add a request header named Authorization with the Bearer value below. Enable Swiper in your conversation’s connectors.",
+        config: `Server URL\n${mcpUrl}\n\nRequest header\nAuthorization: Bearer ${usableKey}`,
         copy: apiKey ? "Copy Claude config" : "Copy Claude template",
+        docs: "https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp",
       },
       {
         id: "chatgpt",
         title: "ChatGPT",
-        body: "Create an app or developer-mode connector, set authentication to None, and paste this URL. ChatGPT does not send a custom header, so the key stays in the URL.",
+        body: "Add a custom MCP app or plugin in ChatGPT and paste this server URL. If asked, choose No authentication. Enable Swiper in your conversation. ChatGPT does not send a custom API key header, so this URL includes your private key.",
         config: `${mcpUrl}?key=${encodeURIComponent(usableKey)}`,
         copy: apiKey ? "Copy ChatGPT URL" : "Copy ChatGPT URL template",
+        docs: "https://developers.openai.com/api/docs/guides/custom-mcp-server",
       },
     ],
     [usableKey, mcpUrl, origin, apiKey],
@@ -153,6 +144,8 @@ export function AgentConfigs({ origin, apiKey, savedKeyPrefix }: { origin: strin
               your workspace. Do not share it or include it in screenshots.
             </p>
           ) : null}
+          {card.id === "claude" ? <details className="mt-5 border-t border-border pt-4"><summary className="min-h-11 cursor-pointer text-sm font-medium">Using Claude Code instead?</summary><p className="mt-2 text-sm leading-6 text-ink-soft">Run this command in your terminal. Check /mcp in Claude Code to confirm Swiper is available.</p><pre className="mt-3 overflow-x-auto rounded-xl bg-secondary p-4 text-xs leading-6">{`claude mcp add --transport http swiper ${mcpUrl} --header "Authorization: Bearer ${usableKey}"`}</pre><Button className="mt-3" variant="outline" onClick={() => void copy("claude-code", `claude mcp add --transport http swiper ${mcpUrl} --header "Authorization: Bearer ${usableKey}"`)}>{copied === "claude-code" ? "Copied" : "Copy Claude Code command"}</Button></details> : null}
+          <a href={card.docs} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center text-sm text-ink-soft underline underline-offset-4">Official {card.title} setup guide</a>
         </section>
         </TabsContent>
       ))}
@@ -172,7 +165,7 @@ export function AgentConfigs({ origin, apiKey, savedKeyPrefix }: { origin: strin
         </Button>
       </details>
       <p className="text-[14px] font-light leading-6 text-ink-soft">
-        Cursor and Claude Desktop on this computer can use {origin}. Claude.ai and ChatGPT need this origin to be public https.
+        Cursor, Claude Code, and the local Claude Desktop process can use {origin} on this computer. Claude’s hosted connectors and ChatGPT need a public HTTPS Swiper address.
       </p>
     </div>
   );

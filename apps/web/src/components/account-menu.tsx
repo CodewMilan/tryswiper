@@ -4,21 +4,30 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { SignOutButton } from "@/components/sign-out-button";
+import { useAuthRuntime } from "@/components/auth-runtime";
 
-const menuLinkClass =
-  "block rounded-xl px-3 py-2 text-sm font-light text-black motion-safe:transition-colors motion-safe:duration-150 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
-export function AccountMenu({
-  links = [],
-  fallbackClassName,
-  className,
-  tone = "dark",
-}: {
+type AccountMenuProps = {
   links?: { href: string; label: string }[];
   fallbackClassName?: string;
   className?: string;
   tone?: "dark" | "light";
-}) {
+};
+
+export function AccountMenu(props: AccountMenuProps) {
+  const authEnabled = useAuthRuntime();
+  if (!authEnabled) return null;
+  return <ClerkAccountMenu {...props} />;
+}
+
+const menuLinkClass =
+  "block rounded-xl px-3 py-2 text-sm font-light text-black motion-safe:transition-colors motion-safe:duration-150 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+function ClerkAccountMenu({
+  links = [],
+  fallbackClassName,
+  className,
+  tone = "dark",
+}: AccountMenuProps) {
   const { isLoaded, isSignedIn, user } = useUser();
   const clerk = useClerk();
   const [open, setOpen] = useState(false);

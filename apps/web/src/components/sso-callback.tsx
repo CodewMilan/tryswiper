@@ -2,8 +2,9 @@
 
 import { useClerk, useSignIn, useSignUp } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
-import { safeNextPath } from "@/lib/paths";
+import { useEffect, useRef, useState } from "react";
+import { useAuthRuntime } from "@/components/auth-runtime";
+import { AuthRecovery, authDestination } from "@/components/auth-recovery";
 
 function go(url: string, router: ReturnType<typeof useRouter>) {
   if (url.startsWith("http")) window.location.assign(url);
@@ -11,26 +12,28 @@ function go(url: string, router: ReturnType<typeof useRouter>) {
 }
 
 export function SsoCallback() {
+  const enabled = useAuthRuntime();
+  return enabled ? <ClerkSsoCallback /> : <AuthRecovery />;
+}
+
+function ClerkSsoCallback() {
   const clerk = useClerk();
   const { signIn } = useSignIn();
   const { signUp } = useSignUp();
   const router = useRouter();
   const hasRun = useRef(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!clerk.loaded || hasRun.current) return;
     hasRun.current = true;
 
-    const destination = () => {
-      const stored = sessionStorage.getItem("swiper-next");
-      sessionStorage.removeItem("swiper-next");
-      return safeNextPath(stored);
-    };
+    const destination = () => authDestination(true);
 
     const finish = async (
       resource: typeof signIn | typeof signUp,
     ) => {
-      await resource.finalize({
+      const { error: finalizeError } = await resource.finalize({
         navigate: async ({ session, decorateUrl }) => {
           if (session?.currentTask) {
             router.replace("/login/continue");
@@ -39,6 +42,7 @@ export function SsoCallback() {
           go(decorateUrl(destination()), router);
         },
       });
+      if (finalizeError) throw new Error(finalizeError.longMessage || finalizeError.message || "Could not activate your session. Try signing in again.");
     };
 
     void (async () => {
@@ -88,13 +92,14 @@ export function SsoCallback() {
       }
 
       router.replace("/login");
-    })();
+    })().catch(() => setError("Your sign-in could not be completed. Please try again."));
   }, [clerk, router, signIn, signUp]);
 
+  if (error) return <AuthRecovery message={error} />;
   return (
-    <div className="hero-grid flex min-h-full items-center justify-center px-6">
-      <p className="text-[15px] font-light text-ink-soft">Signing you in…</p>
+    <main id="main-content" className="hero-grid flex min-h-dvh items-center justify-center px-6">
+      <p role="status" className="text-[15px] font-light text-ink-soft">Signing you in…</p>
       <div id="clerk-captcha" />
-    </div>
+    </main>
   );
 }

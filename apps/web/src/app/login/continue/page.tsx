@@ -7,9 +7,15 @@ import { SiteNav } from "@/components/site-nav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { safeNextPath } from "@/lib/paths";
+import { useAuthRuntime } from "@/components/auth-runtime";
+import { AuthRecovery, authDestination } from "@/components/auth-recovery";
 
 export default function ContinueSignUpPage() {
+  const enabled = useAuthRuntime();
+  return enabled ? <ClerkContinueSignUp /> : <AuthRecovery />;
+}
+
+function ClerkContinueSignUp() {
   const { signUp } = useSignUp();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -17,9 +23,11 @@ export default function ContinueSignUpPage() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
     setPending(true);
     setError(null);
     const form = new FormData(event.currentTarget);
+    try {
     const { error: updateError } = await signUp.update({
       firstName: String(form.get("firstName") ?? ""),
       lastName: String(form.get("lastName") ?? ""),
@@ -34,20 +42,22 @@ export default function ContinueSignUpPage() {
       setError("A bit more is required before the workspace can open.");
       return;
     }
-    await signUp.finalize({
+    const { error: finalizeError } = await signUp.finalize({
       navigate: async ({ decorateUrl }) => {
-        const stored = sessionStorage.getItem("swiper-next");
-        const url = decorateUrl(safeNextPath(stored));
+        const url = decorateUrl(authDestination(true));
         if (url.startsWith("http")) window.location.assign(url);
         else router.replace(url);
       },
     });
+    if (finalizeError) throw new Error(finalizeError.longMessage || finalizeError.message || "Could not finish sign-up. Try again.");
+    } catch { setError("We couldn’t complete your account. Check your connection and try again."); }
+    finally { setPending(false); }
   }
 
   return (
     <div className="hero-grid min-h-full">
       <SiteNav hideSignIn hideStartForFree />
-      <div className="mx-auto flex min-h-full w-full max-w-[440px] flex-col justify-center px-4 pb-16 pt-28">
+      <main id="main-content" className="mx-auto flex min-h-full w-full max-w-[440px] flex-col justify-center px-4 pb-16 pt-28">
         <div className="rounded-[24px] border border-black/8 bg-white px-6 py-8 sm:px-8">
           <h1 className="text-[32px] font-light leading-tight tracking-[-0.03em] text-black">
             One more step
@@ -75,7 +85,7 @@ export default function ContinueSignUpPage() {
           </form>
           <div id="clerk-captcha" />
         </div>
-      </div>
+      </main>
     </div>
   );
 }

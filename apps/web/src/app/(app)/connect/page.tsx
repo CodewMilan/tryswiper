@@ -50,7 +50,6 @@ export default function ConnectPage() {
   }
 
   async function load() {
-    setLoading(true);
     setError(null);
     try {
       const next = await readWorkspace();

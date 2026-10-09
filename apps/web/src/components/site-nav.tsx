@@ -7,6 +7,7 @@ import { useUser } from "@clerk/nextjs";
 import { AccountMenu } from "@/components/account-menu";
 import { Mark } from "@/components/mark";
 import { Magnetic } from "@/components/motion/magnetic";
+import { useAuthRuntime } from "@/components/auth-runtime";
 
 const guestLinks = [
   { href: "/guide", label: "How it works" },
@@ -32,7 +33,8 @@ const newButtonClass =
 type Mode = "guest" | "member" | "pending";
 
 export function SiteNav({ initialMode, hideSignIn = false, hideStartForFree = false }: { initialMode?: Mode; hideSignIn?: boolean; hideStartForFree?: boolean } = {}) {
-  if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return <NavBar mode={initialMode ?? "guest"} hideSignIn={hideSignIn} hideStartForFree={hideStartForFree} />;
+  const authEnabled = useAuthRuntime();
+  if (!authEnabled) return <NavBar mode={initialMode ?? "guest"} hideSignIn={hideSignIn} hideStartForFree={hideStartForFree} />;
   return <ClerkNav initialMode={initialMode} hideSignIn={hideSignIn} hideStartForFree={hideStartForFree} />;
 }
 
