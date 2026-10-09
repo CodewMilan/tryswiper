@@ -1,3 +1,3 @@
 export { compactBrand, type BrandContext } from "./brand";
-export { generatePlan, reviseSlidePlan } from "./generate";
+export { generatePlan, generationModelConfigured, reviseSlidePlan } from "./generate";
 export { planLocally } from "./local";

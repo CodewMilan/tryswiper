@@ -4,7 +4,7 @@ import type { Carousel } from "@swiper/schema";
 import postgres from "postgres";
 import { cleanupTestUsers, testDatabaseUrl } from "./test-data";
 import { referenceContext } from "../src/server/reference-post";
-import { REFERENCE_FALLBACK_NOTICE } from "../src/lib/generation-notices";
+import { LOCAL_GENERATION_NOTICE, REFERENCE_FALLBACK_NOTICE, THIN_BRAND_NOTICE } from "../src/lib/generation-notices";
 
 const testUserIds: string[] = [];
 
@@ -177,10 +177,13 @@ test("library, web generation, key revocation, plan gates, and branded 404", asy
   await expect(page.getByText("Turn one sentence into an editable carousel.")).toBeVisible();
 
   await page.goto("/new");
+  await expect(page.getByText("Your brand kit is incomplete")).toBeVisible();
   await page.getByLabel("What should this carousel say?").fill("Explain why a product brief should become an editable carousel before it gets published.");
   await page.getByRole("button", { name: "Generate carousel" }).click();
   await expect(page.getByTestId("slide-canvas")).toBeVisible();
-  const id = page.url().split("/").at(-1)!;
+  await expect(page.getByText(LOCAL_GENERATION_NOTICE)).toBeVisible();
+  await expect(page.getByText(THIN_BRAND_NOTICE)).toBeVisible();
+  const id = new URL(page.url()).pathname.split("/").at(-1)!;
 
   await page.getByRole("link", { name: "Back to library" }).click();
   await expect(page.getByRole("link", { name: /Explain why a product brief/ })).toBeVisible();
@@ -238,7 +241,7 @@ test("confirmed deletion releases quota, preserves formats, and rejects other wo
     for (let index = 0; index < 4; index++) await create(request);
     const billing = async () => await (await request.get("/api/v1/billing")).json() as { usage: { carousel: number; generation?: number } };
     expect((await billing()).usage.carousel).toBe(5);
-    expect((await billing()).usage.generation).toBe(1);
+    expect((await billing()).usage.generation ?? 0).toBe(0);
     const full = await request.post("/api/v1/carousels", { data: { format_id: "freeform" } });
     expect(full.status()).toBe(429);
 
@@ -257,7 +260,7 @@ test("confirmed deletion releases quota, preserves formats, and rejects other wo
 
     await page.goto("/library");
     await expect(page.getByRole("region", { name: "Monthly allowance" })).toContainText("0 of 5 carousels remaining");
-    await expect(page.getByRole("region", { name: "Monthly allowance" })).toContainText("9 of 10 AI generations remaining");
+    await expect(page.getByRole("region", { name: "Monthly allowance" })).toContainText("10 of 10 AI generations remaining");
     await page.getByRole("button", { name: "Delete A better way to tell your story", exact: true }).first().click();
     await expect(page.getByRole("dialog", { name: "Delete this carousel?" })).toBeVisible();
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -274,7 +277,7 @@ test("confirmed deletion releases quota, preserves formats, and rejects other wo
     await expect(page.getByRole("link", { name: /Draft to discard/ })).toHaveCount(0);
     await expect(page.getByRole("region", { name: "Monthly allowance" })).toContainText("1 of 5 carousels remaining");
     expect((await billing()).usage.carousel).toBe(4);
-    expect((await billing()).usage.generation).toBe(1);
+    expect((await billing()).usage.generation ?? 0).toBe(0);
     expect((await request.get(`/api/v1/carousels/${id}`)).status()).toBe(404);
     expect((await request.delete(`/api/v1/carousels/${id}`)).status()).toBe(404);
     expect((await billing()).usage.carousel).toBe(4);
@@ -522,19 +525,24 @@ test("unreadable reference posts still create drafts through both generation end
   const response = await created;
   expect(response.status()).toBe(201);
   const body = await response.json() as { carousel_id: string; editor_url: string; warnings: { code: string; message: string }[] };
-  expect(body.warnings).toEqual([{ code: "REFERENCE_UNAVAILABLE", message: REFERENCE_FALLBACK_NOTICE }]);
-  expect(body.editor_url).toContain("?reference=unavailable");
+  expect(body.warnings).toEqual(expect.arrayContaining([
+    { code: "LOCAL_GENERATION", message: LOCAL_GENERATION_NOTICE },
+    { code: "THIN_BRAND", message: THIN_BRAND_NOTICE },
+    { code: "REFERENCE_UNAVAILABLE", message: REFERENCE_FALLBACK_NOTICE },
+  ]));
+  expect(body.editor_url).toContain("reference=unavailable");
   await expect(page.getByTestId("slide-canvas")).toBeVisible();
-  await expect(page.getByText(REFERENCE_FALLBACK_NOTICE, { exact: true })).toBeVisible();
+  await expect(page.getByText(REFERENCE_FALLBACK_NOTICE)).toBeVisible();
+  await expect(page.getByText(LOCAL_GENERATION_NOTICE)).toBeVisible();
   expect((await page.request.get(`/api/v1/carousels/${body.carousel_id}`)).status()).toBe(200);
   const generated = await page.request.post("/api/v1/carousels/generate", { data: { brief, reference_url: reference, format_id: "before-after" } });
   expect(generated.status()).toBe(201);
-  expect((await generated.json()).warnings).toEqual(body.warnings);
+  expect((await generated.json()).warnings).toEqual(expect.arrayContaining(body.warnings));
   const invalid = await page.request.post("/api/v1/carousels", { data: { brief, reference_url: "https://localhost/" } });
   expect(invalid.status()).toBe(400);
-  const billing = await (await page.request.get("/api/v1/billing")).json() as { usage: { carousel: number; generation: number } };
+  const billing = await (await page.request.get("/api/v1/billing")).json() as { usage: { carousel: number; generation?: number } };
   expect(billing.usage.carousel).toBe(2);
-  expect(billing.usage.generation).toBe(2);
+  expect(billing.usage.generation ?? 0).toBe(0);
 });
 
 test("onboarding reflects real progress, brand load failures recover, and unsaved edits are protected", async ({ page }, testInfo) => {

@@ -2,6 +2,7 @@ import { and, count, desc, eq } from "drizzle-orm";
 import {
   type BrandContext,
   generatePlan,
+  generationModelConfigured,
   reviseSlidePlan,
 } from "@swiper/ai";
 import {
@@ -29,6 +30,12 @@ import { editorUrl } from "../lib/utils";
 import { getWorkspaceBrand } from "../lib/workspace";
 import { getWorkspaceFormat } from "./workspace-formats";
 import { getAsset } from "./assets";
+import {
+  isThinBrand,
+  localGenerationWarning,
+  thinBrandWarning,
+  type GenerationWarning,
+} from "@/lib/generation-notices";
 import { assertUsage, recordUsage } from "./usage";
 
 function themeFromBrand(brand: NonNullable<Awaited<ReturnType<typeof getWorkspaceBrand>>>): Theme {
@@ -124,13 +131,14 @@ export async function generateCarousel(input: {
   slideCount?: number;
 }) {
   await assertUsage(input.auth.workspaceId, "carousel");
-  await assertUsage(input.auth.workspaceId, "generation");
+  if (generationModelConfigured()) await assertUsage(input.auth.workspaceId, "generation");
   const brandRow = await getWorkspaceBrand(input.auth.workspaceId);
   if (!brandRow) {
     throw Object.assign(new Error("Brand kit missing"), { status: 400, code: "NO_BRAND" });
   }
   const brand = toBrandContext(brandRow);
   const theme = themeFromBrand(brandRow);
+  const thinBrand = isThinBrand(brandRow);
   const { plan, source } = await generatePlan({
     brief: input.brief,
     formatId: input.formatId,
@@ -143,6 +151,11 @@ export async function generateCarousel(input: {
   });
   const project = await agentProject(input.auth);
   addBrandLogo(result.carousel, brandRow.logoAssetId);
+  result.carousel.metadata = {
+    ...result.carousel.metadata,
+    generationSource: source,
+    ...(thinBrand ? { thinBrand: true } : {}),
+  };
   const id = sid("car");
   await db.insert(schema.carousel).values({
     id,
@@ -155,13 +168,22 @@ export async function generateCarousel(input: {
     createdBy: input.auth.userId,
   });
   await recordUsage(input.auth.workspaceId, "carousel");
-  await recordUsage(input.auth.workspaceId, "generation");
+  if (source === "model") await recordUsage(input.auth.workspaceId, "generation");
+  const warnings: GenerationWarning[] = [
+    ...(source === "local" ? [localGenerationWarning()] : []),
+    ...(thinBrand ? [thinBrandWarning()] : []),
+  ];
+  const query = new URLSearchParams();
+  if (source === "local") query.set("generation", "local");
+  if (thinBrand) query.set("brand", "thin");
+  const suffix = query.toString();
   return {
     carousel_id: id,
-    editor_url: editorUrl(id),
+    editor_url: suffix ? `${editorUrl(id)}?${suffix}` : editorUrl(id),
     status: "draft" as const,
     format_id: result.plan.formatId,
     source,
+    warnings,
     validation: result.validation,
     carousel: result.carousel,
   };
@@ -437,7 +459,7 @@ export async function generateSlide(
   slideId: string,
   instruction: string,
 ) {
-  await assertUsage(authContext.workspaceId, "generation");
+  if (generationModelConfigured()) await assertUsage(authContext.workspaceId, "generation");
   const current = await getCarousel(authContext, id);
   const brandRow = await getWorkspaceBrand(authContext.workspaceId);
   if (!brandRow) {
@@ -466,6 +488,11 @@ export async function generateSlide(
     forbiddenWords: brandRow.wordsToAvoid,
     allowedProof: brandRow.proofPoints,
   });
+  result.carousel.metadata = {
+    ...result.carousel.metadata,
+    generationSource: content.metadata.generationSource,
+    thinBrand: content.metadata.thinBrand,
+  };
   const nextVersion = current.version + 1;
   await db
     .update(schema.carousel)
@@ -476,7 +503,7 @@ export async function generateSlide(
       updatedAt: new Date(),
     })
     .where(eq(schema.carousel.id, id));
-  await recordUsage(authContext.workspaceId, "generation");
+  if (generationModelConfigured()) await recordUsage(authContext.workspaceId, "generation");
   return {
     carousel_id: id,
     editor_url: editorUrl(id),

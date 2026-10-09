@@ -118,6 +118,8 @@ export const carouselMetadataSchema = z.object({
   formatId: z.string().min(1),
   aspectRatio: z.literal(ASPECT_RATIO).default(ASPECT_RATIO),
   platforms: z.array(z.string()).default(["instagram", "linkedin"]),
+  generationSource: z.enum(["model", "local"]).optional(),
+  thinBrand: z.boolean().optional(),
 });
 
 export const carouselSchema = z.object({

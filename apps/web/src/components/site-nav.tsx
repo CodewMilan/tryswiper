@@ -53,8 +53,8 @@ function NavBar({ mode, hideSignIn, hideStartForFree }: { mode: Mode; hideSignIn
     <header className="pointer-events-none fixed inset-x-0 top-4 z-40 flex justify-center px-3">
       <div className="pointer-events-auto flex max-w-full items-center gap-1 rounded-2xl border border-nav-border bg-nav p-[5px] shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_8px_10px_-6px_rgba(0,0,0,0.1)]">
         <Link
-          href="/"
-          aria-label="Swiper home"
+          href={mode === "member" ? "/library" : "/"}
+          aria-label={mode === "member" ? "Swiper library" : "Swiper home"}
           className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
         >
           <Mark />
@@ -81,7 +81,7 @@ function NavBar({ mode, hideSignIn, hideStartForFree }: { mode: Mode; hideSignIn
           </Magnetic>
         ) : null}
         {mode === "pending" ? <span className="ml-1 size-9 rounded-full bg-white/15" aria-hidden /> : null}
-        {mode === "member" ? <AccountMenu className="hidden md:block" links={[{ href: "/pricing", label: "Pricing" }]} /> : null}
+        {mode === "member" ? <AccountMenu className="hidden md:block" /> : null}
         {mode === "member" ? <AccountMenu className="md:hidden" links={[...memberLinks, { href: "/new", label: "New carousel" }]} /> : null}
         {mode !== "member" ? (
         <button

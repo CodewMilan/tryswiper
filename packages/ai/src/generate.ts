@@ -8,6 +8,10 @@ function firstUsefulLine(text: string, fallback: string) {
   return cleaned.length > 0 ? cleaned : fallback;
 }
 
+export function generationModelConfigured(env: NodeJS.ProcessEnv = process.env) {
+  return Boolean(env.ANTHROPIC_API_KEY?.trim() || env.OPENAI_API_KEY?.trim());
+}
+
 function model() {
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;

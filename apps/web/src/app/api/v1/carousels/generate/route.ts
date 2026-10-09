@@ -27,10 +27,13 @@ export async function POST(request: Request) {
       formatId: body.format_id,
       slideCount: body.slide_count,
     });
+    const editorUrl = reference?.warning
+      ? `${result.editor_url}${result.editor_url.includes("?") ? "&" : "?"}reference=unavailable`
+      : result.editor_url;
     return json({
       ...result,
-      editor_url: `${result.editor_url}${reference?.warning ? "?reference=unavailable" : ""}`,
-      warnings: reference?.warning ? [reference.warning] : [],
+      editor_url: editorUrl,
+      warnings: [...(result.warnings ?? []), ...(reference?.warning ? [reference.warning] : [])],
     }, 201);
   } catch (error) {
     return fromUnknownError(error);

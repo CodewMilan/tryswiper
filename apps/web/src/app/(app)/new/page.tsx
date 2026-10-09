@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { MonthlyAllowance } from "@/components/monthly-allowance";
-import type { GenerationWarning } from "@/lib/generation-notices";
+import { isThinBrand, type GenerationWarning } from "@/lib/generation-notices";
 import { useWorkspaceUsage, usageLimitMessage, type UsageApiError } from "@/lib/use-workspace-usage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,6 +89,7 @@ export default function NewCarouselPage() {
   const [usageLimited, setUsageLimited] = useState(false);
   const [draftKey, setDraftKey] = useState<string | null>(null);
   const [restored, setRestored] = useState(false);
+  const [thinBrand, setThinBrand] = useState(false);
   const usage = workspaceUsage.data;
   const carouselFull = !!usage && (usage.usage.carousel ?? 0) >= usage.limits.carousel;
   const generationFull = !!usage && (usage.usage.generation ?? 0) >= usage.limits.generation;
@@ -127,8 +128,9 @@ export default function NewCarouselPage() {
       try {
         const response = await fetch("/api/v1/brand");
         if (!response.ok) return;
-        const body = await response.json() as { brand?: { id?: string } };
+        const body = await response.json() as { brand?: { id?: string; description?: string; audience?: string } };
         if (!body.brand?.id || !active) return;
+        setThinBrand(isThinBrand(body.brand));
         const key = `swiper:brief:${body.brand.id}`;
         const raw = sessionStorage.getItem(key);
         if (raw) {
@@ -178,7 +180,11 @@ export default function NewCarouselPage() {
           reference_url: mode === "generate" && referenceUrl.trim() ? referenceUrl.trim() : undefined,
         }),
       });
-      const body = (await response.json()) as UsageApiError & { carousel_id?: string; warnings?: GenerationWarning[] };
+      const body = (await response.json()) as UsageApiError & {
+        carousel_id?: string;
+        source?: "model" | "local";
+        warnings?: GenerationWarning[];
+      };
       if (body.code === "USAGE_LIMIT") {
         setUsageLimited(true);
         void workspaceUsage.refresh();
@@ -187,8 +193,12 @@ export default function NewCarouselPage() {
       if (!response.ok || !body.carousel_id) throw new Error(body.message ?? "Could not start the carousel.");
       if (draftKey) { try { sessionStorage.removeItem(draftKey); } catch { /* The server draft is now the source of truth. */ } }
       setDraftKey(null);
-      const referenceUnavailable = body.warnings?.some((warning) => warning.code === "REFERENCE_UNAVAILABLE");
-      router.push(`/c/${body.carousel_id}${referenceUnavailable ? "?reference=unavailable" : ""}`);
+      const params = new URLSearchParams();
+      if (body.warnings?.some((warning) => warning.code === "REFERENCE_UNAVAILABLE")) params.set("reference", "unavailable");
+      if (body.source === "local") params.set("generation", "local");
+      if (body.warnings?.some((warning) => warning.code === "THIN_BRAND")) params.set("brand", "thin");
+      const query = params.toString();
+      router.push(`/c/${body.carousel_id}${query ? `?${query}` : ""}`);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Could not start the carousel.");
       setPending(false);
@@ -206,6 +216,17 @@ export default function NewCarouselPage() {
       </div>
 
       <MonthlyAllowance workspace={workspaceUsage} />
+      {mode === "generate" && thinBrand ? (
+        <div className="mt-6 max-w-2xl rounded-[24px] border border-black/8 bg-white p-6" role="status">
+          <p className="text-sm font-medium">Your brand kit is incomplete</p>
+          <p className="mt-2 text-sm leading-6 text-ink-soft">
+            Add what you sell and who it’s for. You can still generate, but the first draft will be generic.
+          </p>
+          <Link href="/brand" className="mt-3 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            Add brand details <ArrowRight size={16} />
+          </Link>
+        </div>
+      ) : null}
       {restored ? <p role="status" className="mt-5 text-sm text-ink-soft">Your unfinished brief was restored in this tab.</p> : null}
       <form onSubmit={onSubmit} className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
         <fieldset disabled={pending} className="min-w-0">

@@ -26,10 +26,13 @@ export async function POST(request: Request) {
         title: body.title,
         formatId: body.format_id,
       });
+      const editorUrl = reference?.warning
+        ? `${result.editor_url}${result.editor_url.includes("?") ? "&" : "?"}reference=unavailable`
+        : result.editor_url;
       return json({
         ...result,
-        editor_url: `${result.editor_url}${reference?.warning ? "?reference=unavailable" : ""}`,
-        warnings: reference?.warning ? [reference.warning] : [],
+        editor_url: editorUrl,
+        warnings: [...(result.warnings ?? []), ...(reference?.warning ? [reference.warning] : [])],
       }, 201);
     }
     if (body.format_id?.trim()) {
