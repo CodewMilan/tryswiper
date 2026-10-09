@@ -325,6 +325,11 @@ export async function listProjects(authContext: AuthContext) {
       format_id: item.formatId,
       editor_url: editorUrl(item.id),
       updated_at: item.updatedAt,
+      slide_count: (item.contentJson as Carousel).slides.length,
+      preview: {
+        slide: (item.contentJson as Carousel).slides[0],
+        theme: (item.contentJson as Carousel).theme,
+      },
     })),
   };
 }

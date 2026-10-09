@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 function cursorInstallHref(origin: string, key: string) {
   const config = JSON.stringify({
@@ -62,8 +63,8 @@ export function AgentConfigs({ origin, apiKey, savedKeyPrefix }: { origin: strin
       {
         id: "claude",
         title: "Claude",
-        body: "Add a custom connector in Claude Desktop or claude.ai. Use the URL, and the Authorization header if it asks. The JSON is for claude_desktop_config.json.",
-        config: `URL\n${mcpUrl}\n\nHeader\nAuthorization: Bearer ${usableKey}\n\n${JSON.stringify(
+        body: "For Claude Code, run the command below in your terminal, then check /mcp in Claude. For Claude Desktop, use the local process instructions below.",
+        config: `claude mcp add --transport http swiper ${mcpUrl} --header "Authorization: Bearer ${usableKey}"\n\n${JSON.stringify(
           {
             mcpServers: {
               swiper: {
@@ -123,7 +124,10 @@ export function AgentConfigs({ origin, apiKey, savedKeyPrefix }: { origin: strin
         </div>
       ) : null}
       {copyError ? <p role="alert" className="text-sm text-destructive">{copyError}</p> : null}
+      <Tabs defaultValue="cursor">
+      <TabsList aria-label="Choose your agent">{cards.map((card) => <TabsTrigger key={card.id} value={card.id}>{card.title}</TabsTrigger>)}</TabsList>
       {cards.map((card) => (
+        <TabsContent key={card.id} value={card.id}>
         <section key={card.id} className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
           <h2 className="text-[18px] font-medium tracking-[-0.02em]">{card.title}</h2>
           <p className="mt-2 text-[15px] font-light leading-6 text-ink-soft">{card.body}</p>
@@ -150,13 +154,15 @@ export function AgentConfigs({ origin, apiKey, savedKeyPrefix }: { origin: strin
             </p>
           ) : null}
         </section>
+        </TabsContent>
       ))}
+      </Tabs>
       <details className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
         <summary className="cursor-pointer text-[18px] font-medium tracking-[-0.02em]">
           Local process, from this repo
         </summary>
         <p className="mt-2 text-[15px] font-light leading-6 text-ink-soft">
-          Cursor or Claude Desktop can launch the MCP process when this repo is the working directory.
+          Clone the Swiper repository, run pnpm install, and use its absolute path as the client’s working directory. Add this JSON to Cursor’s MCP settings or Claude Desktop’s claude_desktop_config.json, then restart the client.
         </p>
         <pre className="mt-4 overflow-x-auto rounded-2xl bg-[#f7f7f6] p-4 font-mono text-[12px] leading-6 text-black">
           {localConfig}
