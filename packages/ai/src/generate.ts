@@ -13,8 +13,8 @@ export function generationModelConfigured(env: NodeJS.ProcessEnv = process.env) 
 }
 
 function model() {
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  const openaiKey = process.env.OPENAI_API_KEY;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY?.trim();
+  const openaiKey = process.env.OPENAI_API_KEY?.trim();
   if (anthropicKey) {
     return import("@ai-sdk/anthropic").then(({ anthropic }) =>
       anthropic("claude-sonnet-4-5"),
@@ -45,10 +45,9 @@ export async function generatePlan(input: {
   instruction?: string;
 }): Promise<{ plan: CarouselPlan; source: "model" | "local" }> {
   const fallback = planLocally(input);
-  const loaded = await model();
-  if (!loaded) return { plan: fallback, source: "local" };
-
   try {
+    const loaded = await model();
+    if (!loaded) return { plan: fallback, source: "local" };
     const { object } = await generateObject({
       model: loaded,
       schema: carouselPlanSchema,
@@ -74,11 +73,10 @@ export async function reviseSlidePlan(input: {
   slideIndex: number;
   instruction: string;
   brand: BrandContext;
-}): Promise<CarouselPlan> {
+}): Promise<{ plan: CarouselPlan; source: "model" | "local" }> {
   const current = input.plan.slides[input.slideIndex];
-  if (!current) return input.plan;
-  const loaded = await model();
-  if (!loaded) {
+  if (!current) return { plan: input.plan, source: "local" };
+  function fallback(): CarouselPlan {
     const lower = input.instruction.toLowerCase();
     const slides = [...input.plan.slides];
     if (/\bshort(er|en)?\b/.test(lower)) {
@@ -103,6 +101,8 @@ export async function reviseSlidePlan(input: {
   }
 
   try {
+    const loaded = await model();
+    if (!loaded) return { plan: fallback(), source: "local" };
     const { object } = await generateObject({
       model: loaded,
       schema: carouselPlanSchema,
@@ -115,8 +115,8 @@ export async function reviseSlidePlan(input: {
         "Keep every other slide unchanged.",
       ].join("\n\n"),
     });
-    return object;
+    return { plan: object, source: "model" };
   } catch {
-    return input.plan;
+    return { plan: fallback(), source: "local" };
   }
 }

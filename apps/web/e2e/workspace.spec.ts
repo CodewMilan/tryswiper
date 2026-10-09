@@ -102,7 +102,7 @@ test("brand visuals, manual creation, editor gestures, format reuse, and downloa
   await page.getByRole("button", { name: "Save as format", exact: true }).click();
   await page.getByLabel("Format name", { exact: true }).fill("Launch story");
   await page.getByRole("button", { name: "Save format", exact: true }).click();
-  await expect(page.getByText("“Launch story” is ready in your workspace formats.")).toBeVisible();
+  await expect(page.getByText("“Launch story” is ready. Use it under Start by hand on New carousel.")).toBeVisible();
   const source = await state(request, id);
   await page.goto("/new");
   await page.getByRole("tab", { name: "Start by hand" }).click();

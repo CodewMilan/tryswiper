@@ -19,7 +19,7 @@ import { clampBox, type Box } from "./editor/slide-frame";
 import { useCarousel } from "./editor/use-carousel";
 import { LOCAL_GENERATION_NOTICE, THIN_BRAND_NOTICE } from "@/lib/generation-notices";
 
-export function Editor({ carouselId, initialNotice }: { carouselId: string; initialNotice?: string }) {
+export function Editor({ carouselId, initialNotices = [] }: { carouselId: string; initialNotices?: string[] }) {
   const workspaceUsage = useWorkspaceUsage();
   const { doc, meta, undoCount, loading, loadError, saveState, saveError, setSaveError,
     reload, mutate, undo, settle, retry, conflict, discardLocal } = useCarousel(carouselId);
@@ -37,12 +37,19 @@ export function Editor({ carouselId, initialNotice }: { carouselId: string; init
   const [formatDescription, setFormatDescription] = useState("");
   const [formatSaving, setFormatSaving] = useState(false);
   const [formatError, setFormatError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(initialNotice ?? null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [formatNotice, setFormatNotice] = useState(false);
-  const [brandNotice, setBrandNotice] = useState(
-    () => Boolean(initialNotice?.includes("brand kit is missing")),
-  );
-  const generationNoticeApplied = useRef(false);
+  const [generationNoticesDismissed, setGenerationNoticesDismissed] = useState(false);
+  const brandNotice = !generationNoticesDismissed &&
+    (doc?.metadata.thinBrand || initialNotices.includes(THIN_BRAND_NOTICE));
+  const notices = [...new Set([
+    notice,
+    ...(!generationNoticesDismissed ? [
+      ...initialNotices,
+      doc?.metadata.generationSource === "local" ? LOCAL_GENERATION_NOTICE : null,
+      doc?.metadata.thinBrand ? THIN_BRAND_NOTICE : null,
+    ] : []),
+  ].filter((message): message is string => Boolean(message)))];
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
   const [quality, setQuality] = useState<{ version: number; result: ValidationResult } | null>(null);
@@ -78,18 +85,6 @@ export function Editor({ carouselId, initialNotice }: { carouselId: string; init
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [undo]);
-
-  useEffect(() => {
-    if (!doc || generationNoticeApplied.current) return;
-    generationNoticeApplied.current = true;
-    const extras = [
-      doc.metadata.generationSource === "local" ? LOCAL_GENERATION_NOTICE : null,
-      doc.metadata.thinBrand ? THIN_BRAND_NOTICE : null,
-    ].filter(Boolean) as string[];
-    if (doc.metadata.thinBrand) setBrandNotice(true);
-    if (!extras.length) return;
-    setNotice((current) => [...new Set([current, ...extras].filter(Boolean) as string[])].join(" "));
-  }, [doc]);
 
   function moveElement(elementId: string, box: Box, options?: { immediate?: boolean }) {
     if (slide) mutate([{ op: "set_element_box", slideId: slide.id, elementId, ...box }], options);
@@ -257,7 +252,7 @@ export function Editor({ carouselId, initialNotice }: { carouselId: string; init
         <span className="flex-1 text-destructive">{saveError}</span>
         {usageLimited ? <Link href="/pricing" className="inline-flex min-h-10 items-center rounded-[14px] px-3 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">View plans and limits</Link> : conflict ? <><Button variant="outline" onClick={downloadLocal}>Download local draft</Button><Button variant="outline" onClick={discardLocal}>Load latest version</Button></> : <Button variant="outline" onClick={() => void retry()}>Retry save</Button>}
       </div> : null}
-      {notice ? <div className="flex flex-wrap items-center justify-center gap-3 border-b border-border bg-card px-4 py-2 text-sm" role="status"><span>{notice}</span>{formatNotice ? <Link href="/new" className="underline underline-offset-4">Formats live under Start by hand</Link> : null}{brandNotice ? <Link href="/brand" className="underline underline-offset-4">Open brand kit</Link> : null}<button onClick={() => { setNotice(null); setBrandNotice(false); }} className="min-h-11 px-2 text-ink-soft">Dismiss</button></div> : null}
+      {notices.length ? <div className="flex flex-wrap items-center justify-center gap-3 border-b border-border bg-card px-4 py-2 text-sm" role="status">{notices.map((message) => <span key={message}>{message}</span>)}{formatNotice ? <Link href="/new" className="underline underline-offset-4">Formats live under Start by hand</Link> : null}{brandNotice ? <Link href="/brand" className="underline underline-offset-4">Open brand kit</Link> : null}<button onClick={() => { setNotice(null); setFormatNotice(false); setGenerationNoticesDismissed(true); }} className="min-h-11 px-2 text-ink-soft">Dismiss</button></div> : null}
 
       <div className="editor-workspace">
         <aside className="editor-slides" aria-label="Slide navigator">

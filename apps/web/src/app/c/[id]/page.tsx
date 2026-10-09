@@ -14,16 +14,15 @@ export default async function CarouselPage({
 }) {
   const { id } = await params;
   const { reference, generation, brand } = await searchParams;
-  const initialNotice = [
+  const initialNotices = [
     reference === "unavailable" ? REFERENCE_FALLBACK_NOTICE : null,
     generation === "local" ? LOCAL_GENERATION_NOTICE : null,
     brand === "thin" ? THIN_BRAND_NOTICE : null,
   ]
-    .filter(Boolean)
-    .join(" ");
+    .filter((message): message is string => Boolean(message));
   return (
     <div className="hero-grid min-h-full">
-      <Editor carouselId={id} initialNotice={initialNotice || undefined} />
+      <Editor carouselId={id} initialNotices={initialNotices} />
     </div>
   );
 }

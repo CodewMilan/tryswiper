@@ -478,7 +478,7 @@ export async function generateSlide(
     throw Object.assign(new Error("Slide not found"), { status: 404, code: "INVALID_SLIDE" });
   }
   await snapshot(current.id, current.version, current.contentJson, current.planJson);
-  const nextPlan = await reviseSlidePlan({
+  const { plan: nextPlan, source } = await reviseSlidePlan({
     plan,
     slideIndex,
     instruction,
@@ -490,7 +490,7 @@ export async function generateSlide(
   });
   result.carousel.metadata = {
     ...result.carousel.metadata,
-    generationSource: content.metadata.generationSource,
+    generationSource: source === "local" ? "local" : content.metadata.generationSource ?? source,
     thinBrand: content.metadata.thinBrand,
   };
   const nextVersion = current.version + 1;
@@ -503,10 +503,20 @@ export async function generateSlide(
       updatedAt: new Date(),
     })
     .where(eq(schema.carousel.id, id));
-  if (generationModelConfigured()) await recordUsage(authContext.workspaceId, "generation");
+  if (source === "model") await recordUsage(authContext.workspaceId, "generation");
+  const warnings: GenerationWarning[] = [
+    ...(source === "local" ? [localGenerationWarning()] : []),
+    ...(content.metadata.thinBrand ? [thinBrandWarning()] : []),
+  ];
+  const query = new URLSearchParams();
+  if (source === "local") query.set("generation", "local");
+  if (content.metadata.thinBrand) query.set("brand", "thin");
+  const suffix = query.toString();
   return {
     carousel_id: id,
-    editor_url: editorUrl(id),
+    editor_url: suffix ? `${editorUrl(id)}?${suffix}` : editorUrl(id),
+    source,
+    warnings,
     version: nextVersion,
     validation: result.validation,
     carousel: result.carousel,
