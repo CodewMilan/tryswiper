@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
+import { ArrowRight } from "@phosphor-icons/react";
+import { UnsavedChangesGuard } from "@/components/unsaved-changes-guard";
 import { PageIntro, Settle } from "@/components/page-intro";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,6 +73,8 @@ export default function BrandPage() {
   const [error, setError] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -78,8 +83,9 @@ export default function BrandPage() {
     };
   }, [logoPreview]);
 
-  useEffect(() => {
-    void (async () => {
+  const loadBrand = useCallback(async () => {
+        setStatus("loading");
+        setError(null);
       try {
         const response = await fetch("/api/v1/brand");
         const body = (await response.json()) as {
@@ -117,14 +123,20 @@ export default function BrandPage() {
         });
         setLogoPreview(logoAssetId ? `/api/v1/assets/${logoAssetId}` : null);
         setStatus("ready");
+        setLoaded(true);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Could not load brand.");
         setStatus("error");
       }
-    })();
   }, []);
+  useEffect(() => {
+    // Load the authenticated workspace's saved brand before enabling editing.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadBrand();
+  }, [loadBrand]);
 
   function touch() {
+    setDirty(true);
     setStatus((current) => (current === "saved" ? "ready" : current));
   }
 
@@ -139,6 +151,11 @@ export default function BrandPage() {
   }
 
   async function uploadLogo(file: File) {
+    if (logoBusy) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 8 * 1024 * 1024) {
+      setError("Choose a PNG, JPEG, or WebP image no larger than 8 MB.");
+      return;
+    }
     setLogoBusy(true);
     setError(null);
     const local = URL.createObjectURL(file);
@@ -167,6 +184,8 @@ export default function BrandPage() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    if (status === "saving" || logoBusy || !loaded) return;
+    if (!form.name.trim()) { setError("Enter your product name before saving."); return; }
     for (const key of COLOR_KEYS) {
       if (!normalizeHex(form.colors[key])) {
         setError(`${COLOR_COPY[key].label} needs a hex color like #171717.`);
@@ -223,15 +242,18 @@ export default function BrandPage() {
         },
       }));
       setStatus("saved");
+      setDirty(false);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Could not save.");
       setStatus("error");
     }
   }
 
+  if (status === "error" && !loaded) return <main id="main-content" className="mx-auto w-full max-w-xl px-6 py-12"><h1 className="text-3xl font-medium tracking-tight">Your brand kit didn’t load</h1><p className="mt-3 text-sm text-destructive" role="alert">{error}</p><p className="mt-2 text-sm text-ink-soft">Retry to load your saved settings before editing.</p><Button className="mt-5" onClick={() => void loadBrand()}>Try again</Button></main>;
+
   if (status === "loading") {
     return (
-      <main className="mx-auto w-full max-w-[1200px] px-6 py-12">
+      <main id="main-content" className="mx-auto w-full max-w-[1200px] px-6 py-12">
         <div className="h-10 w-48 animate-pulse rounded-2xl bg-white" />
         <div className="mt-8 grid gap-4 lg:grid-cols-2">
           <div className="h-[640px] animate-pulse rounded-[24px] bg-white" />
@@ -242,28 +264,33 @@ export default function BrandPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[1200px] px-6 py-12">
+    <main id="main-content" className="mx-auto w-full max-w-[1200px] px-6 py-12">
       <PageIntro title="Brand kit">
-        Set the visual signature for your next carousel. Your colors, typography, and logo
-        carry through from the editor to the download.
+        Start with your product and audience. Save once and your agent uses this context for new carousels.
       </PageIntro>
+      <UnsavedChangesGuard dirty={dirty} />
       <Settle>
       <form onSubmit={onSubmit} className="mt-8 grid items-start gap-4 lg:grid-cols-2">
+        <fieldset disabled={status === "saving" || logoBusy} className="contents">
         <section className="rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
-          <h2 className="text-[18px] font-medium tracking-[-0.02em]">Voice</h2>
+          <h2 className="text-[18px] font-medium tracking-[-0.02em]">The essentials</h2>
+          <p className="mt-2 text-sm leading-6 text-ink-soft">Product name is required. A short description and audience help your agent write a useful first draft.</p>
           <div className="mt-6 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Product name</Label>
-              <Input id="name" autoComplete="organization" required {...field("name")} />
+              <Input id="name" autoComplete="organization" required maxLength={120} {...field("name")} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="description">What it is</Label>
-              <Textarea id="description" {...field("description")} />
+              <Textarea id="description" placeholder="What does your product do, and what problem does it solve?" {...field("description")} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="audience">Audience</Label>
-              <Input id="audience" {...field("audience")} />
+              <Input id="audience" placeholder="For example: founders at small software companies" {...field("audience")} />
             </div>
+            <details className="rounded-2xl border border-border p-4">
+              <summary className="min-h-11 cursor-pointer text-sm font-medium">More voice and writing settings</summary>
+              <div className="mt-4 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="positioning">Positioning</Label>
               <Input id="positioning" {...field("positioning")} />
@@ -300,6 +327,8 @@ export default function BrandPage() {
               <Textarea id="guidelines" placeholder="Use short sentences. Lead with the customer problem. Never compare us to named competitors." {...field("guidelines")} />
               <p className="text-[12px] font-light text-ink-faint">These instructions are passed to every generation.</p>
             </div>
+              </div>
+            </details>
           </div>
         </section>
 
@@ -416,16 +445,19 @@ export default function BrandPage() {
             </div>
           </div>
         </section>
+        </fieldset>
 
-        <div className="lg:col-span-2">
+        <div className="sticky bottom-4 z-10 flex flex-wrap items-center gap-4 rounded-[24px] border border-border bg-card p-4 shadow-sm lg:col-span-2">
           {error ? (
-            <p className="mb-3 text-sm text-destructive" role="alert">
+            <p className="w-full text-sm text-destructive" role="alert">
               {error}
             </p>
           ) : null}
           <Button type="submit" disabled={status === "saving" || logoBusy}>
             {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : "Save brand"}
           </Button>
+          <p role="status" className="text-sm text-ink-soft">{dirty ? "Unsaved changes" : status === "saved" ? "Brand kit saved. New carousels will use these settings." : "Changes apply to new carousels. Existing drafts keep their design."}</p>
+          {status === "saved" ? <Link href="/connect" className="inline-flex min-h-11 items-center gap-2 text-sm font-medium">Next: connect your agent <ArrowRight size={16} /></Link> : null}
         </div>
       </form>
       </Settle>

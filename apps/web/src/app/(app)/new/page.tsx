@@ -10,9 +10,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DEFAULT_THEME, getFormat, planFromFormat, renderPlanToCarousel, type Slide, type Theme } from "@swiper/schema";
 import { SlidePreview } from "@/components/editor/slide-frame";
-import { Check, Plus } from "@phosphor-icons/react";
+import { ArrowRight, Check, Plus } from "@phosphor-icons/react";
+
+const EXAMPLE_BRIEFS = [
+  { name: "Explain a problem", brief: "Explain the main problem my product solves for my audience. Start with a specific pain point, share a practical insight, and finish with a clear next step. Use my brand kit." },
+  { name: "Share practical tips", brief: "Share five practical tips my audience can use today, based on my product and brand kit. Keep each tip specific and actionable. End with an invitation to learn more." },
+];
+
+function slideCount(format: FormatOption) {
+  return format.slideCount.min === format.slideCount.max ? `${format.slideCount.min} slides` : `${format.slideCount.min}–${format.slideCount.max} slides`;
+}
 
 type FormatOption = {
   id: string;
@@ -77,6 +87,8 @@ export default function NewCarouselPage() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [usageLimited, setUsageLimited] = useState(false);
+  const [draftKey, setDraftKey] = useState<string | null>(null);
+  const [restored, setRestored] = useState(false);
   const usage = workspaceUsage.data;
   const carouselFull = !!usage && (usage.usage.carousel ?? 0) >= usage.limits.carousel;
   const generationFull = !!usage && (usage.usage.generation ?? 0) >= usage.limits.generation;
@@ -109,6 +121,39 @@ export default function NewCarouselPage() {
     void loadFormats();
   }, [loadFormats]);
 
+  useEffect(() => {
+    let active = true;
+    async function restoreDraft() {
+      try {
+        const response = await fetch("/api/v1/brand");
+        if (!response.ok) return;
+        const body = await response.json() as { brand?: { id?: string } };
+        if (!body.brand?.id || !active) return;
+        const key = `swiper:brief:${body.brand.id}`;
+        const raw = sessionStorage.getItem(key);
+        if (raw) {
+          const saved = JSON.parse(raw) as Record<string, unknown>;
+          if (saved && typeof saved.brief === "string" && typeof saved.title === "string" && typeof saved.referenceUrl === "string") {
+            setBrief(saved.brief); setTitle(saved.title); setReferenceUrl(saved.referenceUrl);
+            if (saved.mode === "generate" || saved.mode === "manual") setMode(saved.mode);
+            if (typeof saved.generateFormatId === "string") setGenerateFormatId(saved.generateFormatId);
+            if (typeof saved.manualFormatId === "string") setManualFormatId(saved.manualFormatId);
+            setRestored(!!(saved.brief || saved.title || saved.referenceUrl));
+          }
+        }
+        setDraftKey(key);
+      } catch { /* Storage is optional; creation still works without it. */ }
+    }
+    void restoreDraft();
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!draftKey) return;
+    try { sessionStorage.setItem(draftKey, JSON.stringify({ brief, title, referenceUrl, mode, generateFormatId, manualFormatId })); }
+    catch { /* Private browsing may disable storage. Keep the in-memory brief usable. */ }
+  }, [draftKey, brief, title, referenceUrl, mode, generateFormatId, manualFormatId]);
+
   const formatId = mode === "generate" ? generateFormatId : manualFormatId;
   const selected = useMemo(() => formats.find((format) => format.id === formatId), [formatId, formats]);
   const startByHand = formats.find((format) => format.id === "freeform");
@@ -140,6 +185,8 @@ export default function NewCarouselPage() {
         throw new Error(usageLimitMessage(body));
       }
       if (!response.ok || !body.carousel_id) throw new Error(body.message ?? "Could not start the carousel.");
+      if (draftKey) { try { sessionStorage.removeItem(draftKey); } catch { /* The server draft is now the source of truth. */ } }
+      setDraftKey(null);
       const referenceUnavailable = body.warnings?.some((warning) => warning.code === "REFERENCE_UNAVAILABLE");
       router.push(`/c/${body.carousel_id}${referenceUnavailable ? "?reference=unavailable" : ""}`);
     } catch (submitError) {
@@ -149,7 +196,7 @@ export default function NewCarouselPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[1100px] px-6 py-12">
+    <main id="main-content" className="mx-auto w-full max-w-[1100px] px-6 py-12">
       <div className="max-w-2xl">
         <p className="font-mono text-xs uppercase tracking-wider text-ink-soft">Create</p>
         <h1 className="mt-3 text-4xl font-light leading-tight tracking-[-0.03em] text-foreground sm:text-5xl">Start a carousel</h1>
@@ -159,11 +206,13 @@ export default function NewCarouselPage() {
       </div>
 
       <MonthlyAllowance workspace={workspaceUsage} />
-      <form onSubmit={onSubmit} className="mt-10">
-        <div className="inline-flex rounded-[14px] border border-black/8 bg-white p-1" aria-label="Creation method">
-          <button type="button" aria-pressed={mode === "generate"} onClick={() => setMode("generate")} className={`min-h-10 rounded-[14px] px-4 text-sm font-medium motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${mode === "generate" ? "bg-black text-white" : "text-ink-soft hover:text-black"}`}>Generate from a brief</button>
-          <button type="button" aria-pressed={mode === "manual"} onClick={() => setMode("manual")} className={`min-h-10 rounded-[14px] px-4 text-sm font-medium motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${mode === "manual" ? "bg-black text-white" : "text-ink-soft hover:text-black"}`}>Start by hand</button>
-        </div>
+      {restored ? <p role="status" className="mt-5 text-sm text-ink-soft">Your unfinished brief was restored in this tab.</p> : null}
+      <form onSubmit={onSubmit} className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <fieldset disabled={pending} className="min-w-0">
+        <legend className="sr-only">Create your carousel</legend>
+        <Tabs value={mode} onValueChange={(value) => setMode(value as "generate" | "manual")}>
+        <TabsList aria-label="Creation method"><TabsTrigger value="generate">Generate from a brief</TabsTrigger><TabsTrigger value="manual">Start by hand</TabsTrigger></TabsList>
+        <TabsContent value={mode}>
 
         {mode === "generate" ? (
           <section className="mt-6 max-w-2xl rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
@@ -177,7 +226,10 @@ export default function NewCarouselPage() {
               minLength={12}
               maxLength={10000}
               required
+              aria-describedby="brief-hint"
             />
+            <p id="brief-hint" className="mt-2 text-sm leading-6 text-ink-soft">Include the topic, audience, and takeaway. {brief.trim().length > 0 && brief.trim().length < 12 ? `${12 - brief.trim().length} more characters needed.` : "At least 12 characters."}</p>
+            <div className="mt-4 flex flex-wrap gap-2"><span className="w-full text-xs text-ink-soft">Need a starting point?</span>{EXAMPLE_BRIEFS.map((example) => <Button key={example.name} type="button" size="sm" variant="outline" onClick={() => setBrief(example.brief)}>{example.name}</Button>)}</div>
             <div className="mt-5">
               <Label htmlFor="reference-url">Reference post URL <span className="font-normal text-ink-faint">(optional)</span></Label>
               <Input
@@ -189,7 +241,7 @@ export default function NewCarouselPage() {
                 className="mt-2"
                 maxLength={2000}
               />
-              <p className="mt-2 text-sm leading-6 text-ink-soft">Swiper adapts structure and pacing only, with original copy and no copied assets. If the post is private or unreadable, we’ll generate from your brief.</p>
+              <p className="mt-2 text-sm leading-6 text-ink-soft">Public HTTPS posts from LinkedIn, X, Threads, or Instagram. Swiper adapts structure and pacing with original copy. If the post is private or unreadable, we’ll generate from your brief.</p>
             </div>
           </section>
         ) : null}
@@ -212,7 +264,7 @@ export default function NewCarouselPage() {
         {loadState === "loading" ? (
           <div className="mt-10" aria-busy="true" aria-label="Loading formats">
             <div className="h-5 w-32 motion-safe:animate-pulse rounded bg-muted" />
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
               {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-44 motion-safe:animate-pulse rounded-[24px] bg-white" />)}
             </div>
           </div>
@@ -269,7 +321,7 @@ export default function NewCarouselPage() {
             <fieldset>
               <legend className="text-xl font-light tracking-[-0.02em]">Your workspace formats</legend>
               {workspaceFormats.length > 0 ? (
-                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   {workspaceFormats.map((format) => (
                     <FormatChoice key={format.id} format={format} checked={format.id === formatId} onChange={() => setManualFormatId(format.id)} />
                   ))}
@@ -285,7 +337,7 @@ export default function NewCarouselPage() {
             <fieldset>
               <legend className="text-xl font-light tracking-[-0.02em]">Story formats</legend>
               <p className="mt-1 text-sm text-ink-soft">Pick the narrative shape Swiper should use for the first draft.</p>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 {officialFormats.map((format) => (
                   <FormatChoice key={format.id} format={format} checked={format.id === formatId} onChange={() => setManualFormatId(format.id)} />
                 ))}
@@ -307,9 +359,18 @@ export default function NewCarouselPage() {
         {loadState === "ready" ? (
           <div className="sticky bottom-4 mt-10 flex flex-wrap items-center gap-4 rounded-[24px] border border-black/8 bg-white p-4">
             <Button type="submit" disabled={pending || allowanceBlocked || !selected || (mode === "generate" && brief.trim().length < 12)} aria-busy={pending}>{pending ? (mode === "generate" ? "Generating…" : "Opening…") : mode === "generate" ? "Generate carousel" : "Open in editor"}</Button>
-            <p className="text-sm text-ink-soft">{selected ? `${selected.name} · ${selected.roles.length} slides` : "Choose a format"}</p>
+            <p role="status" className="text-sm text-ink-soft">{pending ? "We’re creating your editable draft. Keep this page open." : selected ? `${selected.name} · ${slideCount(selected)}` : "Choose a format"}</p>
           </div>
         ) : null}
+        </TabsContent>
+        </Tabs>
+        </fieldset>
+        <aside aria-label="Your next steps" className="rounded-[24px] border border-border bg-card p-6 lg:sticky lg:top-6">
+          <p className="font-mono text-xs uppercase tracking-wider text-ink-soft">Your draft</p>
+          <h2 className="mt-3 text-xl font-medium tracking-tight">{selected?.name ?? "Choose a story shape"}</h2>
+          {selected ? <><p className="mt-2 text-sm text-ink-soft">{slideCount(selected)} · 1080 × 1350</p><ol className="mt-5 space-y-3">{selected.roles.map((role, index) => <li key={index} className="flex items-center gap-3 text-sm capitalize"><span className="grid size-7 shrink-0 place-items-center rounded-lg bg-secondary font-mono text-xs text-ink-soft">{index + 1}</span>{role.replaceAll("-", " ")}</li>)}</ol></> : null}
+          <div className="mt-6 border-t border-border pt-5"><h3 className="text-sm font-medium">What happens next?</h3><p className="mt-2 text-sm leading-6 text-ink-soft">Your draft opens in the editor. Review each slide, edit the copy and layout, then export PNG images or a PDF.</p><p className="mt-3 text-xs leading-5 text-ink-soft">Uses 1 carousel slot{mode === "generate" ? " and 1 AI generation" : "; no AI generation used"}. Nothing is posted automatically.</p><Link href="/brand" className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-medium">Review your brand kit <ArrowRight size={16} /></Link></div>
+        </aside>
       </form>
     </main>
   );

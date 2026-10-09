@@ -9,6 +9,7 @@ import { Mark } from "@/components/mark";
 import { Magnetic } from "@/components/motion/magnetic";
 
 const guestLinks = [
+  { href: "/guide", label: "How it works" },
   { href: "/pricing", label: "Pricing" },
   { href: "/connect", label: "Connect" },
   { href: "/login", label: "Sign in" },
@@ -19,6 +20,7 @@ const memberLinks = [
   { href: "/brand", label: "Brand" },
   { href: "/connect", label: "Connect" },
   { href: "/pricing", label: "Pricing" },
+  { href: "/guide", label: "Guide" },
 ];
 
 const navLinkClass =

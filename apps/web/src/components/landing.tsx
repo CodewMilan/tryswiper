@@ -79,7 +79,7 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
               />
             </h1>
             <FadeUp show={stage >= 1} className="mt-5 max-w-[540px]">
-              <p className="text-[18px] font-light leading-[27px] tracking-[-0.01em] text-[#8f8f8f] sm:text-[20px]">
+              <p className="text-[18px] font-light leading-[27px] tracking-[-0.01em] text-ink-soft sm:text-[20px]">
                 Generate an editable carousel from a brief right here on the web.
                 Or connect Cursor, Claude, or ChatGPT. Your brand kit guides every draft.
               </p>
@@ -92,7 +92,7 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
                 </Link>
               </Magnetic>
               <p className="mt-3 text-[13px] font-light tracking-[-0.01em] text-ink-soft">
-                {signedIn ? "Your brand kit is ready for the next draft" : "Free to start • No card required"}
+                {signedIn ? "Your saved brand kit guides new drafts" : "Free to start • No card required"}
               </p>
             </FadeUp>
           </div>
@@ -156,7 +156,7 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
               eyebrowClass="bg-[#f8d4e4] text-pink"
               title="Start from a structure that already works"
               body="Problem, list, before and after, myth. Swiper adapts the format to your brief and brand."
-              href="/#formats"
+              href={signedIn ? "/new" : "/signup?next=/new"}
             >
               <FormatMock />
             </FeatureCard>

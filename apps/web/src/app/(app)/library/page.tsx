@@ -78,7 +78,7 @@ export default function LibraryPage() {
   }, [load]);
 
   return (
-    <main className="mx-auto w-full max-w-[1100px] px-6 py-12">
+    <main id="main-content" className="mx-auto w-full max-w-[1100px] px-6 py-12">
       <div className="flex flex-wrap items-end justify-between gap-5">
         <PageIntro title="Your carousels">
           Start from a brief, return to a draft, or polish something your agent created.

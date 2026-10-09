@@ -5,6 +5,7 @@ const columns = [
   {
     title: "Product",
     links: [
+      { href: "/guide", label: "How to use Swiper" },
       { href: "/#editor", label: "Editor" },
       { href: "/#formats", label: "Formats" },
       { href: "/#brand", label: "Brand kit" },

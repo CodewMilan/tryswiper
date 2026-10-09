@@ -489,10 +489,10 @@ export async function generateSlide(
 export async function validateExisting(authContext: AuthContext, id: string) {
   const current = await getCarousel(authContext, id);
   const brand = await getWorkspaceBrand(authContext.workspaceId);
-  return validateCarousel(current.contentJson as Carousel, {
+  return { version: current.version, ...validateCarousel(current.contentJson as Carousel, {
     forbiddenWords: brand?.wordsToAvoid,
     allowedProof: brand?.proofPoints,
-  });
+  }) };
 }
 
 export { renderPlanToCarousel };

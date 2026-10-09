@@ -31,6 +31,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col font-sans">
+        <a href="#main-content" className="sr-only fixed left-4 top-4 z-[60] rounded-xl bg-card px-4 py-3 text-sm font-medium shadow-lg focus:not-sr-only focus:ring-2 focus:ring-ring">Skip to content</a>
         {process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? (
           <ClerkProvider
             signInUrl="/login"

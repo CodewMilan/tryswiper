@@ -7,8 +7,8 @@ import { Mark } from "@/components/mark";
 
 const links = [
   { href: "/library", label: "Library" },
-  { href: "/new", label: "New" },
-  { href: "/brand", label: "Brand" },
+  { href: "/new", label: "Create" },
+  { href: "/brand", label: "Brand kit" },
   { href: "/connect", label: "Connect" },
 ];
 
@@ -43,7 +43,7 @@ export function WorkspaceNav() {
               </Link>
             );
           })}
-          <AccountMenu links={[{ href: "/pricing", label: "Pricing" }]} fallbackClassName={`${base} text-white/90`} />
+          <AccountMenu links={[{ href: "/guide", label: "How to use Swiper" }, { href: "/pricing", label: "Pricing" }]} fallbackClassName={`${base} text-white/90`} />
         </nav>
       </div>
     </header>

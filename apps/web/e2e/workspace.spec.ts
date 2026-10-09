@@ -56,7 +56,7 @@ test("brand visuals, manual creation, editor gestures, format reuse, and downloa
   await expect(page.locator("#font-heading")).toHaveValue("Lora");
   await expect(page.locator("#color-background")).toHaveValue("#F3EEE5");
   await page.goto("/new");
-  await page.getByRole("button", { name: "Start by hand" }).click();
+  await page.getByRole("tab", { name: "Start by hand" }).click();
   await page.getByLabel("Carousel title", { exact: true }).fill("A better way to tell your story");
   await page.getByRole("button", { name: "Open in editor" }).click();
   await expect(page.getByTestId("slide-canvas")).toBeVisible();
@@ -105,7 +105,7 @@ test("brand visuals, manual creation, editor gestures, format reuse, and downloa
   await expect(page.getByText("“Launch story” is ready in your workspace formats.")).toBeVisible();
   const source = await state(request, id);
   await page.goto("/new");
-  await page.getByRole("button", { name: "Start by hand" }).click();
+  await page.getByRole("tab", { name: "Start by hand" }).click();
   await page.getByText("Launch story", { exact: true }).click();
   await expect(page.getByRole("radio", { name: /Launch story/ })).toBeChecked();
   await page.getByRole("button", { name: "Open in editor" }).click();
@@ -215,9 +215,9 @@ test("landing copy and generate mode follow the web creation path", async ({ pag
   await expect(page.getByText("Your workspace formats", { exact: true })).toHaveCount(0);
   await expect(page.locator("#story-shape option[value=freeform]")).toHaveCount(0);
   await page.getByLabel("Story shape", { exact: true }).selectOption("before-after");
-  await page.getByRole("button", { name: "Start by hand", exact: true }).click();
+  await page.getByRole("tab", { name: "Start by hand", exact: true }).click();
   await expect(page.getByRole("radio", { name: /Start by hand/ })).toBeChecked();
-  await page.getByRole("button", { name: "Generate from a brief", exact: true }).click();
+  await page.getByRole("tab", { name: "Generate from a brief", exact: true }).click();
   await expect(page.getByLabel("Story shape", { exact: true })).toHaveValue("before-after");
   await expect(page.getByText("Blank canvas", { exact: true })).toHaveCount(0);
 });
@@ -301,6 +301,7 @@ test("Connect keeps one-time-secret setup templates after refresh", async ({ pag
   await page.getByRole("button", { name: "Mint API key", exact: true }).click();
   const { key } = await (await minted).json() as { key: string };
   await expect(page.getByLabel("New key", { exact: true })).toHaveValue(key);
+  await page.getByRole("tab", { name: "ChatGPT", exact: true }).click();
   const chatgpt = page.locator("section").filter({ has: page.getByRole("heading", { name: "ChatGPT", exact: true }) });
   await expect(chatgpt).toContainText("Keep this URL private: the ?key= value is your secret.");
   await chatgpt.getByRole("button", { name: "Copy ChatGPT URL", exact: true }).click();
@@ -312,6 +313,7 @@ test("Connect keeps one-time-secret setup templates after refresh", async ({ pag
   await expect(page.getByText(/its secret was shown only once/)).toBeVisible();
   await expect(page.getByLabel("New key", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Add to Cursor", exact: true })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Cursor", exact: true }).click();
   const cursor = page.locator("section").filter({ has: page.getByRole("heading", { name: "Cursor", exact: true }) });
   await expect(cursor.locator("pre")).toContainText("http://localhost:3101/mcp");
   await expect(cursor.locator("pre")).toContainText("Authorization");
@@ -320,6 +322,7 @@ test("Connect keeps one-time-secret setup templates after refresh", async ({ pag
   await cursor.getByRole("button", { name: "Copy Cursor template", exact: true }).click();
   const template = JSON.parse(await page.evaluate(() => navigator.clipboard.readText())) as { mcpServers: { swiper: { headers: { Authorization: string } } } };
   expect(template.mcpServers.swiper.headers.Authorization).toBe("Bearer YOUR_SAVED_KEY");
+  await page.getByRole("tab", { name: "ChatGPT", exact: true }).click();
   for (const width of [375, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await expect(chatgpt.getByRole("button", { name: "Copy ChatGPT URL template", exact: true })).toBeVisible();
@@ -328,8 +331,10 @@ test("Connect keeps one-time-secret setup templates after refresh", async ({ pag
   await page.getByRole("button", { name: "Mint a new key", exact: true }).click();
   await expect(page.getByLabel("New key", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Revoke", exact: true }).last().click();
+  await page.getByRole("button", { name: "Revoke key", exact: true }).click();
   await expect(page.getByRole("button", { name: "Revoke", exact: true })).toHaveCount(1);
   await page.getByRole("button", { name: "Revoke", exact: true }).click();
+  await page.getByRole("button", { name: "Revoke key", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Mint a key to connect your agent" })).toBeVisible();
 });
 
@@ -377,13 +382,13 @@ test("monthly allowances guide creation and usage errors preserve the brief", as
   await page.getByLabel("What should this carousel say?").fill(brief);
   await expect(page.getByRole("button", { name: "Generate carousel", exact: true })).toBeDisabled();
   await expect(page.getByText(/Start by hand without an AI generation/)).toBeVisible();
-  await page.getByRole("button", { name: "Start by hand", exact: true }).click();
+  await page.getByRole("tab", { name: "Start by hand", exact: true }).click();
   await expect(page.getByRole("button", { name: "Open in editor", exact: true })).toBeEnabled();
 
   usage = { carousel: 5, generation: 0 };
   await page.reload();
   await expect(page.getByText(/Delete a carousel created this month to free a slot/)).toBeVisible();
-  await page.getByRole("button", { name: "Start by hand", exact: true }).click();
+  await page.getByRole("tab", { name: "Start by hand", exact: true }).click();
   await expect(page.getByRole("button", { name: "Open in editor", exact: true })).toBeDisabled();
 
   usage = { carousel: 0, generation: 0 };
@@ -413,7 +418,7 @@ test("404 recovery links respect guest and signed-in sessions", async ({ page })
 test("new carousel cards and editor overflow match the light workspace", async ({ page }, testInfo) => {
   await signUp(page.request);
   await page.goto("/new");
-  await page.getByRole("button", { name: "Start by hand", exact: true }).click();
+  await page.getByRole("tab", { name: "Start by hand", exact: true }).click();
   const cards = page.locator("label:has(input[name=format])");
   await expect(cards.first()).toBeVisible();
   for (const width of [375, 768, 1280]) {

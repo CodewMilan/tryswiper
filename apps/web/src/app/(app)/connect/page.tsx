@@ -130,7 +130,7 @@ export default function ConnectPage() {
   const activeKeys = keys.filter((key) => !key.revokedAt);
 
   return (
-    <main className="mx-auto w-full max-w-[800px] px-6 py-12">
+    <main id="main-content" className="mx-auto w-full max-w-[800px] px-6 py-12">
       <PageIntro title="Connect an agent">
         Create a private key, choose your AI client, and ask for your first post. Your carousels stay in the{" "}
         <Link href="/library" className="text-black underline decoration-black/20 underline-offset-4 motion-safe:transition-colors motion-safe:duration-150 hover:text-accent hover:decoration-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">library</Link>.

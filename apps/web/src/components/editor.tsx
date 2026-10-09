@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowLeft, ArrowUUpLeft, DownloadSimple, ImageSquare, TextT, Plus, Copy, Trash, CaretLeft, CaretRight, CheckCircle, CircleNotch, Minus, CornersOut } from "@phosphor-icons/react";
-import { getFormat, planFromFormat, renderPlanToCarousel, type CarouselElement } from "@swiper/schema";
+import { getFormat, planFromFormat, renderPlanToCarousel, type CarouselElement, type ValidationResult } from "@swiper/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +37,10 @@ export function Editor({ carouselId, initialNotice }: { carouselId: string; init
   const [formatSaving, setFormatSaving] = useState(false);
   const [formatError, setFormatError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(initialNotice ?? null);
+  const [formatNotice, setFormatNotice] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(null);
+  const [quality, setQuality] = useState<{ version: number; result: ValidationResult } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [availableWidth, setAvailableWidth] = useState(520);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -122,6 +126,18 @@ export function Editor({ carouselId, initialNotice }: { carouselId: string; init
     const link = document.createElement("a"); link.href = url; link.download = "recovered-carousel.json"; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  async function checkCarousel() {
+    if (checking) return;
+    setChecking(true); setCheckError(null);
+    try {
+      if (!(await settle())) throw new Error("Save your latest changes before checking the carousel.");
+      const response = await fetch(`/api/v1/carousels/${carouselId}/validate`, { method: "POST" });
+      const body = await response.json() as ValidationResult & { version: number; message?: string };
+      if (!response.ok) throw new Error(body.message ?? "Could not check this carousel. Try again.");
+      setQuality({ version: body.version, result: body });
+    } catch (error) { setCheckError(error instanceof Error ? error.message : "Could not check this carousel."); }
+    finally { setChecking(false); }
+  }
   async function download(format: "png" | "jpg" | "pdf") {
     setExporting(format);
     setSaveError(null);
@@ -146,6 +162,8 @@ export function Editor({ carouselId, initialNotice }: { carouselId: string; init
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       setNotice(`${format.toUpperCase()} export downloaded.`);
+      setFormatNotice(false);
+      void workspaceUsage.refresh();
       setExportOpen(false);
     } catch (error) { setSaveError(error instanceof Error ? error.message : "Export failed."); }
     finally { setExporting(null); }
@@ -170,6 +188,7 @@ export function Editor({ carouselId, initialNotice }: { carouselId: string; init
       }
       if (!response.ok) throw new Error(body.message ?? "Could not prepare files. Please try again.");
       setNotice("Files ready to download. Swiper does not post to your social accounts.");
+      setFormatNotice(false);
       setPublishOpen(false);
       setExportOpen(true);
     } catch (error) {
@@ -191,6 +210,7 @@ export function Editor({ carouselId, initialNotice }: { carouselId: string; init
       const body = await response.json() as { message?: string };
       if (!response.ok) throw new Error(body.message ?? "Could not save format.");
       setNotice(`“${formatName.trim()}” is ready in your workspace formats.`);
+      setFormatNotice(true);
       setFormatOpen(false);
     } catch (error) { setFormatError(error instanceof Error ? error.message : "Could not save format."); }
     finally { setFormatSaving(false); }
@@ -200,7 +220,7 @@ export function Editor({ carouselId, initialNotice }: { carouselId: string; init
   if (loadError || !doc || !meta) return <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 p-6"><h1 className="text-2xl font-medium">Couldn’t open this carousel</h1><p role="alert">{loadError ?? "Carousel missing."}</p><Button onClick={reload}>Try again</Button><Link href="/library" className="text-sm underline">Back to your library</Link></main>;
 
   return (
-    <main className="editor-shell">
+    <main id="main-content" className="editor-shell">
       <header className="editor-header">
         <Link href="/library" aria-label="Back to library" className="flex min-h-10 min-w-10 shrink-0 items-center justify-center gap-2 rounded-[14px] focus-visible:ring-2 focus-visible:ring-ring"><ArrowLeft size={18} aria-hidden /><span className="hidden sm:inline-flex"><Mark /></span></Link>
         <div className="min-w-0 flex-1">
@@ -220,7 +240,7 @@ export function Editor({ carouselId, initialNotice }: { carouselId: string; init
         <span className="flex-1 text-destructive">{saveError}</span>
         {usageLimited ? <Link href="/pricing" className="inline-flex min-h-10 items-center rounded-[14px] px-3 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">View plans and limits</Link> : conflict ? <><Button variant="outline" onClick={downloadLocal}>Download local draft</Button><Button variant="outline" onClick={discardLocal}>Load latest version</Button></> : <Button variant="outline" onClick={() => void retry()}>Retry save</Button>}
       </div> : null}
-      {notice ? <div className="flex flex-wrap items-center justify-center gap-3 border-b border-border bg-card px-4 py-2 text-sm" role="status"><span>{notice}</span><Link href="/new" className="underline underline-offset-4">Your formats</Link><button onClick={() => setNotice(null)} className="min-h-8 px-2 text-ink-soft">Dismiss</button></div> : null}
+      {notice ? <div className="flex flex-wrap items-center justify-center gap-3 border-b border-border bg-card px-4 py-2 text-sm" role="status"><span>{notice}</span>{formatNotice ? <Link href="/new" className="underline underline-offset-4">Your formats</Link> : null}<button onClick={() => setNotice(null)} className="min-h-11 px-2 text-ink-soft">Dismiss</button></div> : null}
 
       <div className="editor-workspace">
         <aside className="editor-slides" aria-label="Slide navigator">
@@ -275,9 +295,19 @@ export function Editor({ carouselId, initialNotice }: { carouselId: string; init
       </Dialog>
       <Dialog open={exportOpen} onOpenChange={(open) => { if (!exporting) setExportOpen(open); }} title="Ready to share" description={`Export all ${doc.slides.length} slides at full resolution. Your latest edits are saved before downloading.`}>
         <div className="space-y-3">
+          <section aria-label="Review before export" className="mb-5 rounded-2xl bg-secondary p-4">
+            <h3 className="text-sm font-medium">Give it one last read</h3><p className="mt-2 text-sm leading-6 text-ink-soft">Check the hook, verify your facts, and read the last slide’s call to action. Automated checks can help find copy and layout issues.</p>
+            <Button variant="outline" className="mt-3" disabled={checking || !!exporting} onClick={() => void checkCarousel()}>{checking ? "Checking…" : "Check carousel"}</Button>
+            {checkError ? <p role="alert" className="mt-3 text-sm text-destructive">{checkError}</p> : null}
+            {quality && quality.version === meta.version && saveState !== "saving" ? <div className="mt-3" role="status">
+              <p className="text-sm font-medium">{quality.result.errors.length + quality.result.warnings.length === 0 ? "Automated checks passed. Review your facts before sharing." : `${quality.result.errors.length} issues and ${quality.result.warnings.length} suggestions to review.`}</p>
+              <ul className="mt-2 space-y-3">{[...quality.result.errors, ...quality.result.warnings].map((issue, issueIndex) => <li key={`${issue.code}-${issueIndex}`} className="text-sm leading-6 text-ink-soft"><p>{issue.message}</p>{issue.slideIndex !== undefined ? <button className="min-h-11 font-medium text-foreground underline underline-offset-4" onClick={() => { selectSlide(issue.slideIndex!); setExportOpen(false); }}>Edit slide {issue.slideIndex + 1}</button> : null}</li>)}</ul>
+            </div> : null}
+          </section>
           <button className="export-option" disabled={!!exporting} onClick={() => void download("png")}><ImageSquare size={28} /><span className="flex-1"><strong className="block text-sm font-medium">PNG images</strong><span className="mt-1 block text-xs text-ink-soft">1080 × 1350 · One image per slide · ZIP</span></span>{exporting === "png" ? <CircleNotch className="motion-safe:animate-spin" size={20} /> : <DownloadSimple size={20} />}</button>
-          <button className="export-option" disabled={!!exporting} onClick={() => void download("jpg")}><ImageSquare size={28} /><span className="flex-1"><strong className="block text-sm font-medium">JPG images · Pro</strong><span className="mt-1 block text-xs text-ink-soft">Smaller files · One image per slide · ZIP</span></span>{exporting === "jpg" ? <CircleNotch className="motion-safe:animate-spin" size={20} /> : <DownloadSimple size={20} />}</button>
+          {workspaceUsage.data?.limits.jpg ? <button className="export-option" disabled={!!exporting} onClick={() => void download("jpg")}><ImageSquare size={28} /><span className="flex-1"><strong className="block text-sm font-medium">JPG images · Pro</strong><span className="mt-1 block text-xs text-ink-soft">Smaller files · One image per slide · ZIP</span></span>{exporting === "jpg" ? <CircleNotch className="motion-safe:animate-spin" size={20} /> : <DownloadSimple size={20} />}</button> : workspaceUsage.loading ? <p role="status" className="p-3 text-sm text-ink-soft">Checking JPG availability…</p> : workspaceUsage.error ? <Button variant="outline" onClick={() => void workspaceUsage.refresh()}>Retry plan check</Button> : <Link href="/pricing" className="export-option"><ImageSquare size={28} /><span><strong className="block text-sm font-medium">Upgrade for JPG images</strong><span className="mt-1 block text-xs text-ink-soft">Included with Pro · PNG and PDF are available on Free</span></span></Link>}
           <button className="export-option" disabled={!!exporting} onClick={() => void download("pdf")}><Copy size={28} /><span className="flex-1"><strong className="block text-sm font-medium">PDF document</strong><span className="mt-1 block text-xs text-ink-soft">One page per slide · Ready for LinkedIn</span></span>{exporting === "pdf" ? <CircleNotch className="motion-safe:animate-spin" size={20} /> : <DownloadSimple size={20} />}</button>
+          <p className="text-xs leading-5 text-ink-soft">Unzip image downloads and upload slides in numbered order. Upload the PDF as a document post on LinkedIn. Swiper does not post to social accounts.</p>
           {saveError ? <div role="alert" className="text-sm"><p className="text-destructive">{saveError}</p>{usageLimited ? <Link href="/pricing" className="inline-flex min-h-10 items-center rounded-[14px] px-3 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">View plans and limits</Link> : null}</div> : null}
         </div>
       </Dialog>

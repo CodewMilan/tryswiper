@@ -34,7 +34,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   return (
     <div className="hero-grid min-h-full">
       <SiteNav initialMode="guest" hideSignIn hideStartForFree />
-      <div className="mx-auto flex min-h-full w-full max-w-[440px] flex-col justify-center px-4 pb-16 pt-28">
+      <main id="main-content" className="mx-auto flex min-h-full w-full max-w-[440px] flex-col justify-center px-4 pb-16 pt-28">
         <FadeUp show={ready}>
           <div className="rounded-[24px] border border-black/8 bg-white px-6 py-8 sm:px-8">
             <h1 className="text-[32px] font-light leading-tight tracking-[-0.03em] text-black">
@@ -54,7 +54,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
                 <ProviderButtons
                   onClick={() =>
                     setConfigError(
-                      "Add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY to apps/web/.env.local, then fully restart the Next.js server.",
+                      "Sign-in is temporarily unavailable. Please try again later.",
                     )
                   }
                 />
@@ -90,7 +90,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             </p>
           </div>
         </FadeUp>
-      </div>
+      </main>
     </div>
   );
 }
@@ -127,17 +127,16 @@ function SocialSignIn({ destination }: { destination: string }) {
   }, [destination, isLoaded, isSignedIn, router]);
 
   async function start(strategy: (typeof providers)[number]["strategy"]) {
+    if (pending || !isLoaded) return;
     setPending(strategy);
     setError(null);
-    sessionStorage.setItem("swiper-next", destination);
-    const { error: signInError } = await signIn.sso({
-      strategy,
-      redirectUrl: destination,
-      redirectCallbackUrl: "/sso-callback",
-    });
-    if (signInError) {
+    try {
+      try { sessionStorage.setItem("swiper-next", destination); } catch { /* The provider also carries the redirect destination. */ }
+      const { error: signInError } = await signIn.sso({ strategy, redirectUrl: destination, redirectCallbackUrl: "/sso-callback" });
+      if (signInError) throw new Error(signInError.longMessage || signInError.message || "Could not sign in. Try again.");
+    } catch (signInError) {
       setPending(null);
-      setError(signInError.longMessage || signInError.message || "Could not sign in.");
+      setError(signInError instanceof Error ? signInError.message : "Could not sign in. Try again.");
     }
   }
 

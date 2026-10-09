@@ -16,9 +16,9 @@ export default async function PricingPage() {
   return (
     <div className="min-h-full bg-background">
       <SiteNav initialMode={session ? "member" : "guest"} />
-      <main className="hero-grid">
+      <main id="main-content" className="hero-grid">
         <Suspense fallback={<div className="mx-auto min-h-[50vh] max-w-[1200px] px-6 py-16" />}>
-          <PricingPlans priceLabel={proPriceLabel()} />
+          <PricingPlans priceLabel={proPriceLabel()} initialSignedIn={Boolean(session)} />
         </Suspense>
       </main>
       <SiteFooter signedIn={Boolean(session)} />

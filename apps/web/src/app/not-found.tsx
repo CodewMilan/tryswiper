@@ -10,7 +10,7 @@ export default async function NotFound() {
   return (
     <div className="hero-grid flex min-h-full flex-col">
       <SiteNav initialMode={session ? "member" : "guest"} />
-      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-6 pb-20 pt-32 text-center">
+      <main id="main-content" className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-6 pb-20 pt-32 text-center">
         <Mark />
         <p className="mt-8 font-mono text-xs uppercase tracking-[0.16em] text-accent">404 · Page not found</p>
         <h1 className="mt-4 text-4xl font-light tracking-[-0.04em] text-black sm:text-5xl">This page is not in the deck.</h1>
