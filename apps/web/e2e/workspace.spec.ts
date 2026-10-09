@@ -1,7 +1,9 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 import { createCanvas } from "@napi-rs/canvas";
 import type { Carousel } from "@swiper/schema";
-import { planLocally } from "@swiper/ai";
+import { execFile } from "node:child_process";
+import { resolve } from "node:path";
+import { promisify } from "node:util";
 import postgres from "postgres";
 import { cleanupTestUsers, testDatabaseUrl } from "./test-data";
 import { referenceContext } from "../src/server/reference-post";
@@ -801,50 +803,18 @@ test("MCP generation carries the same local and thin-brand signals into the edit
 test("AI credits follow model success for both drafts and slide revisions", async ({ page }) => {
   const userId = await signUp(page.request);
   const sql = postgres(testDatabaseUrl, { max: 1, prepare: false });
-  const previous = {
-    database: process.env.DATABASE_URL, anthropic: process.env.ANTHROPIC_API_KEY,
-    openai: process.env.OPENAI_API_KEY, fetch: globalThis.fetch,
-  };
   try {
     const [workspace] = await sql<{ id: string }[]>`select id from workspace where owner_id = ${userId}`;
-    const auth = { userId, workspaceId: workspace!.id, source: "api_key" as const };
-    process.env.DATABASE_URL = testDatabaseUrl;
-    process.env.ANTHROPIC_API_KEY = "";
-    process.env.OPENAI_API_KEY = "sk_test_mock_only";
-    // Exercise the real persistence and usage code while keeping provider requests local.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Select the isolated database before loading the server module.
-    const { generateCarousel, generateSlide }: typeof import("../src/server/carousels") = require("../src/server/carousels");
-    const usage = async () => (await (await page.request.get("/api/v1/billing")).json()).usage.generation ?? 0;
-    globalThis.fetch = async () => Response.json({ error: { message: "Invalid test key", type: "invalid_request_error", code: "invalid_api_key" } }, { status: 401 });
-    const local = await generateCarousel({ auth, brief: "Explain why founders should write specific product stories from customer conversations." });
-    expect(local.source).toBe("local");
-    expect(await usage()).toBe(0);
-    const revision = await generateSlide(auth, local.carousel_id, local.carousel.slides[0]!.id, "Make Customer stories make product copy specific");
-    expect(revision.source).toBe("local");
-    expect(revision.warnings.map((warning) => warning.code)).toContain("LOCAL_GENERATION");
-    expect((await state(page.request, local.carousel_id)).carousel.metadata.generationSource).toBe("local");
-    expect(await usage()).toBe(0);
-
-    const modelPlan = planLocally({ brief: "Explain why founders should write specific product stories.", brand: { name: "Fieldnotes" } });
-    globalThis.fetch = async () => Response.json({
-      id: "resp-test", object: "response", created_at: 1, model: "gpt-4.1", status: "completed",
-      output: [{ id: "msg-test", type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: JSON.stringify(modelPlan), annotations: [] }] }],
-      usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
-    });
-    const model = await generateCarousel({ auth, brief: "Explain why founders should write specific product stories." });
-    expect(model.source).toBe("model");
-    expect(await usage()).toBe(1);
-    const revised = await generateSlide(auth, model.carousel_id, model.carousel.slides[0]!.id, "Shorten the headline");
-    expect(revised.source).toBe("model");
-    expect(await usage()).toBe(2);
+    // A Node ESM process preserves the renderer's import.meta while mocking only provider calls.
+    await promisify(execFile)(process.execPath, [
+      "--import", require.resolve("tsx", { paths: [resolve(__dirname, "../../mcp")] }),
+      resolve(__dirname, "model-usage.fixture.mts"), userId, workspace!.id,
+    ], { env: {
+      ...process.env, DATABASE_URL: testDatabaseUrl, ANTHROPIC_API_KEY: "", OPENAI_API_KEY: "sk_test_mock_only",
+      TSX_TSCONFIG_PATH: resolve(__dirname, "../tsconfig.json"),
+    } });
+    expect((await (await page.request.get("/api/v1/billing")).json()).usage.generation).toBe(2);
   } finally {
-    globalThis.fetch = previous.fetch;
-    for (const [name, value] of [
-      ["DATABASE_URL", previous.database], ["ANTHROPIC_API_KEY", previous.anthropic], ["OPENAI_API_KEY", previous.openai],
-    ]) {
-      if (value === undefined) delete process.env[name!];
-      else process.env[name!] = value;
-    }
     await sql.end();
   }
 });
