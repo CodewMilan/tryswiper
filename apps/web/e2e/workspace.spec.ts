@@ -681,3 +681,80 @@ test("authentication recovery preserves a safe destination when the provider is 
   await page.reload();
   await expect(page.getByRole("link", { name: "Return to sign in", exact: true })).toHaveAttribute("href", "/login?next=%2Flibrary");
 });
+
+test("generation notices appear once, dismiss, and survive saved edits without URL signals", async ({ page }) => {
+  await signUp(page.request);
+  await page.goto("/new");
+  await expect(page.getByText("Your brand kit is incomplete", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Add brand details", exact: true })).toHaveAttribute("href", "/brand");
+  await page.getByLabel("What should this carousel say?", { exact: true }).fill("Explain why a founder should review every line before sharing a customer story.");
+  await page.getByRole("button", { name: "Generate carousel", exact: true }).click();
+  await expect(page.getByTestId("slide-canvas")).toBeVisible();
+  const url = new URL(page.url());
+  expect(url.searchParams.get("generation")).toBe("local");
+  expect(url.searchParams.get("brand")).toBe("thin");
+  for (const message of [LOCAL_GENERATION_NOTICE, THIN_BRAND_NOTICE]) {
+    await expect(page.getByText(message, { exact: true })).toHaveCount(1);
+  }
+  await expect(page.getByRole("link", { name: "Open brand kit", exact: true })).toHaveAttribute("href", "/brand");
+  await page.getByRole("button", { name: "Dismiss", exact: true }).click();
+  await expect(page.getByText(LOCAL_GENERATION_NOTICE, { exact: true })).toHaveCount(0);
+  await expect(page.getByText(THIN_BRAND_NOTICE, { exact: true })).toHaveCount(0);
+  await page.getByTestId("slide-canvas").getByRole("button", { name: "headline element", exact: true }).click();
+  await page.locator("#element-text").fill("Review the story before sharing it");
+  await saved(page);
+  await expect(page.getByText(LOCAL_GENERATION_NOTICE, { exact: true })).toHaveCount(0);
+  await page.goto(url.pathname);
+  await expect(page.getByText(LOCAL_GENERATION_NOTICE, { exact: true })).toHaveCount(1);
+  await expect(page.getByText(THIN_BRAND_NOTICE, { exact: true })).toHaveCount(1);
+  const draft = await state(page.request, url.pathname.split("/").at(-1)!);
+  expect(draft.carousel.metadata.generationSource).toBe("local");
+  expect(draft.carousel.metadata.thinBrand).toBe(true);
+  expect((await (await page.request.get("/api/v1/billing")).json()).usage.generation ?? 0).toBe(0);
+});
+
+test("complete brand context clears the warning and local slide revision stays free", async ({ page }) => {
+  await signUp(page.request);
+  const brand = await page.request.patch("/api/v1/brand", { data: {
+    description: "A writing tool that turns customer conversations into product stories.",
+    audience: "Founders at small software teams",
+  } });
+  expect(brand.ok()).toBeTruthy();
+  await page.goto("/new");
+  await expect(page.getByLabel("Story shape", { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => Object.keys(sessionStorage).some((key) => key.startsWith("swiper:brief:")))).toBeTruthy();
+  await expect(page.getByText("Your brand kit is incomplete", { exact: true })).toHaveCount(0);
+  const generated = await page.request.post("/api/v1/carousels/generate", { data: { brief: "Explain how customer stories help founders write specific product copy." } });
+  expect(generated.status()).toBe(201);
+  const draft = await generated.json() as { carousel_id: string; carousel: Carousel; warnings: { code: string }[] };
+  expect(draft.warnings.some((warning) => warning.code === "THIN_BRAND")).toBe(false);
+  expect(draft.carousel.metadata.thinBrand).toBeUndefined();
+  const revised = await page.request.post(`/api/v1/carousels/${draft.carousel_id}/slides/${draft.carousel.slides[0]!.id}/regenerate`, {
+    data: { instruction: "Make Customer stories help founders write specific copy" },
+  });
+  expect(revised.ok()).toBeTruthy();
+  const result = await revised.json() as { source: string; editor_url: string; carousel: Carousel; warnings: { code: string }[] };
+  expect(result.source).toBe("local");
+  expect(result.warnings).toEqual([{ code: "LOCAL_GENERATION", message: LOCAL_GENERATION_NOTICE }]);
+  expect(new URL(result.editor_url).searchParams.get("generation")).toBe("local");
+  expect(result.carousel.metadata.generationSource).toBe("local");
+  expect(result.carousel.slides[0]!.elements.find((element) => element.role === "headline")?.text).toBe("Customer stories help founders write specific copy");
+  const billing = await (await page.request.get("/api/v1/billing")).json();
+  expect(billing.usage.generation ?? 0).toBe(0);
+});
+
+test("marketing logos follow the session and signed-in navigation shows Pricing once", async ({ page }) => {
+  for (const path of ["/", "/pricing", "/this-page-does-not-exist"]) {
+    await page.goto(path);
+    await expect(page.locator("header").getByRole("link", { name: "Swiper home", exact: true })).toHaveAttribute("href", "/");
+  }
+  await signUp(page.request);
+  for (const path of ["/", "/pricing", "/this-page-does-not-exist"]) {
+    await page.goto(path);
+    const header = page.locator("header");
+    await expect(header.getByRole("link", { name: "Swiper library", exact: true })).toHaveAttribute("href", "/library");
+    await expect(header.getByRole("link", { name: "Pricing", exact: true })).toHaveCount(1);
+    await header.getByRole("link", { name: "Swiper library", exact: true }).click();
+    await expect(page).toHaveURL(/\/library$/);
+  }
+});

@@ -76,7 +76,7 @@ export async function reviseSlidePlan(input: {
 }): Promise<{ plan: CarouselPlan; source: "model" | "local" }> {
   const current = input.plan.slides[input.slideIndex];
   if (!current) return { plan: input.plan, source: "local" };
-  function fallback(): CarouselPlan {
+  const fallback = (): CarouselPlan => {
     const lower = input.instruction.toLowerCase();
     const slides = [...input.plan.slides];
     if (/\bshort(er|en)?\b/.test(lower)) {
@@ -98,7 +98,7 @@ export async function reviseSlidePlan(input: {
       };
     }
     return { ...input.plan, slides };
-  }
+  };
 
   try {
     const loaded = await model();

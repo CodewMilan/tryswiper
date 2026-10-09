@@ -19,6 +19,8 @@ export default defineConfig({
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_Y2xlcmsuZXhhbXBsZS5jb20k",
       CLERK_SECRET_KEY: "sk_test_ciplaceholder",
       SWIPER_E2E: "1",
+      ANTHROPIC_API_KEY: "",
+      OPENAI_API_KEY: "",
     },
   },
 });
