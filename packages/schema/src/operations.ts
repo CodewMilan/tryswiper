@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { arrangeSlide } from "./layout";
 import {
   carouselSchema,
   elementSchema,
@@ -37,10 +38,7 @@ export const carouselOperationSchema = z.discriminatedUnion("op", [
   z.object({
     op: z.literal("set_background"),
     slideId: z.string(),
-    background: z.object({
-      type: z.enum(["solid", "gradient", "image"]),
-      value: z.string(),
-    }),
+    background: slideSchema.shape.background,
   }),
   z.object({
     op: z.literal("set_layout"),
@@ -156,7 +154,7 @@ export function applyOperations(
       );
     } else if (operation.op === "set_layout") {
       next.slides = next.slides.map((slide) =>
-        slide.id === operation.slideId ? { ...slide, layout: operation.layout } : slide,
+        slide.id === operation.slideId ? arrangeSlide(slide, operation.layout) : slide,
       );
     } else if (operation.op === "update_cta") {
       next.slides = next.slides.map((slide) => ({

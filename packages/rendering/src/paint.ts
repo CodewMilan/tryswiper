@@ -1,9 +1,34 @@
-import { CANVAS_HEIGHT, CANVAS_WIDTH, type Carousel, type Slide, type Theme } from "@swiper/schema";
+import { CANVAS_HEIGHT, CANVAS_WIDTH, type Carousel, type Issue, type Slide, type Theme } from "@swiper/schema";
 import { createCanvas, loadImage, type Image, type SKRSContext2D } from "@napi-rs/canvas";
 import { familyForWeight, registerFonts } from "./fonts";
 import { wrapLines } from "./wrap";
 
 type ContextWithSpacing = SKRSContext2D & { letterSpacing?: string };
+
+function textLayout(ctx: SKRSContext2D, element: Slide["elements"][number], theme: Theme) {
+  const style = element.style;
+  const fontSize = style?.fontSize ?? 24;
+  const weight = style?.fontWeight ?? 500;
+  const family = familyForWeight(weight, element.role === "headline" ? theme.fontFamily : (theme.bodyFontFamily ?? theme.fontFamily));
+  ctx.font = `${family === "Lora" ? weight + " " : ""}${fontSize}px "${family}"`;
+  (ctx as ContextWithSpacing).letterSpacing = `${style?.letterSpacing ?? 0}px`;
+  return { fontSize, lineHeight: fontSize * (style?.lineHeight ?? 1.2), lines: wrapLines(element.text ?? "", element.width, (value) => ctx.measureText(value).width) };
+}
+
+/** Measure the same wrapping and clipping rules as the exported image. */
+export function textFitIssues(carousel: Carousel): Issue[] {
+  registerFonts();
+  const ctx = createCanvas(1, 1).getContext("2d");
+  const issues: Issue[] = [];
+  for (const [slideIndex, slide] of carousel.slides.entries()) for (const element of slide.elements) {
+    if (element.type !== "text" || !element.text?.trim()) continue;
+    const { fontSize, lineHeight, lines } = textLayout(ctx, element, carousel.theme);
+    if (fontSize + Math.max(0, lines.length - 1) * lineHeight > element.height + 1 || lines.some((line) => ctx.measureText(line).width > element.width + 1)) issues.push({ code: "TEXT_OVERFLOW", severity: "error", slideIndex,
+      message: `Slide ${slideIndex + 1} ${element.role ?? "text"} is clipped in the export. Enlarge its box, reduce the font size, or shorten the copy.`, suggestedAction: "resize_or_shorten_text" });
+    if (fontSize < 12) issues.push({ code: "SMALL_TEXT", severity: "warning", slideIndex, message: `Slide ${slideIndex + 1} has very small text. Check readability at phone size.`, suggestedAction: "increase_font_size" });
+  }
+  return issues;
+}
 
 /** Image bytes keyed by the element's assetId. */
 export type AssetMap = Map<string, Uint8Array>;
@@ -17,7 +42,7 @@ export async function decodeAssets(assets: AssetMap): Promise<DecodedAssets> {
     try {
       decoded.set(assetId, await loadImage(Buffer.from(bytes)));
     } catch {
-      // A broken upload should not fail the whole export.
+      throw Object.assign(new Error(`Uploaded image ${assetId} cannot be decoded. Replace it before exporting.`), { status: 422, code: "UNREADABLE_ASSET" });
     }
   }
   return decoded;
@@ -70,25 +95,16 @@ function drawText(
   const text = element.text ?? "";
   if (!text) return;
   const style = element.style;
-  const fontSize = style?.fontSize ?? 24;
-  const weight = style?.fontWeight ?? 500;
-  const family = familyForWeight(weight, element.role === "headline" ? theme.fontFamily : (theme.bodyFontFamily ?? theme.fontFamily));
   const color = paintColor(style?.color, theme.primary);
   const align = style?.align ?? "left";
-  const lineHeight = fontSize * (style?.lineHeight ?? 1.2);
-  const spacing = style?.letterSpacing ?? 0;
 
   ctx.save();
   ctx.beginPath();
   ctx.rect(element.x, element.y, element.width, element.height);
   ctx.clip();
   ctx.fillStyle = color;
-  ctx.font = `${family === "Lora" ? weight + " " : ""}${fontSize}px "${family}"`;
   ctx.textBaseline = "top";
-  const spaced = ctx as ContextWithSpacing;
-  if (spacing) spaced.letterSpacing = `${spacing}px`;
-
-  const lines = wrapLines(text, element.width, (value) => ctx.measureText(value).width);
+  const { fontSize, lineHeight, lines } = textLayout(ctx, element, theme);
   let y = element.y;
   for (const line of lines) {
     if (y + fontSize > element.y + element.height + 1) break;
@@ -115,6 +131,9 @@ function renderSlideCanvas(slide: Slide, theme: Theme, assets?: DecodedAssets) {
       continue;
     }
     const image = element.assetId ? assets?.get(element.assetId) : undefined;
+    if ((element.type === "image" || element.type === "logo") && !image) {
+      throw Object.assign(new Error("A referenced image is unavailable. Replace it before exporting."), { status: 422, code: "MISSING_ASSET" });
+    }
     if (image) {
       drawImage(ctx, element, image);
       continue;

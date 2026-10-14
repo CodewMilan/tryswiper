@@ -35,7 +35,7 @@ export function Editor({ carouselId, initialNotices = [] }: { carouselId: string
   const [usageLimited, setUsageLimited] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const publishKeyRef = useRef<string | null>(null);
+  const publishKeyRef = useRef<{ version: number; key: string } | null>(null);
   const [adding, setAdding] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
   const [formatName, setFormatName] = useState("");
@@ -212,10 +212,14 @@ export function Editor({ carouselId, initialNotices = [] }: { carouselId: string
     setUsageLimited(false);
     try {
       if (!(await settle())) throw new Error("Save your latest edits before preparing files.");
-      publishKeyRef.current ??= crypto.randomUUID();
+      const latestResponse = await fetch(`/api/v1/carousels/${carouselId}`);
+      const latest = await latestResponse.json() as { version: number; message?: string };
+      if (!latestResponse.ok) throw new Error(latest.message ?? "Could not load the current draft.");
+      if (publishKeyRef.current?.version !== latest.version) publishKeyRef.current = { version: latest.version, key: crypto.randomUUID() };
       const response = await fetch(`/api/v1/carousels/${carouselId}/publish`, {
         method: "POST",
-        headers: { "Idempotency-Key": publishKeyRef.current },
+        headers: { "Idempotency-Key": publishKeyRef.current.key, "Content-Type": "application/json" },
+        body: JSON.stringify({ expected_version: latest.version }),
       });
       const body = await response.json() as UsageApiError;
       if (body.code === "USAGE_LIMIT") {

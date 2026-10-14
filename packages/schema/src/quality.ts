@@ -24,7 +24,13 @@ export const TEXT_LIMITS: Record<string, number> = {
 };
 
 const FAKE_PROOF =
-  /\b(\d{2,3}% of (all )?(users|customers|founders|companies)|used by \d{2,}k|\d+x (roi|growth|faster)|#1 (platform|tool|app))\b/i;
+  /(?:\b\d+(?:[.,]\d+)?\s*(?:%|percent|x\s+(?:roi|growth|faster))|\b(?:trusted|used|loved|chosen)\s+by\s+[\d,]+(?:k|m)?\b|\bguarantee(?:d|s)?\b|\b(?:double|triple)\s+(?:your\s+)?(?:revenue|sales|income|growth|profit)|#1\s+(?:platform|tool|app))/i;
+
+export function unsupportedClaimClauses(text: string, allowedProof: string[] = []) {
+  const normalize = (value: string) => value.toLowerCase().trim().replace(/[.!?]+$/, "").replace(/\s+/g, " ");
+  const allowed = new Set(allowedProof.filter((item) => item.trim()).map(normalize));
+  return text.split(/(?<=[.!?])\s+|[;\n]+/).filter((clause) => looksLikeUnsupportedClaim(clause) && !allowed.has(normalize(clause)));
+}
 
 export function findForbiddenPhrases(text: string) {
   const lower = text.toLowerCase();

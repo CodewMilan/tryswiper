@@ -52,12 +52,12 @@ export function elementStyle(
     top: `${(box.y / CANVAS_HEIGHT) * 100}%`,
     width: `${(box.width / CANVAS_WIDTH) * 100}%`,
     height: `${(box.height / CANVAS_HEIGHT) * 100}%`,
-    color: element.style?.color ?? theme.primary,
+    color: element.style?.color ?? (element.type === "shape" || element.type === "line" ? theme.accent : theme.primary),
     fontSize: `${(element.style?.fontSize ?? 24) * (frameWidth / CANVAS_WIDTH)}px`,
-    fontWeight: element.style?.fontWeight,
+    fontWeight: element.style?.fontWeight ?? 500,
     fontFamily: carouselFontFamily(element.role === "headline" ? theme.fontFamily : (theme.bodyFontFamily ?? theme.fontFamily)),
     textAlign: element.style?.align,
-    lineHeight: element.style?.lineHeight,
+    lineHeight: element.style?.lineHeight ?? 1.2,
     letterSpacing: (element.style?.letterSpacing ?? 0) * (frameWidth / CANVAS_WIDTH),
     whiteSpace: "pre-wrap",
     overflowWrap: "anywhere",
@@ -65,11 +65,12 @@ export function elementStyle(
 }
 
 export function ElementContent({ element }: { element: CarouselElement }) {
-  if (element.src) {
+  const imageSrc = element.assetId ? `/api/v1/assets/${element.assetId}` : element.src;
+  if (imageSrc) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={element.src}
+        src={imageSrc}
         alt={element.role ?? "Slide image"}
         draggable={false}
         className={`pointer-events-none h-full w-full ${element.type === "logo" ? "object-contain" : "object-cover"}`}

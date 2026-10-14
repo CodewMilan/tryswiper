@@ -49,10 +49,10 @@ function productFrom(brief: string, brand: BrandContext): ProductContext {
   return {
     name: brand.name || "the product",
     audience: brand.audience ?? undefined,
-    problem: brand.description ?? firstSentence(cleaned, "the current workflow is too slow"),
+    problem: brand.description ?? firstSentence(cleaned, ""),
     differentiator: brand.positioning ?? firstSentence(cleaned, brand.name),
     proof: brand.proofPoints?.[0],
-    cta: brand.cta ?? `Try ${brand.name}`,
+    cta: brand.cta?.trim() || "Learn more",
     forbiddenClaims: brand.wordsToAvoid ?? [],
   };
 }
@@ -63,142 +63,27 @@ function copyForRole(
   brief: string,
   index: number,
 ): { headline: string; body?: string; kicker?: string; proof?: string; cta?: string } {
-  const name = product.name;
-  const cleaned = cleanBrief(brief);
-  const bits = sentences(cleaned);
-  const bit = bits[Math.min(index, Math.max(bits.length - 1, 0))] ?? cleaned;
-  const audience = product.audience ?? "the people you want to reach";
-
-  switch (role) {
-    case "hook":
-      return {
-        kicker: name.toUpperCase(),
-        headline: firstSentence(cleaned, `Why ${name} does not start in a design tool`),
-        body: `Written for ${audience}. Not a slogan — a working argument.`,
-      };
-    case "problem":
-      return {
-        headline: "The status quo still asks you to stitch tools together",
-        body:
-          product.problem ??
-          "Copy in one place. Layout in another. Export somewhere else. The post never quite feels finished.",
-      };
-    case "insight":
-      return {
-        headline: "Agents can write. They still need a document they can edit.",
-        body: product.differentiator ?? bit,
-      };
-    case "proof":
-      return {
-        headline: product.proof ?? "Keep claims you can actually stand behind.",
-        body: "If a number is not in the brand kit, leave it off the slide.",
-        proof: product.proof,
-      };
-    case "product":
-      return {
-        headline: `${name} is the layer between the agent and the post`,
-        body: product.differentiator ?? bit,
-      };
-    case "cta":
-      return {
-        headline: "Make the next carousel from the agent you already use",
-        body: product.differentiator,
-        cta: product.cta,
-      };
-    case "before":
-      return {
-        headline: "Before: a pile of tabs and a half-designed post",
-        body: product.problem ?? bit,
-      };
-    case "after":
-      return {
-        headline: `After: a typed carousel ${audience} can actually ship`,
-        body: product.differentiator ?? bit,
-      };
-    case "myth":
-      return {
-        headline: "Myth: more copy is the bottleneck",
-        body: "Most teams already have more words than they can design.",
-      };
-    case "reality":
-      return {
-        headline: "Reality: the missing object is the carousel itself",
-        body: bit,
-      };
-    case "old":
-      return {
-        headline: "The default path",
-        body: product.problem ?? "Chat, then Canva, then a zip of PNGs.",
-      };
-    case "new":
-      return {
-        headline: `The ${name} path`,
-        body: product.differentiator ?? bit,
-      };
-    case "difference":
-      return {
-        headline: "The difference is the document, not the adjectives",
-        body: product.differentiator ?? bit,
-      };
-    case "why":
-      return {
-        headline: "The myth stuck because the tools were separate",
-        body: bit,
-      };
-    case "fix":
-      return {
-        headline: "A better default: one typed carousel",
-        body: product.differentiator ?? bit,
-      };
-    case "wound":
-      return {
-        headline: "It started as a personal bottleneck, not a market slide",
-        body: product.problem ?? bit,
-      };
-    case "attempt":
-      return {
-        headline: "The first workaround was still five tools",
-        body: bit,
-      };
-    case "turn":
-      return {
-        headline: "The work changed when the carousel became a document",
-        body: product.differentiator ?? bit,
-      };
-    case "surface":
-      return {
-        headline: "What people see first is the hook, not the settings panel",
-        body: bit,
-      };
-    case "mechanic":
-      return {
-        headline: "Under the hook is a schema the agent can actually edit",
-        body: product.differentiator ?? bit,
-      };
-    case "edge":
-      return {
-        headline: "A non-obvious detail: quality checks run before the link",
-        body: bit,
-      };
-    case "tradeoff":
-      return {
-        headline: "It will not invent a layout from nothing every time",
-        body: "Formats constrain the story so the output stays coherent.",
-      };
-    default: {
-      if (role.startsWith("item-") || role.startsWith("step-") || role.startsWith("mistake-")) {
-        return {
-          kicker: role.replace("-", " ").toUpperCase(),
-          headline: firstSentence(bit, `${name} ${role}`).slice(0, 80),
-          body: product.differentiator ?? bit,
-        };
-      }
-      return {
-        headline: `${name}: ${role.replaceAll("-", " ")}`,
-        body: product.differentiator ?? bit,
-      };
-    }
-  }
+  const bits = sentences(cleanBrief(brief));
+  const topic = firstSentence(cleanBrief(brief), product.name).slice(0, 80);
+  const labels: Record<string, string> = {
+    problem: "The problem", insight: "A useful insight", proof: "Supporting evidence",
+    product: "The solution", before: "Before the change", after: "After the change",
+    myth: "A common misconception", reality: "What actually happens", old: "The current approach",
+    new: "A different approach", difference: "The key difference", why: "Why this matters",
+    fix: "A practical fix", wound: "Where the story started", attempt: "The first attempt",
+    turn: "The turning point", surface: "A closer look", mechanic: "How it works",
+    edge: "A useful detail", tradeoff: "The tradeoff",
+  };
+  if (role === "hook") return { headline: topic, body: bits[1], kicker: "DRAFT" };
+  if (role === "cta") return { headline: "Your next step", cta: product.cta || "Learn more" };
+  const label = labels[role] ?? role.replaceAll("-", " ");
+  const supplied = bits[index];
+  return {
+    kicker: label.toUpperCase(),
+    headline: supplied ? firstSentence(supplied, label).slice(0, 90) : label,
+    body: supplied ? undefined : `Draft: add ${label.toLowerCase()} for ${topic}.`,
+    ...(role === "proof" && product.proof?.trim() ? { body: undefined, proof: product.proof } : {}),
+  };
 }
 
 export function planLocally(input: {

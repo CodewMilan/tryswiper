@@ -3,6 +3,7 @@ export { renderExport, type ExportFile, type ExportFormat } from "./export";
 export {
   decodeAssets,
   readImageSize,
+  textFitIssues,
   renderSlidePng,
   renderSlidePngs,
   renderSlideJpeg,

@@ -325,6 +325,7 @@ export const publishJob = pgTable(
     platform: text("platform").notNull().default("manual"),
     status: text("status").notNull().default("ready"),
     idempotencyKey: text("idempotency_key").notNull(),
+    documentVersion: integer("document_version"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

@@ -4,7 +4,7 @@ import { getFormat } from "./formats";
 import {
   clip,
   findForbiddenPhrases,
-  looksLikeUnsupportedClaim,
+  unsupportedClaimClauses,
   TEXT_LIMITS,
 } from "./quality";
 import { renderPlanToCarousel } from "./render";
@@ -126,20 +126,15 @@ export function validateCarousel(
         }
       }
 
-      if (looksLikeUnsupportedClaim(text)) {
-        const allowed = options?.allowedProof ?? [];
-        const permitted = allowed.some((item) =>
-          text.toLowerCase().includes(item.toLowerCase()),
-        );
-        if (!permitted) {
+      if (/\bDraft:|Replace this line\./i.test(text)) warnings.push({ code: "UNFINISHED_COPY", severity: "warning", slideIndex, message: `Slide ${slideIndex + 1} still contains draft scaffolding. Complete it before sharing.`, suggestedAction: "rewrite_slide" });
+      if (unsupportedClaimClauses(text, options?.allowedProof).length) {
           errors.push({
             code: "UNSUPPORTED_CLAIM",
-            message: `Slide ${slideIndex + 1} looks like an invented statistic or social proof.`,
+            message: `Slide ${slideIndex + 1} contains a claim without matching supplied proof. Verify it and add its exact wording to your brand proof, or remove it. Automated checks cannot establish factual accuracy.`,
             slideIndex,
             suggestedAction: "remove_claim",
             severity: "error",
           });
-        }
       }
 
       if (element.role === "headline") {

@@ -82,7 +82,8 @@ export async function assetsForWorkspace(workspaceId: string, assetIds: string[]
       .where(and(eq(schema.asset.id, assetId), eq(schema.asset.workspaceId, workspaceId)))
       .limit(1);
     const row = rows[0];
-    if (row) out.set(assetId, Buffer.from(row.data, "base64"));
+    if (!row) throw Object.assign(new Error("A referenced image is unavailable. Replace it before exporting."), { status: 422, code: "MISSING_ASSET" });
+    out.set(assetId, Buffer.from(row.data, "base64"));
   }
   return out;
 }

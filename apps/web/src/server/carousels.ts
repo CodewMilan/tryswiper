@@ -34,7 +34,7 @@ import { sid } from "../lib/ids";
 import { editorUrl } from "../lib/utils";
 import { getWorkspaceBrand } from "../lib/workspace";
 import { getWorkspaceFormat } from "./workspace-formats";
-import { getAsset } from "./assets";
+import { assetsForWorkspace, getAsset } from "./assets";
 import {
   isThinBrand,
   localGenerationWarning,
@@ -43,6 +43,14 @@ import {
 } from "@/lib/generation-notices";
 import { assertUsage, recordUsage, withUsageTransaction } from "./usage";
 import type { CreationRequest } from "@/lib/creation-request";
+import { decodeAssets, textFitIssues } from "@swiper/rendering";
+
+function validateOutput(carousel: Carousel, options?: Parameters<typeof validateCarousel>[1]) {
+  const result = validateCarousel(carousel, options);
+  if (result.errors.some((issue) => issue.code === "INVALID_SCHEMA")) return result;
+  const errors = [...result.errors, ...textFitIssues(carousel)];
+  return { ...result, ok: errors.length === 0, errors };
+}
 
 type CreationResult = { carousel_id: string; editor_url: string; status: "draft"; format_id: string; carousel: Carousel; validation: ValidationResult;
   source?: "model" | "local"; warnings?: GenerationWarning[] };
@@ -180,6 +188,7 @@ export async function generateCarousel(input: {
     allowedProof: brand.proofPoints,
   });
   addBrandLogo(result.carousel, brandRow.logoAssetId);
+  result.validation = validateOutput(result.carousel, { forbiddenWords: brandRow.wordsToAvoid, allowedProof: brandRow.proofPoints });
   result.carousel.metadata = {
     ...result.carousel.metadata,
     generationSource: source,
@@ -240,7 +249,7 @@ export async function startCarouselFromFormat(input: {
     });
     const result = await persistNewCarousel(input.auth, content, plan, "manual", false, input.request, (id) => ({
       carousel_id: id, editor_url: editorUrl(id), status: "draft", format_id: workspaceFormat.id,
-      validation: validateCarousel(content, { forbiddenWords: brandRow.wordsToAvoid, allowedProof: brandRow.proofPoints }), carousel: content,
+      validation: validateOutput(content, { forbiddenWords: brandRow.wordsToAvoid, allowedProof: brandRow.proofPoints }), carousel: content,
     }));
     console.info("carousel_started_from_workspace_format", {
       carouselId: result.carousel_id,
@@ -263,6 +272,7 @@ export async function startCarouselFromFormat(input: {
     allowedProof: brandRow.proofPoints,
   });
   addBrandLogo(result.carousel, brandRow.logoAssetId);
+  result.validation = validateOutput(result.carousel, { forbiddenWords: brandRow.wordsToAvoid, allowedProof: brandRow.proofPoints });
   return persistNewCarousel(input.auth, result.carousel, result.plan, "manual", false, input.request, (id) => ({
     carousel_id: id,
     editor_url: editorUrl(id),
@@ -408,7 +418,7 @@ export async function undoCarousel(authContext: AuthContext, id: string, expecte
     editor_url: editorUrl(id),
     version: nextVersion,
     undo_count: depth?.count ?? 0,
-    validation: validateCarousel(content),
+    validation: validateOutput(content),
     carousel: content,
   };
   });
@@ -453,7 +463,7 @@ export async function updateCarousel(
     const plan = previousPlan ? planFromCarousel(content, previousPlan.product) : null;
     await tx.update(schema.carousel).set({ contentJson: content, planJson: plan, title: content.metadata.title, formatId: content.metadata.formatId, status: "draft", version: nextVersion, lastMutationId: mutationId ?? null, updatedAt: new Date() }).where(eq(schema.carousel.id, id));
     const [depth] = await tx.select({ count: count() }).from(schema.carouselVersion).where(eq(schema.carouselVersion.carouselId, id));
-    return { carousel_id: id, editor_url: editorUrl(id), version: nextVersion, undo_count: depth?.count ?? 0, validation: validateCarousel(content), carousel: content };
+    return { carousel_id: id, editor_url: editorUrl(id), version: nextVersion, undo_count: depth?.count ?? 0, validation: validateOutput(content), carousel: content };
   });
 }
 
@@ -496,7 +506,7 @@ export async function generateSlide(
     ...carousel.metadata,
     generationSource: source === "local" ? "local" : content.metadata.generationSource ?? source,
   };
-  const validation = validateCarousel(carousel, {
+  const validation = validateOutput(carousel, {
     forbiddenWords: brandRow.wordsToAvoid,
     allowedProof: brandRow.proofPoints,
   });
@@ -534,10 +544,22 @@ export async function generateSlide(
 export async function validateExisting(authContext: AuthContext, id: string) {
   const current = await getCarousel(authContext, id);
   const brand = await getWorkspaceBrand(authContext.workspaceId);
-  return { version: current.version, ...validateCarousel(current.contentJson as Carousel, {
+  const content = current.contentJson as Carousel;
+  const validation = validateOutput(content, {
     forbiddenWords: brand?.wordsToAvoid,
     allowedProof: brand?.proofPoints,
-  }) };
+  });
+  if (!validation.errors.some((issue) => issue.code === "INVALID_SCHEMA")) {
+    try {
+      const assetIds = content.slides.flatMap((slide) => slide.elements.flatMap((element) => element.assetId ? [element.assetId] : []));
+      if (assetIds.length) await decodeAssets(await assetsForWorkspace(authContext.workspaceId, assetIds));
+    } catch (error) {
+      if (!(error instanceof Error) || !("code" in error) || !["MISSING_ASSET", "UNREADABLE_ASSET"].includes(String(error.code))) throw error;
+      validation.errors.push({ code: String(error.code), message: error.message, severity: "error", suggestedAction: "replace_image" });
+      validation.ok = false;
+    }
+  }
+  return { version: current.version, ...validation };
 }
 
 export { renderPlanToCarousel };

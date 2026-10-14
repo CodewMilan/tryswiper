@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DEFAULT_THEME } from "./carousel";
+import { carouselSchema, DEFAULT_THEME, type LayoutType } from "./carousel";
 import { FORMATS } from "./formats";
 import { applyOperations } from "./operations";
 import { renderPlanToCarousel } from "./render";
@@ -141,4 +141,50 @@ test("workspace formats create independent carousel and plan copies", () => {
   assert.notEqual(copy.slides[0]?.id, carousel.slides[0]?.id);
   assert.notEqual(copy.slides[0]?.elements[0]?.id, carousel.slides[0]?.elements[0]?.id);
   assert.equal(validateCarousel(copy).warnings.some((issue) => issue.code === "UNKNOWN_FORMAT"), false);
+});
+
+test("unsupported visuals and remote or mismatched image sources are rejected", () => {
+  const base = renderPlanToCarousel(plan, DEFAULT_THEME);
+  for (const type of ["chart", "video", "icon", "badge", "screenshot"]) {
+    const changed = structuredClone(base);
+    Object.assign(changed.slides[0]!.elements[0]!, { type });
+    assert.equal(carouselSchema.safeParse(changed).success, false, type);
+  }
+  for (const background of [{ type: "gradient", value: "linear-gradient(red, blue)" }, { type: "solid", value: "var(--background)" }]) {
+    const changed = structuredClone(base);
+    Object.assign(changed.slides[0]!, { background });
+    assert.equal(carouselSchema.safeParse(changed).success, false);
+  }
+  for (const image of [{ src: "https://example.test/image.png" }, { assetId: "ast_photo", src: "/api/v1/assets/other" }]) {
+    const changed = structuredClone(base);
+    Object.assign(changed.slides[0]!.elements[0]!, { type: "image", ...image });
+    assert.equal(carouselSchema.safeParse(changed).success, false);
+  }
+});
+
+test("named layouts reflow existing elements without losing copy, styling or assets", () => {
+  const base = renderPlanToCarousel(plan, DEFAULT_THEME);
+  const slide = base.slides[0]!;
+  slide.elements.push({ id: "photo", type: "image", assetId: "ast_photo", x: 80, y: 800, width: 400, height: 300 });
+  const compositions = new Set<string>();
+  for (const layout of ["split", "image-left", "image-right", "list", "comparison"] as LayoutType[]) {
+    const next = applyOperations(base, [{ op: "set_layout", slideId: slide.id, layout }]);
+    const arranged = next.slides[0]!;
+    assert.equal(arranged.elements.length, slide.elements.length);
+    assert.deepEqual(arranged.elements.map(({ id, text, assetId, style }) => ({ id, text, assetId, style: style && { ...style, align: undefined } })), slide.elements.map(({ id, text, assetId, style }) => ({ id, text, assetId, style: style && { ...style, align: undefined } })));
+    compositions.add(JSON.stringify(arranged.elements.map(({ x, y, width, height }) => ({ x, y, width, height }))));
+    assert.deepEqual(next.slides.slice(1), base.slides.slice(1));
+  }
+  assert.equal(compositions.size, 5);
+});
+
+test("claim checks require matching nonempty proof for every claim", () => {
+  const base = renderPlanToCarousel(plan, DEFAULT_THEME);
+  const headline = base.slides[0]!.elements.find((element) => element.role === "headline")!;
+  for (const text of ["Guaranteed to double your revenue in a week", "Trusted by 50,000 customers worldwide", "Cuts costs by 73%", "Cuts costs by 73%. Trusted by 50,000 customers worldwide."]) {
+    headline.text = text;
+    assert.equal(validateCarousel(base, { allowedProof: ["", " ", "Trusted by 50,000 customers worldwide"] }).errors.some((issue) => issue.code === "UNSUPPORTED_CLAIM"), text !== "Trusted by 50,000 customers worldwide");
+  }
+  headline.text = "Cuts costs by 73%";
+  assert.equal(validateCarousel(base, { allowedProof: ["Cuts costs by 73%."] }).errors.some((issue) => issue.code === "UNSUPPORTED_CLAIM"), false);
 });

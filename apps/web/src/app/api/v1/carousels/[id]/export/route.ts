@@ -37,6 +37,8 @@ export async function GET(
     }
 
     const row = await getCarousel(authContext, id);
+    const version = url.searchParams.get("version");
+    if (version !== null && (!/^\d+$/.test(version) || Number(version) !== row.version)) return apiError("VERSION_CONFLICT", "This draft has changed. Review and prepare the current version before downloading its files.", 409);
     const parsed = carouselSchema.safeParse(row.contentJson);
     if (!parsed.success) {
       return apiError("INVALID_CAROUSEL", "This carousel cannot be rendered.", 422);

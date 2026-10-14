@@ -6,7 +6,7 @@ import { PDFDocument } from "pdf-lib";
 import { unzipSync } from "fflate";
 import { renderExport } from "./export";
 import { wrapLines } from "./wrap";
-import { renderSlidePng } from "./paint";
+import { renderSlidePng, textFitIssues } from "./paint";
 
 const plan: CarouselPlan = {
   title: "Why Swiper is different",
@@ -141,4 +141,28 @@ test("a logo fits inside its box without cropping", async () => {
   sample.drawImage(image, 0, 0);
   assert.deepEqual([...sample.getImageData(150, 150, 1, 1).data].slice(0, 3), [255, 0, 0]);
   assert.deepEqual([...sample.getImageData(150, 110, 1, 1).data].slice(0, 3), [250, 250, 248]);
+});
+
+test("export text metrics detect invisible and clipped text for each supported font", () => {
+  for (const fontFamily of ["Inter", "Lora", "IBM Plex Mono"]) for (const fontWeight of [400, 500, 600, 700, 800]) {
+    const carousel = renderPlanToCarousel(plan, { ...DEFAULT_THEME, fontFamily });
+    const headline = carousel.slides[0]!.elements.find((element) => element.role === "headline")!;
+    headline.style = { fontSize: 72, fontWeight, align: "left", lineHeight: 1.4, letterSpacing: 2 };
+    headline.height = 10;
+    assert.ok(textFitIssues(carousel).some((issue) => issue.slideIndex === 0 && issue.code === "TEXT_OVERFLOW"), `${fontFamily}/${fontWeight}`);
+    headline.height = 200; headline.width = 300;
+    for (const text of ["First line\nSecond line\nThird line", "supercalifragilisticexpialidocious"]) {
+      headline.text = text;
+      assert.ok(textFitIssues(carousel).some((issue) => issue.slideIndex === 0 && issue.code === "TEXT_OVERFLOW"));
+    }
+    headline.text = "Readable"; headline.width = 900; headline.height = 200;
+    assert.equal(textFitIssues(carousel).some((issue) => issue.slideIndex === 0), false);
+  }
+});
+
+test("exports fail explicitly when an image is missing or unreadable", async () => {
+  const carousel = renderPlanToCarousel(plan, DEFAULT_THEME);
+  carousel.slides[0]!.elements.push({ id: "image", type: "image", assetId: "missing", x: 80, y: 80, width: 400, height: 400 });
+  await assert.rejects(renderExport(carousel, "png", 0), /unavailable/);
+  await assert.rejects(renderExport(carousel, "png", 0, new Map([["missing", new Uint8Array([0, 1, 2])]])), /cannot be decoded/);
 });

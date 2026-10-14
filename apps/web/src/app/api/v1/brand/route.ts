@@ -66,7 +66,7 @@ export async function PATCH(request: Request) {
       if (field in body && (typeof body[field] !== "string" || body[field].length > limit)) return badRequest(`${field} must be text under ${limit} characters.`);
     }
     for (const field of ["wordsToUse", "wordsToAvoid", "proofPoints"]) {
-      if (field in body && (!Array.isArray(body[field]) || body[field].length > 100 || !body[field].every((item: unknown) => typeof item === "string" && item.length <= 1000))) return badRequest(`${field} must be a list of short text entries.`);
+      if (field in body && (!Array.isArray(body[field]) || body[field].length > 100 || !body[field].every((item: unknown) => typeof item === "string" && item.trim().length > 0 && item.length <= 1000))) return badRequest(`${field} must be a list of nonempty short text entries.`);
     }
     if ("name" in body && (typeof body.name !== "string" || !body.name.trim() || body.name.length > 120)) return badRequest("Product name must be between 1 and 120 characters.");
     const current = await getWorkspaceBrand(authContext.workspaceId);

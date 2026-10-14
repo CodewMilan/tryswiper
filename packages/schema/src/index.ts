@@ -9,3 +9,4 @@ export * from "./template";
 export * from "./fonts";
 export * from "./validate";
 export * from "./revision";
+export * from "./layout";

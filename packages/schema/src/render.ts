@@ -12,6 +12,7 @@ import type {
   SlidePlan,
   Theme,
 } from "./carousel";
+import { arrangeSlide } from "./layout";
 
 function el(
   partial: Omit<CarouselElement, "id"> & { id?: string },
@@ -224,13 +225,13 @@ export function renderSlide(plan: SlidePlan, theme: Theme, index: number): Slide
     }
   }
 
-  return {
+  return arrangeSlide({
     id: `slide_${index + 1}`,
     layout: plan.layout,
     role: plan.role,
     background: bg,
     elements,
-  };
+  }, plan.layout);
 }
 
 export function renderPlanToCarousel(plan: CarouselPlan, theme: Theme): Carousel {

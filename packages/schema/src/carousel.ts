@@ -17,13 +17,8 @@ export const elementTypeSchema = z.enum([
   "text",
   "image",
   "shape",
-  "icon",
   "logo",
-  "badge",
   "line",
-  "chart",
-  "screenshot",
-  "video",
 ]);
 
 export const elementRoleSchema = z.enum([
@@ -38,16 +33,18 @@ export const elementRoleSchema = z.enum([
   "annotation",
 ]);
 
+export const colorSchema = z.string().regex(/^#(?:[\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i, "Use a hex color.");
+const opaqueColorSchema = z.string().regex(/^#(?:[\da-f]{3}|[\da-f]{6})$/i, "Use an opaque hex color.");
 export const backgroundSchema = z.object({
-  type: z.enum(["solid", "gradient", "image"]),
-  value: z.string(),
+  type: z.literal("solid"),
+  value: opaqueColorSchema,
 });
 
 export const textStyleSchema = z.object({
   fontSize: z.number().positive(),
   fontWeight: z.number().min(100).max(900),
   align: z.enum(["left", "center", "right"]),
-  color: z.string().optional(),
+  color: colorSchema.optional(),
   lineHeight: z.number().positive().optional(),
   letterSpacing: z.number().optional(),
 });
@@ -64,6 +61,13 @@ export const elementSchema = z.object({
   width: z.number().positive(),
   height: z.number().positive(),
   style: textStyleSchema.optional(),
+}).superRefine((element, ctx) => {
+  if (element.type === "image" || element.type === "logo") {
+    if (!element.assetId || !/^[a-zA-Z0-9_-]+$/.test(element.assetId)) ctx.addIssue({ code: "custom", path: ["assetId"], message: "Images and logos require an uploaded asset ID." });
+    if (element.src !== undefined && element.src !== `/api/v1/assets/${element.assetId}`) ctx.addIssue({ code: "custom", path: ["src"], message: "Image source must match its uploaded asset URL." });
+  } else if (element.assetId || element.src) {
+    ctx.addIssue({ code: "custom", path: ["type"], message: "Only images and logos can reference an asset." });
+  }
 });
 
 export const slideSchema = z.object({
@@ -75,10 +79,10 @@ export const slideSchema = z.object({
 });
 
 export const themeSchema = z.object({
-  background: z.string(),
-  primary: z.string(),
-  secondary: z.string(),
-  accent: z.string(),
+  background: opaqueColorSchema,
+  primary: opaqueColorSchema,
+  secondary: opaqueColorSchema,
+  accent: opaqueColorSchema,
   fontFamily: z.string(),
   bodyFontFamily: z.string().optional(),
 });
