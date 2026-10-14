@@ -1,50 +1,17 @@
-# Analytics
+# Product measurement
 
-## MVP metrics
+Updated 14 October 2026. This release measures the creation/review/download loop. It does not collect social impressions, likes, comments, shares or clicks.
 
-Per carousel:
-- impressions
-- views
-- likes
-- comments
-- shares
-- saves
-- clicks
-- publish status
+## Current records
 
-## Derived metrics
+Local workspace events cover creation, saved edits, slide revisions, checks, successful exports and optional `useful`/`needs_work` draft feedback after download. Source separates model and local drafts. `/api/v1/metrics` returns counts and distinct draft counts by stage/source/value for an authenticated owner/admin.
 
-- engagement rate
-- share rate
-- save rate
-- click-through rate
-- view completion where supported
+The reporting window is 90 days. New activity prunes older events and caps each workspace at its most recent 10,000; pruning is activity-driven, not a scheduled deletion service. Dormant records can therefore remain longer than the reporting window. Events omit private content, contact details and credentials. Account deletion and host-log retention still need the operator's approved policy.
 
-Do not compare metrics across platforms without clearly defining differences in measurement.
+These counts describe observed activity since instrumentation began. They do not establish a user-cohort conversion rate, time to a human-approved download, repeat use or customer preference. A check is an automated action, not factual approval. Feedback is voluntary and can be biased. No real customer results are claimed.
 
-## Feedback loop
+## Beta measures
 
-Analytics should eventually inform:
-- formats that perform well
-- hooks that perform well
-- slide counts
-- CTA patterns
-- posting cadence
+Observe setup, first draft, first correction, first reviewed download and a returning task. Record task completion/time, model versus fallback, correction effort, useful/needs_work feedback and stated reasons for choosing Swiper. Compare against the participant's existing workflow on a similar task. Use [the protocol](23-beta-and-release-checks.md) to collect actual evidence before changing positioning or limits.
 
-Do not automatically claim that a format is universally viral. Treat performance as account-, audience-, platform-, and time-dependent.
-
-## Dashboard
-
-MVP:
-- total posts
-- total views
-- engagement
-- clicks
-- recent posts
-- top-performing posts
-
-Later:
-- format analysis
-- hook analysis
-- cohort analysis
-- experiment tracking
+Any future social analytics requires a separately approved platform integration with clear metric definitions. There are no social-performance promises in the current product.

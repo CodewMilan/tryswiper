@@ -1,6 +1,6 @@
 # How to use Swiper
 
-Updated 14 October 2026, after the first audit repair passes. This documents the implemented product. Customers can read the main journey at `/guide`.
+Updated 14 October 2026, after the audit repair passes. This documents the implemented product. Customers can read the main journey at `/guide`.
 
 Swiper helps people who use AI agents make editable social carousels. The agent creates a draft; the user reviews, edits, and downloads it in Swiper. Browser generation and manual creation are also available. A successful first session ends with a reviewed carousel downloaded as images or a PDF.
 
@@ -95,7 +95,7 @@ Agent requests and manual edits use the same workspace. If another client change
 3. Optionally add a public HTTPS LinkedIn, X, Threads, or Instagram reference post. Swiper uses available public metadata as structural context and writes original copy. It does not promise to extract every slide. An unreadable post falls back to the brief and produces an editor notice.
 4. Optionally name the carousel and select **Story shape**.
 5. Review the outline, slide-count range, and allowance cost in **Your draft**.
-6. Choose **Generate carousel**. Keep the page open while it works; the draft opens in the editor automatically.
+6. Choose **Generate carousel**. The draft opens in the editor automatically. If the request times out or the response is lost, return in the same tab to recover the completed result or retry the same request.
 
 An unfinished brief, title, reference, creation method, and format choices are saved in this tab's session storage, scoped to the workspace brand. Refreshing or returning in the same tab restores them. Successful creation clears that temporary brief. Closing the tab or disabling browser storage can remove this recovery; it is not a cross-device draft.
 
@@ -103,7 +103,7 @@ An unfinished brief, title, reference, creation method, and format choices are s
 
 Choose **Start by hand**, select a blank canvas, saved workspace format, or official story format, optionally give it a title, and choose **Open in editor**. A blank canvas starts with three editable slides. The editor supports up to 12 slides.
 
-Both methods use one carousel slot. Generation also uses one AI generation. Starting by hand remains available after AI allowance is exhausted, provided a carousel slot remains.
+Both methods use one carousel slot. A successful model generation also uses one AI generation; a local fallback does not. Starting by hand remains available after AI allowance is exhausted, provided a carousel slot remains.
 
 ## 6. Review and edit
 
@@ -111,7 +111,7 @@ Both methods use one carousel slot. Generation also uses one AI generation. Star
 2. Edit content and properties in the design panel. On mobile, the panel appears below the canvas.
 3. Drag to move, use handles to resize, or use arrow keys to nudge a selected element. Change the slide background in the design panel.
 4. Add text or upload images from the toolbar. Reorder, add, duplicate, or delete slides. Keep at least one slide and one element per slide.
-5. Use **Undo** or Cmd/Ctrl+Z outside text fields to reverse a saved edit. Redo is not implemented.
+5. Use **Undo** or Cmd/Ctrl+Z outside text fields to reverse a saved edit. The most recent 100 saved snapshots are retained. Redo is not implemented.
 6. Wait for **All changes saved**. Autosave persists pending edits locally and retries transient failures.
 
 If saving fails, keep the tab open and choose **Retry save**. For a version conflict, **Download local draft** saves the complete local document, its original server base, and pending edits as recovery JSON. **Load latest version** discards pending local edits and loads server content. Restore your saved file through **More carousel options → Restore local backup**, review the replacement warning, and choose **Restore backup**. The current saved version remains available through Undo. Recovery JSON is a backup, not a social export; images still depend on the original workspace's uploaded assets.
@@ -130,13 +130,13 @@ Choose **Export**. Read the hook, verify claims and facts, and check the closing
 
 Latest edits save before downloading. Free users see the JPG upgrade path before a request. PNG and PDF remain available on Free within allowance. Automated checks help with defined rules; they do not fact-check every claim or certify visual quality. Exporting a manual draft does not require a clean content check.
 
-You upload the result yourself. Swiper does not connect social accounts, schedule or publish posts, or report social performance in this release. Pro's **Prepare files** validates a carousel and prepares a manual file handoff; it does not post it.
+You upload the result yourself. Swiper does not connect social accounts, schedule or publish posts, or report social performance in this release. Pro adds higher limits and JPG downloads. Checking and file handoff are part of Export.
 
 ## 8. Reuse and return
 
-Open **More carousel options → Save as format**, name the format, and save. Find it under **Your workspace formats** in **Start by hand**. Each use creates an independent draft with the saved design, copy, and images; change those for your next post.
+Open **More carousel options → Save as format**, name the format, and save. Find it under **Your workspace formats** in **Start by hand**. Each manual use creates an independent copy. Eligible formats also appear in generation: fresh headline/kicker/body/proof/CTA copy uses your saved design and images; fixed labels and captions remain. Formats without unambiguous writable copy slots are manual-only.
 
-The library shows first-slide previews, slide counts, titles, and dates. Search by title or official format name, sort by recent edits or title, and open a draft to resume. **Clear search** recovers from no results. Deleting a carousel requires confirmation and permanently removes its edit history; saved formats remain.
+The library loads drafts in pages of 25 and shows first-slide previews, slide counts, titles, and dates. Search by title or official format name, sort by recent edits or title, and open a draft to resume. **Clear search** recovers from no results. Deleting a carousel requires confirmation and permanently removes its edit history; saved formats remain.
 
 ## Plans and recovery
 
@@ -145,14 +145,13 @@ The library shows first-slide previews, slide counts, titles, and dates. Search 
 | Carousels | 5 | 100 |
 | AI generations | 10 | 250 |
 | Exports | 20 | 1,000 |
-| File preparations | 0 | 100 |
 | JPG export | No | Yes |
 
 Allowances reset on the first day of each month in UTC. Deleting a carousel created this month frees its slot; generation and export usage stay counted. Deleting an older carousel does not free a current-month slot.
 
 A failed or limited generation keeps the brief. Retry a failed generation or export from its corresponding action. Library, brand, formats, and plan loading errors offer retries. An inaccessible editor link offers a way back to the library. Sign-in failures show recovery instead of remaining indefinitely on a loading screen; a blocked provider must still be fixed in the live authentication configuration.
 
-To upgrade, open Pricing, continue to checkout, and wait for payment confirmation. The return URL alone does not prove the plan changed. Pricing refreshes the plan and offers a manual refresh while confirmation is pending. The displayed Pro price must match the configured payment product.
+To upgrade, open Pricing, continue to checkout, and wait for payment confirmation. The return URL alone does not prove the plan changed. Pricing refreshes the plan and offers a manual refresh while confirmation is pending. The displayed Pro price must match the configured payment product. When a customer is linked, **Manage subscription** opens the billing portal. Contact **milan@cassettelabs.in** for billing/support help. The operator is **MILAN SAMPATH**; approved privacy and terms pages remain a launch requirement.
 
 ## References and verification limits
 

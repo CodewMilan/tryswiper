@@ -1,59 +1,15 @@
-# Publishing
+# Export and manual sharing
 
-## Architecture
+Updated 14 October 2026. The user reviews a saved carousel, opens Export, checks it, and downloads PNG, PDF or Pro JPG. The user uploads the files to the social platform. Swiper does not connect social accounts, post automatically, schedule posts or retrieve social performance.
 
-Use a platform adapter interface.
+Checking is available to all plans. Native text metrics, structural validation and uploaded-image decoding flag known defects. Copy checks are heuristics; the user verifies claims and visual quality. Missing or corrupt images fail export explicitly. Preview and export use the same supported visual contract.
 
-```ts
-interface PublishingAdapter {
-  validate(post: PublishRequest): Promise<ValidationResult>
-  publish(post: PublishRequest): Promise<PublishResult>
-  schedule(post: PublishRequest): Promise<ScheduleResult>
-  getAnalytics(postId: string): Promise<Analytics>
-}
-```
+Exports can be pinned to a saved version. A stale version returns a conflict. Downloading binary files spends one export allowance; obtaining metadata or downloading JSON does not. MCP clients can retrieve authenticated bytes through a version-bound resource without inserting a key into a download URL.
 
-## Platform support
+## Legacy preparation compatibility
 
-Implement platforms independently.
+The separate browser Prepare files action was merged into Export by the operator's decision. Older API clients can still call `/api/v1/carousels/{id}/publish`; this creates an internal manual preparation record, not a social post or cached delivery package.
 
-Start with export/manual publishing if direct APIs are unavailable or restricted. Add official platform APIs only after verifying current API capabilities and terms.
+Each record binds the checked document version. Edits and undo invalidate approval. An identical retry is recognized before another allowance check; changed content needs a fresh key and validation. Final approval checks the version atomically. Returned download URLs include `version`. Unversioned legacy records cannot authorize changed content.
 
-The current product implements the first stage: Pro users approve a valid carousel, Swiper creates an idempotent manual publish job, marks the carousel approved, and returns PNG/JPG/PDF downloads. Direct platform adapters and stored OAuth credentials are not enabled yet.
-
-Each preparation records the checked document version. Edits and undo reset draft approval. A retry reuses a job only for the same carousel and version, before checking another allowance; changed content needs a fresh key and validation. Final approval checks the version atomically. Returned download URLs contain `version`; changed drafts return a conflict instead of silently downloading newer unchecked content. Existing unversioned legacy jobs cannot be reused as current approval.
-
-## Publish lifecycle
-
-```text
-DRAFT
-→ APPROVED
-→ SCHEDULED
-→ PUBLISHING
-→ PUBLISHED
-```
-
-Failure:
-```text
-PUBLISHING → FAILED → RETRY
-```
-
-## Idempotency
-
-Every publish job gets an idempotency key.
-
-Retries must not accidentally create duplicate posts.
-
-## Approval
-
-Default workflow:
-- agent creates
-- user reviews
-- user approves
-- system publishes
-
-Autopublish can be enabled explicitly per campaign/account.
-
-## Credentials
-
-OAuth tokens must be encrypted at rest and never exposed to the MCP client.
+Future direct publishing would require a separate product decision, official platform integrations and approval/credential policies. It is outside the current repair scope.

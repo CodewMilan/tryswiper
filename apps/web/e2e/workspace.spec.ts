@@ -726,7 +726,7 @@ test("complete brand context clears the warning and local slide revision stays f
   expect(generated.status()).toBe(201);
   const draft = await generated.json() as { carousel_id: string; carousel: Carousel; warnings: { code: string }[] };
   expect(draft.warnings.some((warning) => warning.code === "THIN_BRAND")).toBe(false);
-  expect(draft.carousel.metadata.thinBrand).toBeUndefined();
+  expect(draft.carousel.metadata.thinBrand).toBe(false);
   const revised = await page.request.post(`/api/v1/carousels/${draft.carousel_id}/slides/${draft.carousel.slides[0]!.id}/regenerate`, {
     data: { instruction: "Make Customer stories help founders write specific copy" },
   });

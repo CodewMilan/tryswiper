@@ -90,3 +90,9 @@ Every slide must:
 - satisfy safe-area constraints
 
 The schema must be versioned. Migration functions are required when schema versions change.
+
+## Renderer and resource contract
+
+Unsupported background, element and style properties are rejected explicitly. Text defaults to weight 500 and line height 1.2; fonts normalize to the bundled families. Repeated spaces and explicit blank lines are preserved; tabs become four spaces in both browser and export. Native measurements check wrapped text and ink bounds. Lines paint two logical pixels within their element box. Shapes and lines clip to that box.
+
+Documents allow 1–12 slides, at most 100 elements per slide, at most 10,000 characters per text element and 50,000 in total. Font size is capped at 240, line height at 5, and letter spacing at -20 to 100. Unsupported legacy visuals need correction before validation/export; accepting an old JSON object does not imply the renderer supports it.

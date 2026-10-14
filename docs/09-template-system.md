@@ -69,3 +69,9 @@ library in the browser's **New carousel** flow and can be reused without an agen
 ## Originality
 
 When a user references another post, extract high-level format characteristics rather than copying text, images, or distinctive creative expression.
+
+## Generating with saved designs
+
+Both browser and MCP generation can use eligible workspace formats. Each generated draft keeps the saved theme, geometry, roles, layouts and owned assets, with fresh IDs. Headline/kicker/body/proof/CTA slots receive new copy; fixed labels and captions stay saved. Omitted copy cannot retain an old claim. The exact saved slide count is enforced. A format needs at least one writable copy slot and no duplicate writable role on the same slide; other formats are manual-only and advertise `can_generate: false`. Review generated copy and wrapping before sharing.
+
+A workspace can retain up to 100 formats. Deleting a format does not delete drafts copied from it. Images referenced by current drafts, formats, brand logos or retained history cannot be deleted as unused.

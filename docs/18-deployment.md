@@ -60,7 +60,7 @@ push should use `pnpm db:push` as described below.
 
 ## Schema changes
 
-The 14 October repairs add migrations `0005` through `0008`. Apply them before serving the new code. `0007` preserves redundant same-user provider mappings in `account_identity_archive`, then adds uniqueness; it refuses to merge identities that point to different users. Review/reconcile any such conflict before retrying deployment. Archived mappings remain internal and are removed if the local user is deleted. CI and the browser regression suite exercise migration replay, preservation, and conflict rollback on isolated databases.
+The 14 October repairs add migrations `0005` through `0012`. Apply them before serving the new code. `0007` preserves redundant same-user provider mappings in `account_identity_archive`, then adds uniqueness; it refuses to merge identities that point to different users. Review/reconcile any such conflict before retrying deployment. Archived mappings remain internal and are removed if the local user is deleted. CI and the browser regression suite exercise migration replay, preservation, and conflict rollback on isolated databases.
 
 1. Edit `packages/db/src/schema.ts`.
 2. `pnpm --filter @swiper/db exec drizzle-kit generate --name <change>`
@@ -70,3 +70,13 @@ The 14 October repairs add migrations `0005` through `0008`. Apply them before s
 ## Not in this release
 
 Preview environments, independent render workers, and S3 are described in the architecture doc and are not required to run the current app.
+
+## Bounded resources and packaging
+
+Uploads are limited to 8 MiB, 4,096 pixels per side and 12 megapixels before decoding. Animated PNG/WebP are rejected. A workspace can retain 200 images / 200 MiB and make at most 30 retained uploads per hour. Rendering limits combined input to 24 megapixels / 32 MiB. Asset cleanup is explicit and reference-aware. Documents/history/request payloads have a separate 512 MiB workspace budget. Undo retains 100 snapshots, formats cap at 100, and library queries are paginated rather than loading all full documents. Successful request payloads expire after 30 days and are pruned on subsequent mutations; tombstones preserve retry safety.
+
+Postgres-backed leases admit up to eight concurrent model calls and four renders across instances, with at most two of either kind per workspace. Per-minute workspace admission is 10 generations / 30 renders. Leases expire after 120 seconds and release on completion/failure. These are admission limits, not production capacity measurements; benchmark the actual deployment. Generic API/webhook bodies cap at 1 MiB, asset multipart at 8 MiB plus bounded overhead, and MCP at 12 MiB.
+
+The Docker context excludes private `problems.md`, agent directories, credentials, local environments, test output and dependency/build caches. Next traces include bundled font assets on all carousel routes, including creation, validation, preview and export. Confirm native libraries and font files in the deployed artifact.
+
+Migrations 0009–0012 add preparation versions, resource budgets, local product events and billing verification revisions. Run migration replay/rollback checks and reconcile legacy identities/billing before release. Approve retention and legal pages; the code does not define the business's account-deletion policy. Use [the release evidence checklist](23-beta-and-release-checks.md) for live authentication, MCP, payments, backups and load.
