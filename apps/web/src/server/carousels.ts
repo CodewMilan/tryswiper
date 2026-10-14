@@ -44,7 +44,7 @@ import {
 import { assertUsage, recordUsage, withUsageTransaction, type UsageTransaction } from "./usage";
 import { recordProductEvent } from "./product-events";
 import type { CreationRequest } from "@/lib/creation-request";
-import { withResourceBudget } from "./resource-budget";
+import { assertDocumentStorage, withResourceBudget } from "./resource-budget";
 import { decodeAssets, textFitIssues } from "@swiper/rendering";
 
 function validateOutput(carousel: Carousel, options?: Parameters<typeof validateCarousel>[1]) {
@@ -65,6 +65,7 @@ async function replayRequest<T = CreationResult>(auth: AuthContext, request?: Cr
   if (!receipt) return null;
   if (receipt.payloadHash !== request.hash) throw Object.assign(new Error("This request ID was already used for a different brief. Start a new request."), { status: 409, code: "REQUEST_ID_REUSED" });
   if (!receipt.carouselId) throw Object.assign(new Error("The carousel from this request was deleted. Start a new request to create another draft."), { status: 410, code: "CREATED_DRAFT_DELETED" });
+  if (Date.now() - receipt.createdAt.getTime() > 30 * 86400000 || (receipt.resultJson as { expired?: boolean }).expired) throw Object.assign(new Error("The saved response expired after 30 days. Open the existing draft, or use a new request ID for new work."), { status: 410, code: "REQUEST_EXPIRED", details: { carousel_id: receipt.carouselId } });
   return receipt.resultJson as T;
 }
 
@@ -151,6 +152,8 @@ async function persistNewCarousel(auth: AuthContext, content: Carousel, plan: Ca
     if (modelUsed) await recordUsage(auth.workspaceId, "generation", tx);
     const result = response(id);
     if (request) await tx.insert(schema.creationRequest).values({ id: sid("req"), workspaceId: auth.workspaceId, requestKey: request.key, payloadHash: request.hash, carouselId: id, resultJson: result });
+    await pruneRequestResults(tx, auth.workspaceId);
+    await assertDocumentStorage(auth.workspaceId, tx);
     return result;
   }, async (tx) => { const previous = await replayRequest(auth, request, tx); return previous ? { value: previous } : null; });
 }
@@ -333,6 +336,7 @@ export async function deleteCarousel(authContext: AuthContext, id: string, expec
     }
     // Versions and publish jobs cascade; reusable workspace formats are kept.
     if (expectedVersion !== undefined && row.version !== expectedVersion) throw Object.assign(new Error("The draft changed. Review it before deleting."), { status: 409, code: "VERSION_CONFLICT", details: { current_version: row.version } });
+    await tx.update(schema.creationRequest).set({ resultJson: { deleted: true } }).where(eq(schema.creationRequest.carouselId, row.id));
     await tx.delete(schema.carousel).where(eq(schema.carousel.id, row.id));
     return { carousel_id: row.id, deleted: true };
   });
@@ -434,6 +438,10 @@ async function retainUndoHistory(tx: UsageTransaction, id: string) {
   if (older.length) await tx.delete(schema.carouselVersion).where(inArray(schema.carouselVersion.id, older.map((row) => row.id)));
 }
 
+async function pruneRequestResults(tx: UsageTransaction, workspaceId: string) {
+  await tx.update(schema.creationRequest).set({ resultJson: { expired: true } }).where(and(eq(schema.creationRequest.workspaceId, workspaceId), sql`${schema.creationRequest.createdAt} < ${new Date(Date.now() - 30 * 86400000)}`, sql`${schema.creationRequest.resultJson} ? 'carousel'`));
+}
+
 export async function updateCarousel(
   authContext: AuthContext,
   id: string,
@@ -477,6 +485,8 @@ export async function updateCarousel(
     await tx.update(schema.carousel).set({ contentJson: content, planJson: plan, title: content.metadata.title, formatId: content.metadata.formatId, status: "draft", version: nextVersion, lastMutationId: mutationId ?? null, updatedAt: new Date() }).where(eq(schema.carousel.id, id));
     const [depth] = await tx.select({ count: count() }).from(schema.carouselVersion).where(eq(schema.carouselVersion.carouselId, id));
     await recordProductEvent(authContext.workspaceId, "edited", id, { source: authContext.source }, tx);
+    await pruneRequestResults(tx, authContext.workspaceId);
+    await assertDocumentStorage(authContext.workspaceId, tx);
     return { carousel_id: id, editor_url: editorUrl(id), version: nextVersion, undo_count: depth?.count ?? 0, validation: validateOutput(content), carousel: content };
   });
 }
@@ -553,6 +563,8 @@ export async function generateSlide(
       source, warnings, version, undo_count: depth?.count ?? 0, validation, carousel };
     if (request) await tx.insert(schema.creationRequest).values({ id: sid("req"), workspaceId: authContext.workspaceId,
       requestKey: request.key, payloadHash: request.hash, carouselId: id, resultJson: result });
+    await pruneRequestResults(tx, authContext.workspaceId);
+    await assertDocumentStorage(authContext.workspaceId, tx);
     return result;
   }, async (tx) => { const previous = await replayRequest<RevisionResult>(authContext, request, tx); return previous ? { value: previous } : null; });
   return committed;

@@ -150,8 +150,9 @@ export default function NewCarouselPage() {
         if (pending?.key) {
           const statusResponse = await fetch(`/api/v1/requests/${encodeURIComponent(pending.key)}`);
           if (statusResponse.ok) {
-            const status = await statusResponse.json() as { status: string; result?: { carousel_id?: string } };
+            const status = await statusResponse.json() as { status: string; carousel_id?: string; result?: { carousel_id?: string } };
             if (active && status.status === "completed" && status.result?.carousel_id) setRecoveredDraftId(status.result.carousel_id);
+            else if (active && status.status === "expired" && status.carousel_id) setRecoveredDraftId(status.carousel_id);
           }
         }
       } catch { /* Storage is optional; creation still works without it. */ }
@@ -208,7 +209,7 @@ export default function NewCarouselPage() {
         void workspaceUsage.refresh();
         throw new Error(usageLimitMessage(body));
       }
-      if (body.code === "CREATED_DRAFT_DELETED" || body.code === "REQUEST_ID_REUSED") {
+      if (body.code === "CREATED_DRAFT_DELETED" || body.code === "REQUEST_ID_REUSED" || body.code === "REQUEST_EXPIRED") {
         pendingRequest.current = null;
         if (draftKey) { try { sessionStorage.removeItem(`${draftKey}:request`); } catch { /* Retry with a fresh request ID. */ } }
       }

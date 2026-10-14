@@ -32,3 +32,13 @@ export async function assertAssetStorage(workspaceId: string, byteSize: number, 
   if (Number(usage?.bytes) + byteSize > 200 * 1024 * 1024 || Number(usage?.assets) >= 200) throw Object.assign(new Error("This workspace reached its image-storage limit (200 images or 200 MiB). Remove unused images to make room."), { status: 413, code: "ASSET_STORAGE_LIMIT" });
   if (Number(uploads?.value) >= 30) throw Object.assign(new Error("This workspace reached 30 image uploads this hour. Try again later."), { status: 429, code: "UPLOAD_RATE_LIMIT" });
 }
+
+/** Bound document/history/request payloads separately from uploaded-image storage. */
+export async function assertDocumentStorage(workspaceId: string, writer: Pick<typeof db, "execute">) {
+  const rows = await writer.execute(sql`select
+    coalesce((select sum(octet_length(c.content_json::text) + coalesce(octet_length(c.plan_json::text),0)) from carousel c join project p on p.id=c.project_id where p.workspace_id=${workspaceId}),0) +
+    coalesce((select sum(octet_length(v.content_json::text) + coalesce(octet_length(v.plan_json::text),0)) from carousel_version v join carousel c on c.id=v.carousel_id join project p on p.id=c.project_id where p.workspace_id=${workspaceId}),0) +
+    coalesce((select sum(octet_length(content_json::text) + coalesce(octet_length(plan_json::text),0)) from workspace_format where workspace_id=${workspaceId}),0) +
+    coalesce((select sum(octet_length(result_json::text)) from creation_request where workspace_id=${workspaceId}),0) as bytes`);
+  if (Number(rows[0]?.bytes ?? 0) > 512 * 1024 * 1024) throw Object.assign(new Error("This workspace reached its 512 MiB document/history budget. Delete old drafts to make room, or email milan@cassettelabs.in for help."), { status: 413, code: "DOCUMENT_STORAGE_LIMIT" });
+}
