@@ -101,4 +101,9 @@ try {
   try { await event("subscription.paused", 16); } finally { release(); }
   assert.equal((await slowRefresh)!.status, "paused");
   assert.equal(await workspacePlan(workspaceId), "free");
+  // Different events may share a provider timestamp. IDs deduplicate delivery;
+  // the fresh authoritative snapshot decides access for the same subscription.
+  subscription = replacement;
+  assert.equal((await event("subscription.active", 16)).applied, true);
+  assert.equal(await workspacePlan(workspaceId), "pro");
 } finally { globalThis.fetch = originalFetch; await db.$client.end(); }

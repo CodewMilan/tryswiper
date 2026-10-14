@@ -42,7 +42,7 @@ export async function applySubscriptionEvent(input: {
     const [event] = await tx.insert(schema.billingWebhook).values({ id: input.eventId, workspaceId: input.workspaceId, type: input.type, occurredAt: input.occurredAt }).onConflictDoNothing().returning();
     if (!event) return { applied: false, reason: "duplicate" };
     const [current] = await tx.select().from(schema.billing).where(eq(schema.billing.workspaceId, input.workspaceId));
-    if (current?.lastEventAt && input.occurredAt <= current.lastEventAt) return { applied: false, reason: "stale" };
+    if (current?.lastEventAt && input.occurredAt < current.lastEventAt) return { applied: false, reason: "stale" };
     if (input.verificationStartedAt && current?.dodoSubscriptionId === input.subscription.subscription_id && current.lastVerifiedAt && current.lastVerifiedAt > input.verificationStartedAt) return { applied: false, reason: "newer_verification" };
     if (current?.dodoSubscriptionId && current.dodoSubscriptionId !== input.subscription.subscription_id &&
       (current.subscriptionCreatedAt && new Date(input.subscription.created_at) <= current.subscriptionCreatedAt ||

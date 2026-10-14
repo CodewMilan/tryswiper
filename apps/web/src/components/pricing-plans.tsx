@@ -65,6 +65,7 @@ export function PricingPlans({ priceLabel, initialSignedIn }: { priceLabel: stri
         setPlan(next.plan);
         setUsage(next.usage);
         setLimits(next.limits);
+        setHasCustomer("hasCustomer" in next && Boolean(next.hasCustomer));
       });
     }, 2500);
     return () => { active = false; window.clearInterval(timer); };
