@@ -58,7 +58,7 @@ export async function generatePlan(input: {
   try {
     const loaded = await model();
     if (!loaded) return { plan: fallback, source: "local" };
-    const { object } = await generateObject({
+    const { object, usage } = await generateObject({
       model: loaded,
       schema: input.template ? carouselPlanSchema.extend({ slides: z.array(slidePlanSchema).length(input.template.slides.length) }) : carouselPlanSchema,
       abortSignal: AbortSignal.timeout(60000),
@@ -80,6 +80,7 @@ export async function generatePlan(input: {
     if (input.template) {
       if (object.formatId !== input.template.formatId || object.slides.length !== input.template.slides.length || object.slides.some((slide, index) => slide.role !== input.template!.slides[index]!.role || slide.layout !== input.template!.slides[index]!.layout)) return { plan: fallback, source: "local" };
     } else if (!getFormat(object.formatId) || input.formatId && object.formatId !== input.formatId || input.slideCount && object.slides.length !== input.slideCount) return { plan: fallback, source: "local" };
+    console.info(JSON.stringify({ event: "generation_success", operation: "draft", provider: process.env.ANTHROPIC_API_KEY?.trim() ? "anthropic" : "openai", duration_ms: Date.now() - startedAt, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, source: "model" }));
     return { plan: object, source: "model" };
   } catch (error) {
     fallbackEvent("draft", error, startedAt);
@@ -123,7 +124,7 @@ export async function reviseSlidePlan(input: {
   try {
     const loaded = await model();
     if (!loaded) return { plan: fallback(), source: "local" };
-    const { object } = await generateObject({
+    const { object, usage } = await generateObject({
       model: loaded,
       schema: slidePlanSchema,
       abortSignal: AbortSignal.timeout(60000),
@@ -139,6 +140,7 @@ export async function reviseSlidePlan(input: {
     });
     const slides = [...input.plan.slides];
     slides[input.slideIndex] = { ...current, ...object, role: current.role, layout: current.layout };
+    console.info(JSON.stringify({ event: "generation_success", operation: "revision", provider: process.env.ANTHROPIC_API_KEY?.trim() ? "anthropic" : "openai", duration_ms: Date.now() - startedAt, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, source: "model" }));
     return { plan: { ...input.plan, slides }, source: "model" };
   } catch (error) {
     fallbackEvent("revision", error, startedAt);

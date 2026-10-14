@@ -40,6 +40,8 @@ export function Editor({ carouselId, initialNotices = [] }: { carouselId: string
   const [formatSaving, setFormatSaving] = useState(false);
   const [formatError, setFormatError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackBusy, setFeedbackBusy] = useState(false);
   const [formatNotice, setFormatNotice] = useState(false);
   const [generationNoticesDismissed, setGenerationNoticesDismissed] = useState(false);
   const brandNotice = !generationNoticesDismissed &&
@@ -196,6 +198,10 @@ export function Editor({ carouselId, initialNotices = [] }: { carouselId: string
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       setNotice(`${format.toUpperCase()} export downloaded.`);
+      if (doc?.metadata.generationSource) {
+        try { if (!sessionStorage.getItem(`swiper:feedback:${carouselId}`)) setFeedbackOpen(true); }
+        catch { setFeedbackOpen(true); }
+      }
       setFormatNotice(false);
       void workspaceUsage.refresh();
       setExportOpen(false);
@@ -219,6 +225,17 @@ export function Editor({ carouselId, initialNotices = [] }: { carouselId: string
       setFormatOpen(false);
     } catch (error) { setFormatError(error instanceof Error ? error.message : "Could not save format."); }
     finally { setFormatSaving(false); }
+  }
+
+  async function rateDraft(rating: "useful" | "needs_work") {
+    setFeedbackBusy(true);
+    try {
+      const response = await fetch(`/api/v1/carousels/${carouselId}/feedback`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rating }) });
+      if (!response.ok) throw new Error("Could not record feedback. Try again.");
+      try { sessionStorage.setItem(`swiper:feedback:${carouselId}`, "recorded"); } catch { /* Optional reminder storage. */ }
+      setFeedbackOpen(false); setNotice("Thanks for the feedback.");
+    } catch (error) { setSaveError(error instanceof Error ? error.message : "Could not record feedback."); }
+    finally { setFeedbackBusy(false); }
   }
 
   if (loading) return <main className="grid min-h-dvh grid-cols-[180px_1fr] gap-8 p-6" aria-label="Loading editor" aria-busy="true"><div className="rounded-xl bg-muted motion-safe:animate-pulse" /><div className="mx-auto my-auto aspect-[4/5] w-full max-w-md rounded-xl bg-muted motion-safe:animate-pulse" /></main>;
@@ -253,6 +270,7 @@ export function Editor({ carouselId, initialNotices = [] }: { carouselId: string
       </Dialog>
       {notices.length ? <div className="flex flex-wrap items-center justify-center gap-3 border-b border-border bg-card px-4 py-2 text-sm" role="status">{notices.map((message) => <span key={message}>{message}</span>)}{formatNotice ? <Link href="/new" className="underline underline-offset-4">Formats live under Start by hand</Link> : null}{brandNotice ? <Link href="/brand" className="underline underline-offset-4">Open brand kit</Link> : null}<button onClick={() => { setNotice(null); setFormatNotice(false); setGenerationNoticesDismissed(true); }} className="min-h-11 px-2 text-ink-soft">Dismiss</button></div> : null}
 
+      {feedbackOpen ? <section aria-label="Draft feedback" className="flex flex-wrap items-center justify-center gap-3 border-b border-border bg-card px-4 py-2 text-sm"><span>Was this draft useful?</span><Button size="sm" variant="outline" disabled={feedbackBusy} onClick={() => void rateDraft("useful")}>Yes, useful</Button><Button size="sm" variant="outline" disabled={feedbackBusy} onClick={() => void rateDraft("needs_work")}>Needs work</Button><button className="min-h-11 px-2 text-ink-soft" onClick={() => setFeedbackOpen(false)}>Skip feedback</button></section> : null}
       <div className="editor-workspace">
         <aside className="editor-slides" aria-label="Slide navigator">
           <div className="flex items-center justify-between px-4 pt-5"><h2 className="text-xs font-semibold">Slides <span className="ml-1 text-ink-soft">{doc.slides.length}</span></h2><button aria-label="Add slide" className="editor-icon" onClick={() => addSlide()} disabled={doc.slides.length >= 12}><Plus size={16} /></button></div>

@@ -345,9 +345,16 @@ export const resourceWindow = pgTable("resource_window", {
   kind: text("kind").notNull(), startedAt: timestamp("started_at").notNull(), requests: integer("requests").notNull(),
 }, (table) => [uniqueIndex("resource_window_workspace_kind_idx").on(table.workspaceId, table.kind)]);
 
+export const productEvent = pgTable("product_event", {
+  id: text("id").primaryKey(), workspaceId: text("workspace_id").notNull().references(() => workspace.id, { onDelete: "cascade" }),
+  carouselId: text("carousel_id").references(() => carousel.id, { onDelete: "set null" }),
+  kind: text("kind").notNull(), source: text("source"), value: text("value"), createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [index("product_event_workspace_created_idx").on(table.workspaceId, table.createdAt)]);
+
 export const schema = {
   operationLease,
   resourceWindow,
+  productEvent,
   user,
   session,
   account,

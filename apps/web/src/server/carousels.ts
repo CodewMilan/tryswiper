@@ -41,7 +41,8 @@ import {
   thinBrandWarning,
   type GenerationWarning,
 } from "@/lib/generation-notices";
-import { assertUsage, recordUsage, withUsageTransaction } from "./usage";
+import { assertUsage, recordUsage, withUsageTransaction, type UsageTransaction } from "./usage";
+import { recordProductEvent } from "./product-events";
 import type { CreationRequest } from "@/lib/creation-request";
 import { withResourceBudget } from "./resource-budget";
 import { decodeAssets, textFitIssues } from "@swiper/rendering";
@@ -146,6 +147,7 @@ async function persistNewCarousel(auth: AuthContext, content: Carousel, plan: Ca
     await tx.insert(schema.carousel).values({ id, projectId: project.id, title: content.metadata.title, formatId: content.metadata.formatId,
       status: "draft", contentJson: content, planJson: plan, createdBy: auth.userId });
     await recordUsage(auth.workspaceId, "carousel", tx);
+    await recordProductEvent(auth.workspaceId, "created", id, { source: content.metadata.generationSource ?? "manual", value: auth.source }, tx);
     if (modelUsed) await recordUsage(auth.workspaceId, "generation", tx);
     const result = response(id);
     if (request) await tx.insert(schema.creationRequest).values({ id: sid("req"), workspaceId: auth.workspaceId, requestKey: request.key, payloadHash: request.hash, carouselId: id, resultJson: result });
@@ -427,6 +429,11 @@ export async function undoCarousel(authContext: AuthContext, id: string, expecte
   });
 }
 
+async function retainUndoHistory(tx: UsageTransaction, id: string) {
+  const older = await tx.select({ id: schema.carouselVersion.id }).from(schema.carouselVersion).where(eq(schema.carouselVersion.carouselId, id)).orderBy(desc(schema.carouselVersion.createdAt), desc(schema.carouselVersion.version)).offset(100);
+  if (older.length) await tx.delete(schema.carouselVersion).where(inArray(schema.carouselVersion.id, older.map((row) => row.id)));
+}
+
 export async function updateCarousel(
   authContext: AuthContext,
   id: string,
@@ -463,13 +470,13 @@ export async function updateCarousel(
       if (!asset) throw Object.assign(new Error("A referenced image is unavailable."), { status: 422, code: "MISSING_ASSET" });
     }
     await tx.insert(schema.carouselVersion).values({ id: sid("ver"), carouselId: id, version: current.version, contentJson: current.contentJson, planJson: current.planJson });
-    const older = await tx.select({ id: schema.carouselVersion.id }).from(schema.carouselVersion).where(eq(schema.carouselVersion.carouselId, id)).orderBy(desc(schema.carouselVersion.createdAt), desc(schema.carouselVersion.version)).offset(100);
-    if (older.length) await tx.delete(schema.carouselVersion).where(inArray(schema.carouselVersion.id, older.map((row) => row.id)));
+    await retainUndoHistory(tx, id);
     const nextVersion = current.version + 1;
     const previousPlan = current.planJson as CarouselPlan | null;
     const plan = previousPlan ? planFromCarousel(content, previousPlan.product) : null;
     await tx.update(schema.carousel).set({ contentJson: content, planJson: plan, title: content.metadata.title, formatId: content.metadata.formatId, status: "draft", version: nextVersion, lastMutationId: mutationId ?? null, updatedAt: new Date() }).where(eq(schema.carousel.id, id));
     const [depth] = await tx.select({ count: count() }).from(schema.carouselVersion).where(eq(schema.carouselVersion.carouselId, id));
+    await recordProductEvent(authContext.workspaceId, "edited", id, { source: authContext.source }, tx);
     return { carousel_id: id, editor_url: editorUrl(id), version: nextVersion, undo_count: depth?.count ?? 0, validation: validateOutput(content), carousel: content };
   });
 }
@@ -527,12 +534,14 @@ export async function generateSlide(
       });
     }
     await tx.insert(schema.carouselVersion).values({ id: sid("ver"), carouselId: id, version: latest.version, contentJson: latest.contentJson, planJson: latest.planJson });
+    await retainUndoHistory(tx, id);
+    await recordProductEvent(authContext.workspaceId, "revised", id, { source, value: authContext.source }, tx);
     const version = latest.version + 1;
     await tx.update(schema.carousel).set({
       contentJson: carousel, planJson: planFromCarousel(carousel, plan.product), title: carousel.metadata.title,
       version, lastMutationId: null, status: "draft", updatedAt: new Date(),
     }).where(eq(schema.carousel.id, id));
-    if (source === "model") await tx.insert(schema.usageEvent).values({ id: sid("use"), workspaceId: authContext.workspaceId, kind: "generation" });
+    if (source === "model") await recordUsage(authContext.workspaceId, "generation", tx);
     const [depth] = await tx.select({ count: count() }).from(schema.carouselVersion).where(eq(schema.carouselVersion.carouselId, id));
     const warnings: GenerationWarning[] = [
       ...(source === "local" ? [localGenerationWarning()] : []), ...(content.metadata.thinBrand ? [thinBrandWarning()] : []),
@@ -570,6 +579,7 @@ export async function validateExisting(authContext: AuthContext, id: string) {
       validation.ok = false;
     }
   }
+  await recordProductEvent(authContext.workspaceId, "checked", id, { source: authContext.source, value: validation.ok ? "passed" : "issues" });
   return { version: current.version, ...validation };
 }
 
