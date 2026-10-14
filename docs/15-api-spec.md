@@ -1,77 +1,46 @@
 # Application API
 
-Use REST for MVP. Keep contracts typed.
+Updated 14 October 2026. These are implemented routes under `/api/v1`; route handlers and shared schemas define the detailed contracts. Session and content-key authorization always checks workspace ownership.
 
-## Projects
+| Route | Methods and behavior |
+| --- | --- |
+| `/projects` | GET paginated workspace project/draft metadata |
+| `/carousels` | POST manual creation or generation from a brief |
+| `/carousels/generate` | POST generation from a brief and official/eligible saved format |
+| `/carousels/{id}` | GET current document (or retained `?version=` snapshot), PATCH typed edits, DELETE draft/history |
+| `/carousels/{id}/slides/{slideId}/regenerate` | POST one-slide revision preserving saved design and surrounding work |
+| `/carousels/{id}/undo` | POST restore previous saved snapshot |
+| `/carousels/{id}/validate` | POST structural, native text-fit, asset and copy checks |
+| `/carousels/{id}/render` | GET PNG image with `?slide=N` and version header; POST preview metadata |
+| `/carousels/{id}/export` | POST file metadata; GET binary/JSON with `?format=pdf,png,jpg,json` (one value) and optional `version` |
+| `/carousels/{id}/publish` | POST legacy version-bound manual preparation compatibility; no social posting |
+| `/carousels/{id}/feedback` | POST optional usefulness feedback |
+| `/formats` | GET official and workspace formats; POST save owned draft as a format |
+| `/formats/{id}` | DELETE owned workspace format |
+| `/assets` | GET paginated owned image metadata; POST bounded multipart image upload |
+| `/assets/{id}` | GET owned image bytes; DELETE unused owned asset |
+| `/brand` | GET/PATCH workspace brand |
+| `/requests/{id}` | GET durable creation/revision result status |
+| `/billing` | GET effective verified plan, usage, limits and customer/period metadata |
+| `/billing/checkout` | POST checkout; interactive owner/admin only |
+| `/billing/portal` | POST provider customer portal; interactive owner/admin only |
+| `/billing/webhook` | POST signed Dodo subscription events |
+| `/mcp-keys` | GET/POST key management; interactive owner/admin only |
+| `/mcp-keys/{id}` | DELETE key; interactive owner/admin only |
+| `/metrics` | GET private workspace event counts; interactive owner/admin only |
 
-`POST /v1/projects`
-`GET /v1/projects`
-`GET /v1/projects/:id`
-`PATCH /v1/projects/:id`
-`DELETE /v1/projects/:id`
+`/api/webhooks/clerk` receives bounded signed Clerk lifecycle events; `/api/health` checks the database. Remote MCP uses `/mcp`.
 
-## Carousels
+## Creation and edit semantics
 
-`POST /v1/carousels`
-`GET /v1/carousels/:id`
-`DELETE /v1/carousels/:id` — delete an authorized carousel and release its current-month carousel slot; saved formats remain available
-`PATCH /v1/carousels/:id`
-`POST /v1/carousels/:id/generate`
-`POST /v1/carousels/:id/validate`
-`POST /v1/carousels/:id/render`
-`POST /v1/carousels/:id/export`
+Browser/API generation accepts `brief`, optional `title`, `format_id`, `slide_count` and `reference_url`. Official counts follow their advertised range; saved formats use their original count and must advertise `can_generate`. Public-reference metadata failure falls back to the brief with `REFERENCE_UNAVAILABLE`; invalid/unsafe references fail before creation. No private-post or complete-slide extraction is promised.
 
-Browser generation (`POST /api/v1/carousels` with a brief) and
-`POST /api/v1/carousels/generate` accept an optional `reference_url`.
-If a supported post cannot be fetched or has no public metadata, generation
-continues using the brief. The successful response includes a `warnings` array
-with code `REFERENCE_UNAVAILABLE` and a human-readable message. Its `editor_url`
-carries the non-fatal notice into the editor. Invalid or unsupported URLs still
-return a validation error before creating a draft.
+Creation/revision retries use `Idempotency-Key`. Identical successful requests replay their receipt before allowance admission; changed input conflicts. After 30 days the result payload can expire while its tombstone prevents duplicate creation. GET request status can recover a committed editor link even at the quota boundary; not_completed can still mean in-flight work.
 
-## Slides
+PATCH edits use the shared discriminated operation union, `expected_version` and `mutation_id`. Undo and agent deletion guard the current version. Stale operations return 409 with recoverable version details. History, accepted results and metering commit transactionally; expensive model/render work happens outside the short commit lock. Current-month deletion releases that carousel slot, while generation/export usage remains.
 
-`POST /v1/carousels/:id/slides`
-`PATCH /v1/carousels/:id/slides/:slideId`
-`DELETE /v1/carousels/:id/slides/:slideId`
-`POST /v1/carousels/:id/slides/:slideId/regenerate`
+## Limits and errors
 
-## Templates
+Invalid inputs return structured 4xx codes/messages. Missing/corrupt export assets fail explicitly. Bodies, document shape, pixels, storage, pagination and expensive operation rate/concurrency are bounded; see [deployment](18-deployment.md). Internal failures return a generic message and error ID rather than private database details.
 
-`GET /v1/formats` — list official formats and formats saved in the authenticated workspace
-`POST /v1/formats` — save an authorized carousel as a reusable workspace format
-`GET /v1/templates`
-`POST /v1/templates`
-
-Create-format body:
-
-```json
-{
-  "carousel_id": "car_...",
-  "name": "Customer proof story",
-  "description": "Use after a launch to turn proof points into a short narrative."
-}
-```
-
-## Assets
-
-`POST /v1/assets/presign`
-`POST /v1/assets/complete`
-`GET /v1/assets/:id`
-
-## Publishing
-
-`POST /v1/social-accounts/connect`
-`GET /v1/social-accounts`
-`POST /v1/publish-jobs`
-`GET /v1/publish-jobs/:id`
-
-## API requirements
-
-- request validation
-- authentication
-- authorization
-- pagination
-- idempotency for mutations that can be retried
-- structured errors
-- request IDs
+There are no implemented project CRUD, standalone slide CRUD, presigned object-store uploads, social-account, scheduling or social analytics routes. Slide changes use the document operation API. The MCP contract is in [the tool specification](05-mcp-spec.md).

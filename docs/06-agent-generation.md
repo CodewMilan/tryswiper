@@ -1,6 +1,12 @@
 # Agent Generation Pipeline
 
-## Pipeline
+## Implemented pipeline and boundaries
+
+The diagram below is a design target. The current server loads owned brand/format context, asks the configured model for typed copy, renders into the supported document schema, and runs deterministic checks. It does not automatically create image assets, run a second LLM critic, or iterate repairs until a draft is approved. Users/agents review native previews and decide corrections. Saved-format generation keeps design/assets and changes semantic copy slots; single-slide revision changes current target text only.
+
+Model calls have 60-second budgets with retries disabled. Invalid output or provider failure returns a visibly marked local scaffold without an AI credit. Durable request IDs recover committed results and prevent duplicate creation/revision; in-flight work is synchronous, not a restart-safe background queue.
+
+## Intended pipeline
 
 ```text
 Brief
@@ -99,7 +105,7 @@ Each slide gets:
 
 ### 5. Critique
 
-Run deterministic checks plus an LLM critic.
+Run deterministic checks. A separate LLM critic is a future option, not implemented.
 
 Checks:
 - text overflow
