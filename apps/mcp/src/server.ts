@@ -144,6 +144,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
         title: z.string().optional(),
         format_id: z.string().optional(),
         slide_count: z.number().optional(),
+        request_id: z.string().min(1).max(120).optional().describe("Reuse this ID when retrying the same creation request; use a new ID for a different brief."),
       }),
     },
     async (input) => {
@@ -151,6 +152,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
         return ok(
           await call("/api/v1/carousels/generate", {
             method: "POST",
+            ...(input.request_id ? { headers: { "Idempotency-Key": input.request_id } } : {}),
             body: JSON.stringify(input),
           }),
         );
@@ -169,6 +171,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
         brief: z.string(),
         format_id: z.string().optional(),
         brand_id: z.string().optional(),
+        request_id: z.string().min(1).max(120).optional().describe("Reuse this ID when retrying the same creation request."),
       }),
     },
     async (input) => {
@@ -176,6 +179,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
         return ok(
           await call("/api/v1/carousels", {
             method: "POST",
+            ...(input.request_id ? { headers: { "Idempotency-Key": input.request_id } } : {}),
             body: JSON.stringify(input),
           }),
         );
@@ -235,15 +239,17 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
         carousel_id: z.string(),
         slide_id: z.string(),
         instruction: z.string(),
+        request_id: z.string().min(1).max(120).optional().describe("Reuse this ID when retrying the same slide revision."),
       }),
     },
-    async ({ carousel_id, slide_id, instruction }) => {
+    async ({ carousel_id, slide_id, instruction, request_id }) => {
       try {
         return ok(
           await call(
             `/api/v1/carousels/${carousel_id}/slides/${slide_id}/regenerate`,
             {
               method: "POST",
+              ...(request_id ? { headers: { "Idempotency-Key": request_id } } : {}),
               body: JSON.stringify({ instruction }),
             },
           ),

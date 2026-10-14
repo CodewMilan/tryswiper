@@ -24,6 +24,7 @@ import {
   type CarouselOperation,
   type CarouselPlan,
   type Theme,
+  type ValidationResult,
 } from "@swiper/schema";
 import { schema } from "@swiper/db";
 import type { AuthContext } from "../lib/api-auth";
@@ -40,6 +41,21 @@ import {
   type GenerationWarning,
 } from "@/lib/generation-notices";
 import { assertUsage, recordUsage, withUsageTransaction } from "./usage";
+import type { CreationRequest } from "@/lib/creation-request";
+
+type CreationResult = { carousel_id: string; editor_url: string; status: "draft"; format_id: string; carousel: Carousel; validation: ValidationResult;
+  source?: "model" | "local"; warnings?: GenerationWarning[] };
+type RevisionResult = { carousel_id: string; editor_url: string; source: "model" | "local"; warnings: GenerationWarning[];
+  version: number; undo_count: number; validation: ValidationResult; carousel: Carousel };
+
+async function replayRequest<T = CreationResult>(auth: AuthContext, request?: CreationRequest, reader: Pick<typeof db, "select"> = db): Promise<T | null> {
+  if (!request) return null;
+  const [receipt] = await reader.select().from(schema.creationRequest).where(and(eq(schema.creationRequest.workspaceId, auth.workspaceId), eq(schema.creationRequest.requestKey, request.key))).limit(1);
+  if (!receipt) return null;
+  if (receipt.payloadHash !== request.hash) throw Object.assign(new Error("This request ID was already used for a different brief. Start a new request."), { status: 409, code: "REQUEST_ID_REUSED" });
+  if (!receipt.carouselId) throw Object.assign(new Error("The carousel from this request was deleted. Start a new request to create another draft."), { status: 410, code: "CREATED_DRAFT_DELETED" });
+  return receipt.resultJson as T;
+}
 
 function themeFromBrand(brand: NonNullable<Awaited<ReturnType<typeof getWorkspaceBrand>>>): Theme {
   return {
@@ -108,7 +124,8 @@ async function namedProject(authContext: AuthContext, name: string, description:
   return created!;
 }
 
-async function persistNewCarousel(auth: AuthContext, content: Carousel, plan: CarouselPlan | null, method: "agent" | "manual", modelUsed = false) {
+async function persistNewCarousel(auth: AuthContext, content: Carousel, plan: CarouselPlan | null, method: "agent" | "manual", modelUsed: boolean,
+  request: CreationRequest | undefined, response: (id: string) => CreationResult) {
   return withUsageTransaction(auth.workspaceId, modelUsed ? ["carousel", "generation"] : ["carousel"], async (tx) => {
     const project = await namedProject(auth, method === "agent" ? "Agent carousels" : "Drafts", method === "agent" ? "Carousels created through MCP" : "Carousels started in the browser", tx);
     const id = sid("car");
@@ -116,8 +133,10 @@ async function persistNewCarousel(auth: AuthContext, content: Carousel, plan: Ca
       status: "draft", contentJson: content, planJson: plan, createdBy: auth.userId });
     await recordUsage(auth.workspaceId, "carousel", tx);
     if (modelUsed) await recordUsage(auth.workspaceId, "generation", tx);
-    return id;
-  });
+    const result = response(id);
+    if (request) await tx.insert(schema.creationRequest).values({ id: sid("req"), workspaceId: auth.workspaceId, requestKey: request.key, payloadHash: request.hash, carouselId: id, resultJson: result });
+    return result;
+  }, async (tx) => { const previous = await replayRequest(auth, request, tx); return previous ? { value: previous } : null; });
 }
 
 export async function generateCarousel(input: {
@@ -126,7 +145,10 @@ export async function generateCarousel(input: {
   title?: string;
   formatId?: string;
   slideCount?: number;
+  request?: CreationRequest;
 }) {
+  const previous = await replayRequest(input.auth, input.request);
+  if (previous) return previous;
   await assertUsage(input.auth.workspaceId, "carousel");
   if (generationModelConfigured()) await assertUsage(input.auth.workspaceId, "generation");
   const brandRow = await getWorkspaceBrand(input.auth.workspaceId);
@@ -152,7 +174,6 @@ export async function generateCarousel(input: {
     generationSource: source,
     ...(thinBrand ? { thinBrand: true } : {}),
   };
-  const id = await persistNewCarousel(input.auth, result.carousel, result.plan, "agent", source === "model");
   const warnings: GenerationWarning[] = [
     ...(source === "local" ? [localGenerationWarning()] : []),
     ...(thinBrand ? [thinBrandWarning()] : []),
@@ -161,7 +182,7 @@ export async function generateCarousel(input: {
   if (source === "local") query.set("generation", "local");
   if (thinBrand) query.set("brand", "thin");
   const suffix = query.toString();
-  return {
+  return persistNewCarousel(input.auth, result.carousel, result.plan, "agent", source === "model", input.request, (id) => ({
     carousel_id: id,
     editor_url: suffix ? `${editorUrl(id)}?${suffix}` : editorUrl(id),
     status: "draft" as const,
@@ -170,14 +191,17 @@ export async function generateCarousel(input: {
     warnings,
     validation: result.validation,
     carousel: result.carousel,
-  };
+  }));
 }
 
 export async function startCarouselFromFormat(input: {
   auth: AuthContext;
   formatId: string;
   title?: string;
+  request?: CreationRequest;
 }) {
+  const previous = await replayRequest(input.auth, input.request);
+  if (previous) return previous;
   await assertUsage(input.auth.workspaceId, "carousel");
   const format = getFormat(input.formatId);
   const brandRow = await getWorkspaceBrand(input.auth.workspaceId);
@@ -203,23 +227,16 @@ export async function startCarouselFromFormat(input: {
       formatId: workspaceFormat.id,
       title,
     });
-    const id = await persistNewCarousel(input.auth, content, plan, "manual");
+    const result = await persistNewCarousel(input.auth, content, plan, "manual", false, input.request, (id) => ({
+      carousel_id: id, editor_url: editorUrl(id), status: "draft", format_id: workspaceFormat.id,
+      validation: validateCarousel(content, { forbiddenWords: brandRow.wordsToAvoid, allowedProof: brandRow.proofPoints }), carousel: content,
+    }));
     console.info("carousel_started_from_workspace_format", {
-      carouselId: id,
+      carouselId: result.carousel_id,
       formatId: workspaceFormat.id,
       workspaceId: input.auth.workspaceId,
     });
-    return {
-      carousel_id: id,
-      editor_url: editorUrl(id),
-      status: "draft" as const,
-      format_id: workspaceFormat.id,
-      validation: validateCarousel(content, {
-        forbiddenWords: brandRow.wordsToAvoid,
-        allowedProof: brandRow.proofPoints,
-      }),
-      carousel: content,
-    };
+    return result;
   }
 
   const theme = themeFromBrand(brandRow);
@@ -235,15 +252,14 @@ export async function startCarouselFromFormat(input: {
     allowedProof: brandRow.proofPoints,
   });
   addBrandLogo(result.carousel, brandRow.logoAssetId);
-  const id = await persistNewCarousel(input.auth, result.carousel, result.plan, "manual");
-  return {
+  return persistNewCarousel(input.auth, result.carousel, result.plan, "manual", false, input.request, (id) => ({
     carousel_id: id,
     editor_url: editorUrl(id),
     status: "draft" as const,
     format_id: result.plan.formatId,
     validation: result.validation,
     carousel: result.carousel,
-  };
+  }));
 }
 
 export async function getCarousel(authContext: AuthContext, id: string) {
@@ -435,7 +451,10 @@ export async function generateSlide(
   id: string,
   slideId: string,
   instruction: string,
+  request?: CreationRequest,
 ) {
+  const previous = await replayRequest<RevisionResult>(authContext, request);
+  if (previous) return previous;
   if (generationModelConfigured()) await assertUsage(authContext.workspaceId, "generation");
   const current = await getCarousel(authContext, id);
   const brandRow = await getWorkspaceBrand(authContext.workspaceId);
@@ -486,25 +505,19 @@ export async function generateSlide(
     }).where(eq(schema.carousel.id, id));
     if (source === "model") await tx.insert(schema.usageEvent).values({ id: sid("use"), workspaceId: authContext.workspaceId, kind: "generation" });
     const [depth] = await tx.select({ count: count() }).from(schema.carouselVersion).where(eq(schema.carouselVersion.carouselId, id));
-    return { version, undo_count: depth?.count ?? 0 };
-  });
-  const warnings: GenerationWarning[] = [
-    ...(source === "local" ? [localGenerationWarning()] : []),
-    ...(content.metadata.thinBrand ? [thinBrandWarning()] : []),
-  ];
-  const query = new URLSearchParams();
-  if (source === "local") query.set("generation", "local");
-  if (content.metadata.thinBrand) query.set("brand", "thin");
-  const suffix = query.toString();
-  return {
-    carousel_id: id,
-    editor_url: suffix ? `${editorUrl(id)}?${suffix}` : editorUrl(id),
-    source,
-    warnings,
-    ...committed,
-    validation,
-    carousel,
-  };
+    const warnings: GenerationWarning[] = [
+      ...(source === "local" ? [localGenerationWarning()] : []), ...(content.metadata.thinBrand ? [thinBrandWarning()] : []),
+    ];
+    const query = new URLSearchParams();
+    if (source === "local") query.set("generation", "local");
+    if (content.metadata.thinBrand) query.set("brand", "thin");
+    const result: RevisionResult = { carousel_id: id, editor_url: query.size ? `${editorUrl(id)}?${query}` : editorUrl(id),
+      source, warnings, version, undo_count: depth?.count ?? 0, validation, carousel };
+    if (request) await tx.insert(schema.creationRequest).values({ id: sid("req"), workspaceId: authContext.workspaceId,
+      requestKey: request.key, payloadHash: request.hash, carouselId: id, resultJson: result });
+    return result;
+  }, async (tx) => { const previous = await replayRequest<RevisionResult>(authContext, request, tx); return previous ? { value: previous } : null; });
+  return committed;
 }
 
 export async function validateExisting(authContext: AuthContext, id: string) {

@@ -976,3 +976,50 @@ test("concurrent creation and exports cannot overrun the last Free allowance", a
     expect((await (await request.get("/api/v1/billing")).json()).usage.export).toBe(20);
   } finally { await sql.end(); }
 });
+
+test("first-login provisioning serializes identity and workspace creation and repairs missing brand data", async ({ page }) => {
+  const userId = await signUp(page.request);
+  await promisify(execFile)(process.execPath, ["--import", require.resolve("tsx", { paths: [resolve(__dirname, "../../mcp")] }), resolve(__dirname, "provisioning.fixture.mts"), userId], { env: {
+    ...process.env, DATABASE_URL: testDatabaseUrl, TSX_TSCONFIG_PATH: resolve(__dirname, "../tsconfig.json"),
+  } });
+});
+
+test("creation and slide revision retries return the original result without consuming allowances twice", async ({ page }) => {
+  await signUp(page.request);
+  const request = page.request;
+  const key = crypto.randomUUID(); const data = { format_id: "freeform", title: "One intended draft" };
+  const parallel = await Promise.all(Array.from({ length: 3 }, () => request.post("/api/v1/carousels", { data, headers: { "Idempotency-Key": key } })));
+  expect(parallel.every((response) => response.status() === 201)).toBeTruthy();
+  const bodies = await Promise.all(parallel.map((response) => response.json()));
+  expect(new Set(bodies.map((body) => body.carousel_id)).size).toBe(1);
+  expect((await (await request.get("/api/v1/billing")).json()).usage.carousel).toBe(1);
+  const draft = bodies[0] as { carousel_id: string; carousel: Carousel };
+  const revisionUrl = `/api/v1/carousels/${draft.carousel_id}/slides/${draft.carousel.slides[0]!.id}/regenerate`;
+  const revisionHeaders = { "Idempotency-Key": crypto.randomUUID() };
+  const first = await request.post(revisionUrl, { data: { instruction: "Make the headline shorter" }, headers: revisionHeaders });
+  expect(first.status()).toBe(200);
+  const original = await first.json();
+  const repeated = await request.post(revisionUrl, { data: { instruction: "Make the headline shorter" }, headers: revisionHeaders });
+  expect(repeated.status()).toBe(200);
+  expect(await repeated.json()).toEqual(original);
+  expect((await state(request, draft.carousel_id)).undo_count).toBe(1);
+  for (let i = 0; i < 4; i++) await create(request);
+  expect((await request.post("/api/v1/carousels", { data, headers: { "Idempotency-Key": key } })).status()).toBe(201);
+  expect((await request.post("/api/v1/carousels", { data: { ...data, title: "Different request" }, headers: { "Idempotency-Key": key } })).status()).toBe(409);
+  await request.delete(`/api/v1/carousels/${draft.carousel_id}`);
+  expect((await request.post("/api/v1/carousels", { data, headers: { "Idempotency-Key": key } })).status()).toBe(410);
+});
+
+test("malformed generation, revision, brand and key inputs return readable client errors", async ({ page }) => {
+  await signUp(page.request);
+  for (const data of [null, { brief: 123 }, { brief: "A valid brief for a carousel.", title: 123 }, { brief: "x".repeat(10001) }, { brief: "A valid brief for a carousel.", slide_count: 999 }]) {
+    const response = await page.request.post("/api/v1/carousels/generate", { data });
+    expect(response.status()).toBe(400);
+    expect((await response.json()).message).toBeTruthy();
+  }
+  const draft = await create(page.request);
+  const revision = await page.request.post(`/api/v1/carousels/${draft.carousel_id}/slides/${draft.carousel.slides[0]!.id}/regenerate`, { data: { instruction: 42 } });
+  expect(revision.status()).toBe(400);
+  expect((await page.request.patch("/api/v1/brand", { data: { guidelines: "x".repeat(10001) } })).status()).toBe(400);
+  expect((await page.request.post("/api/v1/mcp-keys", { data: { name: 42 } })).status()).toBe(400);
+});

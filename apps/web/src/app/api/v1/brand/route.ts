@@ -61,6 +61,10 @@ export async function PATCH(request: Request) {
     const authContext = await requireAuth(request);
     const body = (await request.json()) as Record<string, unknown>;
     if (!body || typeof body !== "object" || Array.isArray(body)) return badRequest("Provide a brand object.");
+    for (const field of ["description", "audience", "positioning", "tone", "cta", "website", "guidelines"]) {
+      const limit = field === "cta" ? 120 : field === "website" ? 2000 : 10000;
+      if (field in body && (typeof body[field] !== "string" || body[field].length > limit)) return badRequest(`${field} must be text under ${limit} characters.`);
+    }
     for (const field of ["wordsToUse", "wordsToAvoid", "proofPoints"]) {
       if (field in body && (!Array.isArray(body[field]) || body[field].length > 100 || !body[field].every((item: unknown) => typeof item === "string" && item.length <= 1000))) return badRequest(`${field} must be a list of short text entries.`);
     }

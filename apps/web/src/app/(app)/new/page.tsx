@@ -170,15 +170,21 @@ export default function NewCarouselPage() {
     setError(null);
     setUsageLimited(false);
     try {
+      const payload = JSON.stringify({ format_id: selected.id, title: title.trim() || undefined,
+        brief: mode === "generate" ? brief.trim() : undefined,
+        reference_url: mode === "generate" && referenceUrl.trim() ? referenceUrl.trim() : undefined });
+      let requestId = crypto.randomUUID();
+      if (draftKey) {
+        try {
+          const previous = JSON.parse(sessionStorage.getItem(`${draftKey}:request`) ?? "null");
+          if (previous?.payload === payload && typeof previous.key === "string") requestId = previous.key;
+          sessionStorage.setItem(`${draftKey}:request`, JSON.stringify({ key: requestId, payload }));
+        } catch { /* Request recovery is optional when browser storage is unavailable. */ }
+      }
       const response = await fetch("/api/v1/carousels", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          format_id: selected.id,
-          title: title.trim() || undefined,
-          brief: mode === "generate" ? brief.trim() : undefined,
-          reference_url: mode === "generate" && referenceUrl.trim() ? referenceUrl.trim() : undefined,
-        }),
+        headers: { "Content-Type": "application/json", "Idempotency-Key": requestId },
+        body: payload,
       });
       const body = (await response.json()) as UsageApiError & {
         carousel_id?: string;
@@ -191,7 +197,7 @@ export default function NewCarouselPage() {
         throw new Error(usageLimitMessage(body));
       }
       if (!response.ok || !body.carousel_id) throw new Error(body.message ?? "Could not start the carousel.");
-      if (draftKey) { try { sessionStorage.removeItem(draftKey); } catch { /* The server draft is now the source of truth. */ } }
+      if (draftKey) { try { sessionStorage.removeItem(draftKey); sessionStorage.removeItem(`${draftKey}:request`); } catch { /* The server draft is now the source of truth. */ } }
       setDraftKey(null);
       const params = new URLSearchParams();
       if (body.warnings?.some((warning) => warning.code === "REFERENCE_UNAVAILABLE")) params.set("reference", "unavailable");

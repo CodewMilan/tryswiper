@@ -197,6 +197,16 @@ export const carouselVersion = pgTable("carousel_version", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const creationRequest = pgTable("creation_request", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id").notNull().references(() => workspace.id, { onDelete: "cascade" }),
+  requestKey: text("request_key").notNull(),
+  payloadHash: text("payload_hash").notNull(),
+  carouselId: text("carousel_id").references(() => carousel.id, { onDelete: "set null" }),
+  resultJson: jsonb("result_json").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [uniqueIndex("creation_request_workspace_key_idx").on(table.workspaceId, table.requestKey)]);
+
 export const workspaceFormat = pgTable(
   "workspace_format",
   {
@@ -336,6 +346,7 @@ export const schema = {
   project,
   carousel,
   carouselVersion,
+  creationRequest,
   workspaceFormat,
   asset,
   mcpKey,
