@@ -36,15 +36,26 @@ export async function swiperFetch<T>(
   init?: RequestInit,
   credentials?: SwiperCredentials,
 ): Promise<T> {
-  const response = await fetch(`${apiBase(credentials)}${path}`, {
+  const response = await swiperResponse(path, init, credentials);
+  return await response.json() as T;
+}
+
+/** Authenticated binary/JSON requests share the same timeout and error handling. */
+export async function swiperResponse(path: string, init?: RequestInit, credentials?: SwiperCredentials): Promise<Response> {
+  let response: Response;
+  try { response = await fetch(`${apiBase(credentials)}${path}`, {
     ...init,
+    signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(90000)]) : AbortSignal.timeout(90000),
     headers: {
       Authorization: `Bearer ${apiKey(credentials)}`,
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
-  });
-  const body = (await response.json().catch(() => ({}))) as T & {
+  }); } catch {
+    throw new SwiperApiError("REQUEST_INTERRUPTED", "The request timed out or the connection was interrupted. Retry with the same request ID, or check get_request_status before creating again.");
+  }
+  if (response.ok) return response;
+  const body = (await response.json().catch(() => ({}))) as {
     code?: string;
     message?: string;
     details?: unknown;
@@ -56,5 +67,5 @@ export async function swiperFetch<T>(
       body.details,
     );
   }
-  return body;
+  return response;
 }

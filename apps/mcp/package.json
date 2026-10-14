@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.0.0",
+    "@swiper/schema": "workspace:*",
     "zod": "^4.1.11"
   },
   "devDependencies": {

@@ -159,8 +159,10 @@ export async function generateCarousel(input: {
   const previous = await replayRequest(input.auth, input.request);
   if (previous) return previous;
   let formatId = input.formatId;
-  if (formatId && !getFormat(formatId)) throw Object.assign(new Error("Choose an official story format for generation. Saved workspace formats can currently be started by hand."), { status: 400, code: "UNKNOWN_FORMAT" });
-  if (input.slideCount !== undefined) {
+  const workspaceFormat = formatId && !getFormat(formatId) ? await getWorkspaceFormat(input.auth, formatId) : null;
+  if (formatId && !getFormat(formatId) && !workspaceFormat) throw Object.assign(new Error("Choose an available official or saved workspace format."), { status: 400, code: "UNKNOWN_FORMAT" });
+  if (workspaceFormat && input.slideCount !== undefined && input.slideCount !== workspaceFormat.contentJson.slides.length) throw Object.assign(new Error("A saved format keeps its original slide count."), { status: 400, code: "INVALID_SLIDE_COUNT" });
+  if (!workspaceFormat && input.slideCount !== undefined) {
     const format = formatId ? getFormat(formatId) : FORMATS.find((candidate) => input.slideCount! >= candidate.slideCount.min && input.slideCount! <= candidate.slideCount.max);
     if (!Number.isInteger(input.slideCount) || input.slideCount < 3 || input.slideCount > 12 || !format || input.slideCount < format.slideCount.min || input.slideCount > format.slideCount.max) {
       throw Object.assign(new Error(format ? `${format.name} supports ${format.slideCount.min}–${format.slideCount.max} slides.` : "No current story format supports that slide count. Pick a supported format and count."), { status: 400, code: "INVALID_SLIDE_COUNT" });
@@ -181,13 +183,21 @@ export async function generateCarousel(input: {
     formatId,
     slideCount: input.slideCount,
     brand,
+    template: workspaceFormat ? planFromCarousel(workspaceFormat.contentJson, { name: brand.name, forbiddenClaims: brand.wordsToAvoid ?? [] }) : undefined,
   });
   if (input.title) plan.title = input.title;
   const result = validateAndRepair(plan, theme, {
     forbiddenWords: brand.wordsToAvoid,
     allowedProof: brand.proofPoints,
   });
-  addBrandLogo(result.carousel, brandRow.logoAssetId);
+  if (workspaceFormat) {
+    result.carousel = instantiateCarouselTemplate(workspaceFormat.contentJson, { formatId: workspaceFormat.id, title: result.plan.title, newId: (kind) => sid(kind === "slide" ? "sld" : "el") });
+    for (const [index, slide] of result.carousel.slides.entries()) for (const element of slide.elements) {
+      if (element.type === "text" && element.role && ["headline", "kicker", "body", "proof", "cta"].includes(element.role)) {
+        element.text = result.plan.slides[index]?.[element.role as "headline" | "kicker" | "body" | "proof" | "cta"] ?? "";
+      }
+    }
+  } else addBrandLogo(result.carousel, brandRow.logoAssetId);
   result.validation = validateOutput(result.carousel, { forbiddenWords: brandRow.wordsToAvoid, allowedProof: brandRow.proofPoints });
   result.carousel.metadata = {
     ...result.carousel.metadata,
@@ -446,7 +456,7 @@ export async function updateCarousel(
       return { carousel_id: id, version: current.version, carousel: current.contentJson, undo_count: await undoDepth(id) };
     }
     if (expectedVersion !== undefined && current.version !== expectedVersion) {
-      throw Object.assign(new Error("This carousel changed in another tab. Review the latest version before saving."), { status: 409, code: "VERSION_CONFLICT" });
+      throw Object.assign(new Error("This carousel changed elsewhere. Review the latest version before saving."), { status: 409, code: "VERSION_CONFLICT", details: { current_version: current.version } });
     }
     let content: Carousel;
     try {

@@ -1,6 +1,7 @@
-import { McpServer } from "@modelcontextprotocol/server";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
-import { SwiperApiError, swiperFetch, type SwiperCredentials } from "./api";
+import { carouselOperationSchema } from "@swiper/schema";
+import { SwiperApiError, swiperFetch, swiperResponse, type SwiperCredentials } from "./api";
 
 function ok(data: unknown) {
   return {
@@ -46,6 +47,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
   server.registerTool(
     "swiper.get_brand",
     {
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       description: "Read the workspace brand kit the agent should stay consistent with.",
       inputSchema: z.object({}),
     },
@@ -61,6 +63,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
   server.registerTool(
     "swiper.update_brand",
     {
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
       description:
         "Update the workspace brand kit. Use this when the user describes their product, tone, audience, CTA, colors, or fonts.",
       inputSchema: z.object({
@@ -73,7 +76,9 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
         website: z.string().optional(),
         wordsToUse: z.array(z.string()).optional(),
         wordsToAvoid: z.array(z.string()).optional(),
-        proofPoints: z.array(z.string()).optional(),
+        proofPoints: z.array(z.string().trim().min(1).max(1000)).max(100).optional(),
+        guidelines: z.string().max(10000).optional(),
+        logoAssetId: z.string().min(1).nullable().optional().describe("An asset ID returned by upload_asset; null removes the logo."),
         colors: z
           .object({
             background: z.string().optional(),
@@ -107,6 +112,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
   server.registerTool(
     "swiper.list_formats",
     {
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       description: "List official Swiper carousel formats and their narrative roles.",
       inputSchema: z.object({}),
     },
@@ -122,6 +128,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
   server.registerTool(
     "swiper.list_projects",
     {
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       description: "List projects and carousels in the authenticated workspace.",
       inputSchema: z.object({}),
     },
@@ -137,6 +144,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
   server.registerTool(
     "swiper.generate_carousel",
     {
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       description:
         "Create a complete, editable social carousel from a brief. Reads brand context, picks a format unless one is supplied, writes slides, and runs quality checks. Returns an editor URL.",
       inputSchema: z.object({
@@ -165,12 +173,12 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
   server.registerTool(
     "swiper.create_carousel",
     {
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       description: "Create a carousel from a brief. Prefer generate_carousel for a finished draft.",
       inputSchema: z.object({
         title: z.string().optional(),
-        brief: z.string(),
+        brief: z.string().trim().min(12).max(10000).optional(),
         format_id: z.string().optional(),
-        brand_id: z.string().optional(),
         request_id: z.string().min(1).max(120).optional().describe("Reuse this ID when retrying the same creation request."),
       }),
     },
@@ -192,6 +200,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
   server.registerTool(
     "swiper.get_carousel",
     {
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       description: "Return the canonical carousel JSON, metadata, and editor URL.",
       inputSchema: z.object({
         carousel_id: z.string(),
@@ -209,19 +218,22 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
   server.registerTool(
     "swiper.update_carousel",
     {
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
       description:
         "Apply structured operations instead of rewriting the whole document. Use this for CTA changes, text edits, reorder, insert, and delete.",
       inputSchema: z.object({
         carousel_id: z.string(),
-        operations: z.array(z.unknown()),
+        operations: z.array(carouselOperationSchema).min(1).max(500).describe("Structured edits. Coordinates use the 1080×1350 canvas; images reference uploaded asset IDs."),
+        expected_version: z.number().int().positive().describe("Version from get_carousel; stale edits are rejected."),
+        mutation_id: z.string().min(1).max(100).describe("Unique edit ID; reuse it for an immediate retry of the same edit."),
       }),
     },
-    async ({ carousel_id, operations }) => {
+    async ({ carousel_id, operations, expected_version, mutation_id }) => {
       try {
         return ok(
           await call(`/api/v1/carousels/${carousel_id}`, {
             method: "PATCH",
-            body: JSON.stringify({ operations }),
+            body: JSON.stringify({ operations, expected_version, mutation_id }),
           }),
         );
       } catch (error) {
@@ -233,6 +245,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
   server.registerTool(
     "swiper.generate_slide",
     {
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
       description:
         "Regenerate a single slide while preserving the rest of the narrative. Use for requests like “make slide 1 shorter”.",
       inputSchema: z.object({
@@ -263,6 +276,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
   server.registerTool(
     "swiper.validate_carousel",
     {
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       description: "Run structural and content quality checks on a carousel.",
       inputSchema: z.object({
         carousel_id: z.string(),
@@ -284,18 +298,20 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
   server.registerTool(
     "swiper.render_preview",
     {
-      description: "Return the editor/preview URL for a carousel.",
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      description: "Render a saved slide as model-visible PNG image content. Review the image and its copy before sharing.",
       inputSchema: z.object({
         carousel_id: z.string(),
+        slide_number: z.number().int().min(1).max(12).default(1),
       }),
     },
-    async ({ carousel_id }) => {
+    async ({ carousel_id, slide_number }) => {
       try {
-        return ok(
-          await call(`/api/v1/carousels/${carousel_id}/render`, {
-            method: "POST",
-          }),
-        );
+        const response = await swiperResponse(`/api/v1/carousels/${encodeURIComponent(carousel_id)}/render?slide=${slide_number}`, undefined, credentials);
+        return { content: [
+          { type: "text" as const, text: JSON.stringify({ carousel_id, slide_number, version: Number(response.headers.get("X-Carousel-Version")) }) },
+          { type: "image" as const, data: Buffer.from(await response.arrayBuffer()).toString("base64"), mimeType: "image/png" },
+        ] };
       } catch (error) {
         return fail(error);
       }
@@ -305,24 +321,38 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
   server.registerTool(
     "swiper.export_carousel",
     {
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       description:
-        "Create downloadable output for a carousel. Returns URLs for a multi-page PDF and a zip of 1080×1350 PNGs. Fetch a URL with the same API key to download the file.",
+        "Create downloadable output for a carousel. Returns URLs for a multi-page PDF and a zip of 1080×1350 PNGs. Use the returned protected MCP resource URI to read file bytes without putting a key in a URL; resource reads consume an export allowance.",
       inputSchema: z.object({
         carousel_id: z.string(),
       }),
     },
     async ({ carousel_id }) => {
       try {
-        return ok(
-          await call(`/api/v1/carousels/${carousel_id}/export`, {
-            method: "POST",
-          }),
-        );
+        const metadata = await call(`/api/v1/carousels/${carousel_id}/export`, { method: "POST" });
+        const draft = await call<{ version: number }>(`/api/v1/carousels/${carousel_id}`);
+        return ok({ ...(metadata as object), resources: ["pdf", "png", "jpg", "json"].map((format) => ({
+          uri: `swiper://carousels/${encodeURIComponent(carousel_id)}/versions/${draft.version}/exports/${format}`,
+          name: `${carousel_id}.${format === "png" || format === "jpg" ? "zip" : format}`,
+        })), note: "Read a protected resource with this MCP connection. Binary file reads consume export allowance; JSON is unmetered. Clients differ in how they expose file downloads." });
       } catch (error) {
         return fail(error);
       }
     },
   );
+
+  server.registerResource("carousel-export", new ResourceTemplate("swiper://carousels/{carousel_id}/versions/{version}/exports/{format}", { list: undefined }),
+    { description: "Authenticated version-bound export bytes; PNG/JPG bundles are ZIP files. Reads consume export allowance (except JSON)." },
+    async (uri, variables) => {
+      const carouselId = String(variables.carousel_id);
+      const version = String(variables.version);
+      const format = String(variables.format);
+      if (!/^[A-Za-z0-9_-]+$/.test(carouselId) || !/^\d+$/.test(version) || !["pdf", "png", "jpg", "json"].includes(format)) throw new Error("Invalid export resource.");
+      const response = await swiperResponse(`/api/v1/carousels/${carouselId}/export?format=${format}&version=${version}`, undefined, credentials);
+      const blob = Buffer.from(await response.arrayBuffer()).toString("base64");
+      return { contents: [{ uri: uri.href, mimeType: response.headers.get("Content-Type") ?? "application/octet-stream", blob }] };
+    });
 
   return server;
 }

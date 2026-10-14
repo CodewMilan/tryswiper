@@ -2,6 +2,7 @@ import { carouselPlanSchema, slidePlanSchema, getFormat, formatSlides, clip, typ
 import { generateObject } from "ai";
 import { compactBrand, type BrandContext } from "./brand";
 import { planLocally } from "./local";
+import { z } from "zod";
 
 function firstUsefulLine(text: string, fallback: string) {
   const cleaned = text.replace(/^(make|change|rewrite|update)\s+/i, "").trim();
@@ -44,6 +45,7 @@ export async function generatePlan(input: {
   slideCount?: number;
   brand: BrandContext;
   instruction?: string;
+  template?: CarouselPlan;
 }): Promise<{ plan: CarouselPlan; source: "model" | "local" }> {
   const fallback = planLocally(input);
   try {
@@ -51,12 +53,13 @@ export async function generatePlan(input: {
     if (!loaded) return { plan: fallback, source: "local" };
     const { object } = await generateObject({
       model: loaded,
-      schema: carouselPlanSchema,
+      schema: input.template ? carouselPlanSchema.extend({ slides: z.array(slidePlanSchema).length(input.template.slides.length) }) : carouselPlanSchema,
       abortSignal: AbortSignal.timeout(60000),
       maxRetries: 0,
       system: SYSTEM,
       prompt: [
         compactBrand(input.brand),
+        input.template ? `Saved workspace format: ${input.template.formatId}. Return exactly these roles and layouts in order: ${JSON.stringify(input.template.slides.map(({ role, layout }) => ({ role, layout })))}. Write NEW copy from the brief. Do not reuse the template's prior factual claims.` : "",
         input.formatId ? `Format id: ${input.formatId}` : "Pick the best official format.",
         input.slideCount ? `Return exactly ${input.slideCount} slides.` : "",
         input.formatId && getFormat(input.formatId) ? `Use these narrative roles in order: ${formatSlides(getFormat(input.formatId)!, input.slideCount).map((slide) => slide.role).join(", ")}` : "",
@@ -67,7 +70,9 @@ export async function generatePlan(input: {
         .filter(Boolean)
         .join("\n\n"),
     });
-    if (!getFormat(object.formatId) || input.formatId && object.formatId !== input.formatId || input.slideCount && object.slides.length !== input.slideCount) return { plan: fallback, source: "local" };
+    if (input.template) {
+      if (object.formatId !== input.template.formatId || object.slides.length !== input.template.slides.length || object.slides.some((slide, index) => slide.role !== input.template!.slides[index]!.role || slide.layout !== input.template!.slides[index]!.layout)) return { plan: fallback, source: "local" };
+    } else if (!getFormat(object.formatId) || input.formatId && object.formatId !== input.formatId || input.slideCount && object.slides.length !== input.slideCount) return { plan: fallback, source: "local" };
     return { plan: object, source: "model" };
   } catch {
     return { plan: fallback, source: "local" };

@@ -91,6 +91,7 @@ export function planLocally(input: {
   formatId?: string;
   slideCount?: number;
   brand: BrandContext;
+  template?: CarouselPlan;
 }): CarouselPlan {
   const formatId = chooseFormatId(input.brief, input.formatId);
   const format = getFormat(formatId) ?? FORMATS[0]!;
@@ -99,9 +100,9 @@ export function planLocally(input: {
 
   return {
     title: firstSentence(cleaned, `${product.name} carousel`).slice(0, 80),
-    formatId: format.id,
+    formatId: input.template?.formatId ?? format.id,
     product,
-    slides: formatSlides(format, input.slideCount).map((def, index) => {
+    slides: (input.template?.slides ?? formatSlides(format, input.slideCount)).map((def, index) => {
       const copy = copyForRole(def.role, product, input.brief, index);
       return {
         role: def.role,
