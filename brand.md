@@ -16,6 +16,6 @@ _Deferred at: 2026-10-01T05:52:00Z_
 
 ## Approved logo — 14 October 2026
 
-Use the supplied seven white vertical bars on a black square. Preserve the alternating vertical offsets, equal bar widths, spacing and square proportions. The original is retained in `assets/brand/swiper-logo-source.png`; the lightweight vector at `apps/web/public/logos/swiper.svg` follows its measured geometry. The shared app mark, browser favicon and Apple home-screen icon use this design. Keep the existing interface palette and typography; their setup remains deferred.
+The interface mark is seven black vertical bars on a clear ground. Preserve the alternating vertical offsets, equal bar widths, and spacing. The supplied file is `assets/brand/swiper-logo-black.png`. The vector at `apps/web/public/logos/swiper.svg` follows its measured geometry and is what the nav, footer, editor, and 404 render. Keep that mark large enough to read (about 56px tall).
 
-The black-on-light variant has not been supplied or approved. Use the supplied white-on-black treatment on all current surfaces.
+The browser icon and Apple home-screen icon use the same black bars on the stone canvas (`#f5f5f4`) so the mark stays visible at a small size. The earlier white-on-black square remains in `assets/brand/swiper-logo-source.png` and is not the interface mark. Keep the existing interface palette and typography; their setup remains deferred.

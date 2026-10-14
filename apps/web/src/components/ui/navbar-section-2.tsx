@@ -96,7 +96,7 @@ export default function NavbarSectionTwo({
 
   return (
     <header ref={rootRef} className="pointer-events-none fixed inset-x-0 top-0 z-40 px-3 font-sans text-zinc-900 lg:px-6">
-      <div className="pointer-events-auto relative mx-auto flex h-14 w-full max-w-7xl items-center justify-between lg:h-12">
+      <div className="pointer-events-auto relative mx-auto flex h-16 w-full max-w-7xl items-center justify-between">
         <Link href={homeHref} aria-label={homeLabel} className="relative z-10 flex items-center text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <Mark />
         </Link>
