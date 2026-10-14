@@ -1,4 +1,4 @@
-import { carouselPlanSchema, clip, type CarouselPlan } from "@swiper/schema";
+import { carouselPlanSchema, slidePlanSchema, clip, type CarouselPlan } from "@swiper/schema";
 import { generateObject } from "ai";
 import { compactBrand, type BrandContext } from "./brand";
 import { planLocally } from "./local";
@@ -105,17 +105,19 @@ export async function reviseSlidePlan(input: {
     if (!loaded) return { plan: fallback(), source: "local" };
     const { object } = await generateObject({
       model: loaded,
-      schema: carouselPlanSchema,
+      schema: slidePlanSchema,
       system: SYSTEM,
       prompt: [
         compactBrand(input.brand),
         `Revise only slide ${input.slideIndex + 1} (${current.role}).`,
         `Instruction: ${input.instruction}`,
         `Current plan JSON:\n${JSON.stringify(input.plan, null, 2)}`,
-        "Keep every other slide unchanged.",
+        "Return only the revised slide's copy. Preserve its role and layout. Include the existing copy fields unless the instruction changes them.",
       ].join("\n\n"),
     });
-    return { plan: object, source: "model" };
+    const slides = [...input.plan.slides];
+    slides[input.slideIndex] = { ...current, ...object, role: current.role, layout: current.layout };
+    return { plan: { ...input.plan, slides }, source: "model" };
   } catch {
     return { plan: fallback(), source: "local" };
   }

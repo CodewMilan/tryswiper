@@ -1,4 +1,5 @@
 import { appUrl } from "@/lib/utils";
+import { subscriptionSchema } from "@/lib/subscription";
 
 export type DodoConfig = {
   apiKey: string;
@@ -89,4 +90,16 @@ export async function createDodoCheckout(input: {
     });
   }
   return checkoutUrl;
+}
+
+export async function retrieveDodoSubscription(id: string) {
+  const config = dodoConfig();
+  if (!config.apiKey || !config.productId) throw Object.assign(new Error("Subscription verification is temporarily unavailable."), { status: 503, code: "PAYMENTS_NOT_CONFIGURED" });
+  const response = await fetch(`${config.base}/subscriptions/${encodeURIComponent(id)}`, {
+    headers: { Authorization: `Bearer ${config.apiKey}` }, signal: AbortSignal.timeout(10000), cache: "no-store",
+  });
+  if (!response.ok) throw Object.assign(new Error("Could not verify the subscription. Please try again."), { status: 502, code: "SUBSCRIPTION_VERIFICATION_FAILED" });
+  const parsed = subscriptionSchema.safeParse(await response.json());
+  if (!parsed.success || parsed.data.subscription_id !== id) throw Object.assign(new Error("The payment provider returned an invalid subscription."), { status: 502, code: "INVALID_SUBSCRIPTION" });
+  return parsed.data;
 }

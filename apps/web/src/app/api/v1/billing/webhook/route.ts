@@ -1,30 +1,14 @@
-import { dodoConfig } from "@/lib/dodo";
-import { verifyDodoWebhook, webhookEventType, webhookIds, workspaceIdFromWebhook } from "@/lib/dodo-webhook";
-import { apiError, json } from "@/lib/http";
-import { recordBilling } from "@/server/billing";
+import { dodoConfig, retrieveDodoSubscription } from "@/lib/dodo";
+import { verifyDodoWebhook, webhookEventType, webhookIds } from "@/lib/dodo-webhook";
+import { apiError, fromUnknownError, json } from "@/lib/http";
+import { applySubscriptionEvent } from "@/server/billing";
+import { db, schema } from "@/lib/db";
+import { eq } from "drizzle-orm";
 
 export const runtime = "nodejs";
 
-const activeEvents = new Set(["payment.succeeded", "subscription.active", "subscription.renewed"]);
-const inactiveEvents = new Set([
-  "subscription.cancelled",
-  "subscription.canceled",
-  "subscription.expired",
-  "subscription.on_hold",
-  "subscription.failed",
-]);
-
-function planFor(type: string, status: string | null) {
-  if (activeEvents.has(type)) return { plan: "pro" as const, status: "active" };
-  if (inactiveEvents.has(type)) return { plan: "free" as const, status: "cancelled" };
-  if (type === "subscription.updated") {
-    if (status === "active") return { plan: "pro" as const, status: "active" };
-    if (status && ["cancelled", "canceled", "expired", "on_hold", "failed"].includes(status)) {
-      return { plan: "free" as const, status };
-    }
-  }
-  return null;
-}
+const subscriptionEvents = new Set(["subscription.active", "subscription.renewed", "subscription.updated", "subscription.cancelled", "subscription.canceled",
+  "subscription.expired", "subscription.on_hold", "subscription.failed", "subscription.paused", "subscription.unpaused", "subscription.past_due"]);
 
 export async function POST(request: Request) {
   const config = dodoConfig();
@@ -46,19 +30,20 @@ export async function POST(request: Request) {
 
   const type = webhookEventType(payload);
   const ids = webhookIds(payload);
-  const next = planFor(type, ids.status);
-  if (!next) return json({ received: true });
-
-  const workspaceId = workspaceIdFromWebhook(payload);
-  if (!workspaceId) return json({ received: true, ignored: true });
-
-  const saved = await recordBilling({
-    workspaceId,
-    plan: next.plan,
-    status: next.status,
-    customerId: ids.customerId,
-    subscriptionId: ids.subscriptionId,
-    paymentId: ids.paymentId,
-  });
-  return json({ received: true, applied: saved });
+  // Payment success also includes card verifications and unrelated purchases.
+  if (!subscriptionEvents.has(type)) return json({ received: true, ignored: true });
+  const timestamp = payload && typeof payload === "object" && "timestamp" in payload ? payload.timestamp : null;
+  const occurredAt = typeof timestamp === "string" ? new Date(timestamp) : new Date(NaN);
+  if (!ids.subscriptionId || !Number.isFinite(occurredAt.getTime()) || occurredAt.getTime() > Date.now() + 5 * 60_000) return apiError("INVALID_SUBSCRIPTION_EVENT", "Subscription event ID and occurrence time are required.");
+  try {
+    const [processed] = await db.select({ id: schema.billingWebhook.id }).from(schema.billingWebhook)
+      .where(eq(schema.billingWebhook.id, request.headers.get("webhook-id")!)).limit(1);
+    if (processed) return json({ received: true, applied: false, reason: "duplicate" });
+    // Re-read authoritative state instead of granting access from a stale payload.
+    const subscription = await retrieveDodoSubscription(ids.subscriptionId);
+    const workspaceId = subscription.metadata.workspace_id ?? subscription.metadata.workspaceId;
+    if (!workspaceId?.startsWith("ws_")) return json({ received: true, ignored: true });
+    const result = await applySubscriptionEvent({ eventId: request.headers.get("webhook-id")!, type, occurredAt, workspaceId, subscription });
+    return json({ received: true, ...result });
+  } catch (error) { return fromUnknownError(error); }
 }

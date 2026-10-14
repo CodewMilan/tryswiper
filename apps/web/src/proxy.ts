@@ -31,7 +31,7 @@ const withClerk = clerkMiddleware(async (auth, request) => {
 
 export function proxy(request: NextRequest, event: NextFetchEvent) {
   const pathname = request.nextUrl.pathname;
-  if (pathname === "/mcp" || pathname === "/api/v1/billing/webhook") {
+  if (pathname === "/mcp" || pathname === "/api/v1/billing/webhook" || pathname === "/api/webhooks/clerk") {
     return NextResponse.next();
   }
   if (e2eEnabled(request.headers.get("host"))) {

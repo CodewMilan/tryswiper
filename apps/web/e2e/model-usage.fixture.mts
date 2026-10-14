@@ -21,9 +21,9 @@ try {
   assert.equal(await usage(), 0);
 
   const plan = planLocally({ brief: "Explain why founders should write specific product stories.", brand: { name: "Fieldnotes" } });
-  globalThis.fetch = async () => Response.json({
+  globalThis.fetch = async (_url, init) => Response.json({
     id: "resp-test", object: "response", created_at: 1, model: "gpt-4.1", status: "completed",
-    output: [{ id: "msg-test", type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: JSON.stringify(plan), annotations: [] }] }],
+    output: [{ id: "msg-test", type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: JSON.stringify(String(init?.body).includes("Revise only slide") ? plan.slides[0] : plan), annotations: [] }] }],
     usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
   });
   const model = await generateCarousel({ auth, brief: "Explain why founders should write specific product stories." });

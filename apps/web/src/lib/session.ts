@@ -6,6 +6,7 @@ import { clerkConfigured, E2E_COOKIE, e2eEnabled, isE2eUserId } from "./auth-env
 import { db } from "./db";
 import { sid } from "./ids";
 import { ensureWorkspace } from "./workspace";
+import { syncClerkProfile } from "@/server/identity";
 
 async function localUserForClerk(clerkUserId: string) {
   const [linked] = await db
@@ -13,10 +14,13 @@ async function localUserForClerk(clerkUserId: string) {
     .from(schema.account)
     .where(and(eq(schema.account.providerId, "clerk"), eq(schema.account.accountId, clerkUserId)))
     .limit(1);
-  if (linked) return { localId: linked.userId, name: "" };
-
   const clerkUser = await currentUser();
   if (!clerkUser || clerkUser.id !== clerkUserId) return null;
+  if (linked) {
+    if (!(await syncClerkProfile(linked.userId, clerkUser))) return null;
+    return { localId: linked.userId, name: clerkUser.fullName || "" };
+  }
+  if (clerkUser.banned || clerkUser.locked) return null;
 
   const email =
     clerkUser.primaryEmailAddress?.emailAddress ?? `${clerkUserId}@users.swiper.invalid`;
@@ -37,8 +41,9 @@ async function localUserForClerk(clerkUserId: string) {
       id: localId,
       name,
       email,
-      emailVerified: true,
+      emailVerified: clerkUser.primaryEmailAddress?.verification?.status === "verified",
       image: clerkUser.imageUrl || null,
+      identityCheckedAt: new Date(),
     });
   }
   await db.insert(schema.account).values({
@@ -56,11 +61,11 @@ export async function getSessionUser() {
     const userId = (await cookies()).get(E2E_COOKIE)?.value;
     if (!isE2eUserId(userId)) return null;
     const [row] = await db
-      .select({ id: schema.user.id, name: schema.user.name })
+      .select({ id: schema.user.id, name: schema.user.name, disabledAt: schema.user.disabledAt })
       .from(schema.user)
       .where(eq(schema.user.id, userId))
       .limit(1);
-    if (!row) return null;
+    if (!row || row.disabledAt) return null;
     const workspaceId = await ensureWorkspace(row.id, row.name);
     return { userId: row.id, workspaceId };
   }

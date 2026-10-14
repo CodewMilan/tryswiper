@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowLeft, ArrowUUpLeft, DownloadSimple, ImageSquare, TextT, Plus, Copy, Trash, CaretLeft, CaretRight, CheckCircle, CircleNotch, Minus, CornersOut } from "@phosphor-icons/react";
-import { getFormat, planFromFormat, renderPlanToCarousel, type CarouselElement, type ValidationResult } from "@swiper/schema";
+import { getFormat, planFromFormat, renderPlanToCarousel, type Carousel, type CarouselElement, type ValidationResult } from "@swiper/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,11 +18,16 @@ import { SlideRail } from "./editor/slide-rail";
 import { clampBox, type Box } from "./editor/slide-frame";
 import { useCarousel } from "./editor/use-carousel";
 import { LOCAL_GENERATION_NOTICE, THIN_BRAND_NOTICE } from "@/lib/generation-notices";
+import { importedRecoveryDocument } from "@/lib/carousel-recovery";
 
 export function Editor({ carouselId, initialNotices = [] }: { carouselId: string; initialNotices?: string[] }) {
   const workspaceUsage = useWorkspaceUsage();
   const { doc, meta, undoCount, loading, loadError, saveState, saveError, setSaveError,
-    reload, mutate, undo, settle, retry, conflict, discardLocal } = useCarousel(carouselId);
+    reload, mutate, undo, settle, retry, conflict, discardLocal, recoveryBackup, restoreDraft } = useCarousel(carouselId);
+  const recoveryFileRef = useRef<HTMLInputElement | null>(null);
+  const [recoveryDocument, setRecoveryDocument] = useState<Carousel | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<"png" | "jpg" | "pdf" | null>(null);
@@ -134,9 +139,29 @@ export function Editor({ carouselId, initialNotices = [] }: { carouselId: string
     selectSlide(slideIndex + 1);
   }
   function downloadLocal() {
-    const url = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" }));
+    const backup = recoveryBackup();
+    if (!backup) return;
+    const url = URL.createObjectURL(new Blob([backup], { type: "application/json" }));
     const link = document.createElement("a"); link.href = url; link.download = "recovered-carousel.json"; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  async function readRecovery(file: File) {
+    setRecoveryError(null);
+    try {
+      if (file.size > 8 * 1024 * 1024) throw new Error("Recovery files must be 8 MB or smaller.");
+      setRecoveryDocument(importedRecoveryDocument(JSON.parse(await file.text()), carouselId));
+    } catch (error) { setRecoveryError(error instanceof Error ? error.message : "Could not open this recovery file."); }
+  }
+  async function restoreRecovery() {
+    if (!recoveryDocument || restoring) return;
+    setRestoring(true);
+    setRecoveryError(null);
+    try {
+      await restoreDraft(recoveryDocument);
+      setRecoveryDocument(null);
+      setIndex(0); setSelectedId(null);
+    } catch (error) { setRecoveryError(error instanceof Error ? error.message : "Could not restore this backup."); }
+    finally { setRestoring(false); }
   }
   async function checkCarousel() {
     if (checking) return;
@@ -245,13 +270,19 @@ export function Editor({ carouselId, initialNotices = [] }: { carouselId: string
         </div>
         <Button variant="ghost" className="size-10 shrink-0 px-0" aria-label="Undo" title="Undo (⌘Z)" disabled={!undoCount || saveState === "saving"} onClick={() => void undo()}><ArrowUUpLeft size={18} aria-hidden /></Button>
         <Button onClick={() => setExportOpen(true)}><DownloadSimple size={16} /> Export</Button>
-        <EditorOverflow onSaveFormat={() => { setFormatName(meta.title.slice(0, 80)); setFormatError(null); setFormatOpen(true); }} onPrepareFiles={() => setPublishOpen(true)} />
+        <EditorOverflow onSaveFormat={() => { setFormatName(meta.title.slice(0, 80)); setFormatError(null); setFormatOpen(true); }} onPrepareFiles={() => setPublishOpen(true)} onRestoreBackup={() => recoveryFileRef.current?.click()} />
+        <input ref={recoveryFileRef} type="file" aria-label="Recovery JSON file" accept="application/json,.json" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void readRecovery(file); }} />
       </header>
 
       {saveError ? <div className="flex flex-wrap items-center gap-3 border-b border-destructive/20 bg-card px-5 py-3 text-sm" role="alert">
         <span className="flex-1 text-destructive">{saveError}</span>
         {usageLimited ? <Link href="/pricing" className="inline-flex min-h-10 items-center rounded-[14px] px-3 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">View plans and limits</Link> : conflict ? <><Button variant="outline" onClick={downloadLocal}>Download local draft</Button><Button variant="outline" onClick={discardLocal}>Load latest version</Button></> : <Button variant="outline" onClick={() => void retry()}>Retry save</Button>}
       </div> : null}
+      {recoveryError && !recoveryDocument ? <p role="alert" className="border-b border-border px-5 py-3 text-sm text-destructive">{recoveryError}</p> : null}
+      <Dialog open={!!recoveryDocument} onOpenChange={(open) => { if (!open && !restoring) setRecoveryDocument(null); }} title="Restore this local draft?" description="This replaces the current carousel with your backup. The saved server version remains available through Undo. Other clients’ newer edits will cause a save conflict.">
+        {recoveryError ? <p role="alert" className="mb-4 text-sm text-destructive">{recoveryError}</p> : null}
+        <div className="flex flex-wrap gap-3"><Button disabled={restoring} onClick={() => void restoreRecovery()}>{restoring ? "Restoring…" : "Restore backup"}</Button><Button variant="outline" disabled={restoring} onClick={() => setRecoveryDocument(null)}>Cancel</Button></div>
+      </Dialog>
       {notices.length ? <div className="flex flex-wrap items-center justify-center gap-3 border-b border-border bg-card px-4 py-2 text-sm" role="status">{notices.map((message) => <span key={message}>{message}</span>)}{formatNotice ? <Link href="/new" className="underline underline-offset-4">Formats live under Start by hand</Link> : null}{brandNotice ? <Link href="/brand" className="underline underline-offset-4">Open brand kit</Link> : null}<button onClick={() => { setNotice(null); setFormatNotice(false); setGenerationNoticesDismissed(true); }} className="min-h-11 px-2 text-ink-soft">Dismiss</button></div> : null}
 
       <div className="editor-workspace">

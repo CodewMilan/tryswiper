@@ -41,9 +41,16 @@ test("missing, rejected, and successful model calls report the actual generation
     const generated = await generatePlan(input);
     expect(generated.source).toBe("model");
     expect(generated.plan.title).toBe(modelPlan.title);
+    globalThis.fetch = async () => Response.json({
+      id: "resp-test", object: "response", created_at: 1, model: "gpt-4.1", status: "completed",
+      output: [{ id: "msg-test", type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: JSON.stringify({ ...plan.slides[0], headline: "A specific model revision" }), annotations: [] }] }],
+      usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
+    });
     const revised = await reviseSlidePlan(revision);
     expect(revised.source).toBe("model");
-    expect(revised.plan.title).toBe(modelPlan.title);
+    expect(revised.plan.title).toBe(plan.title);
+    expect(revised.plan.slides[0]!.headline).toBe("A specific model revision");
+    expect(revised.plan.slides.slice(1)).toEqual(plan.slides.slice(1));
   } finally {
     if (previous.anthropic === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = previous.anthropic;

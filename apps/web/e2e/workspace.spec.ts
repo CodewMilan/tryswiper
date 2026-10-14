@@ -8,6 +8,7 @@ import postgres from "postgres";
 import { cleanupTestUsers, testDatabaseUrl } from "./test-data";
 import { referenceContext } from "../src/server/reference-post";
 import { LOCAL_GENERATION_NOTICE, REFERENCE_FALLBACK_NOTICE, THIN_BRAND_NOTICE } from "../src/lib/generation-notices";
+import { readFile } from "node:fs/promises";
 
 const testUserIds: string[] = [];
 
@@ -817,4 +818,143 @@ test("AI credits follow model success for both drafts and slide revisions", asyn
   } finally {
     await sql.end();
   }
+});
+
+test("slide revisions preserve saved design, assets, current copy, and template IDs", async ({ page }) => {
+  const request = page.request;
+  await signUp(request);
+  const assetResponse = await request.post("/api/v1/assets", { multipart: { file: fixtureImage("#B64831") } });
+  const asset = await assetResponse.json() as { id: string; url: string };
+  expect((await request.patch("/api/v1/brand", { data: { description: "Customer research for founders", audience: "Product founders", logoAssetId: asset.id } })).ok()).toBeTruthy();
+  const generated = await request.post("/api/v1/carousels/generate", { data: { brief: "Explain how customer interviews lead to better product decisions." } });
+  const { carousel_id: id, carousel } = await generated.json() as { carousel_id: string; carousel: Carousel };
+  const target = carousel.slides[0]!; const other = carousel.slides[1]!;
+  const targetHeadline = target.elements.find((element) => element.role === "headline")!;
+  const otherHeadline = other.elements.find((element) => element.role === "headline")!;
+  const patch = await request.patch(`/api/v1/carousels/${id}`, { data: { expected_version: 1, operations: [
+    { op: "rename", title: "The approved research launch" },
+    { op: "update_text", slideId: target.id, elementId: targetHeadline.id, text: "These are my latest approved words from a customer interview, which should be shortened." },
+    { op: "set_text_style", slideId: target.id, elementId: targetHeadline.id, style: { fontSize: 50, fontWeight: 600, align: "center", color: "#20352C" } },
+    { op: "set_element_box", slideId: target.id, elementId: targetHeadline.id, x: 130, y: 250, width: 700, height: 350 },
+    { op: "update_text", slideId: other.id, elementId: otherHeadline.id, text: "Keep the customer's approved statement." },
+    { op: "set_background", slideId: other.id, background: { type: "solid", value: "#cc1122" } },
+    { op: "add_element", slideId: target.id, element: { id: "custom-photo", type: "image", assetId: asset.id, src: asset.url, x: 100, y: 900, width: 300, height: 200 } },
+    { op: "reorder_slide", slideId: target.id, toIndex: 2 },
+    { op: "delete_slide", slideId: carousel.slides[3]!.id },
+    { op: "insert_slide", index: 1, slide: { ...target, id: "inserted-slide", elements: target.elements.map((element) => ({ ...element, id: `inserted-${element.id}` })) } },
+  ] } });
+  expect(patch.status(), await patch.text()).toBe(200);
+  const before = await state(request, id);
+  const revised = await request.post(`/api/v1/carousels/${id}/slides/${target.id}/regenerate`, { data: { instruction: "Make the headline shorter" } });
+  expect(revised.status(), await revised.text()).toBe(200);
+  const after = await state(request, id);
+  expect(after.carousel.slides.filter((slide) => slide.id !== target.id)).toEqual(before.carousel.slides.filter((slide) => slide.id !== target.id));
+  expect(after.carousel.metadata).toEqual(before.carousel.metadata);
+  const revisedTarget = after.carousel.slides.find((slide) => slide.id === target.id)!;
+  const originalTarget = before.carousel.slides.find((slide) => slide.id === target.id)!;
+  expect(revisedTarget.elements.find((element) => element.id === targetHeadline.id)!.text).toBe("These are my latest approved words from");
+  const designOnly = (elements: typeof target.elements) => elements.map((element) => ({ ...element, text: undefined }));
+  expect(designOnly(revisedTarget.elements)).toEqual(designOnly(originalTarget.elements));
+  const inserted = after.carousel.slides.find((slide) => slide.id === "inserted-slide")!;
+  expect((await request.post(`/api/v1/carousels/${id}/slides/${inserted.id}/regenerate`, { data: { instruction: "Make the headline shorter" } })).ok()).toBeTruthy();
+  const format = await request.post("/api/v1/formats", { data: { carousel_id: id, name: "Research launch" } });
+  const formatId = (await format.json()).format.id;
+  const copy = await create(request, formatId);
+  const beforeCopy = await state(request, copy.carousel_id);
+  expect((await request.post(`/api/v1/carousels/${copy.carousel_id}/slides/${beforeCopy.carousel.slides[0]!.id}/regenerate`, { data: { instruction: "Make the headline shorter" } })).ok()).toBeTruthy();
+  const afterCopy = await state(request, copy.carousel_id);
+  expect(afterCopy.carousel.slides.map((slide) => slide.id)).toEqual(beforeCopy.carousel.slides.map((slide) => slide.id));
+  expect(afterCopy.carousel.slides.slice(1)).toEqual(beforeCopy.carousel.slides.slice(1));
+  expect(afterCopy.carousel.slides.every((slide) => slide.elements.some((element) => element.type === "logo"))).toBeTruthy();
+});
+
+test("delayed model revisions reject edits, undo, another revision, and deletion without adding history or credits", async ({ page }) => {
+  const userId = await signUp(page.request);
+  const sql = postgres(testDatabaseUrl, { max: 1, prepare: false });
+  try {
+    const [workspace] = await sql<{ id: string }[]>`select id from workspace where owner_id = ${userId}`;
+    await promisify(execFile)(process.execPath, ["--import", require.resolve("tsx", { paths: [resolve(__dirname, "../../mcp")] }), resolve(__dirname, "slide-revision.fixture.mts"), userId, workspace!.id], { env: {
+      ...process.env, DATABASE_URL: testDatabaseUrl, ANTHROPIC_API_KEY: "", OPENAI_API_KEY: "sk_test_mock_only", TSX_TSCONFIG_PATH: resolve(__dirname, "../tsconfig.json"),
+    } });
+  } finally { await sql.end(); }
+});
+
+test("recovery keeps the complete offline document after remote deletion and restores it with undo", async ({ page }) => {
+  const request = page.request;
+  await signUp(request);
+  const { carousel_id: id } = await create(request);
+  await page.goto(`/c/${id}`);
+  await page.getByTestId("slide-canvas").getByRole("button", { name: "headline element", exact: true }).click();
+  await page.route(`**/api/v1/carousels/${id}`, async (route) => { if (route.request().method() === "PATCH") await route.abort(); else await route.continue(); });
+  const original = await state(request, id);
+  await page.locator("#element-text").fill("These offline customer words must remain recoverable.");
+  await expect.poll(() => page.evaluate((carouselId) => localStorage.getItem(`swiper:draft:${carouselId}`), id)).toContain("These offline customer words");
+  await expect(page.getByRole("alert")).toBeVisible();
+  await page.locator("#element-text").fill("These offline customer words must remain recoverable. Second batch.");
+  const offline = JSON.parse((await page.evaluate((carouselId) => localStorage.getItem(`swiper:draft:${carouselId}`), id))!).carousel as Carousel;
+  const remote = await request.patch(`/api/v1/carousels/${id}`, { data: { expected_version: original.version, operations: [{ op: "delete_slide", slideId: original.carousel.slides[0]!.id }] } });
+  expect(remote.status()).toBe(200);
+  const latest = await state(request, id);
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Download local draft", exact: true })).toBeVisible();
+  const downloading = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download local draft", exact: true }).click();
+  const download = await downloading;
+  const backup = JSON.parse(await readFile((await download.path())!, "utf8"));
+  expect(backup.carousel).toEqual(offline);
+  expect(backup.batches.length).toBeGreaterThan(1);
+  await page.getByRole("button", { name: "Load latest version", exact: true }).click();
+  await expect(page.getByTestId("slide-canvas").getByText("These offline customer words", { exact: false })).toHaveCount(0);
+  await page.unroute(`**/api/v1/carousels/${id}`);
+  await page.locator('input[aria-label="Recovery JSON file"]').setInputFiles({ name: "backup.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(backup)) });
+  await page.getByRole("button", { name: "Restore backup", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Restore this local draft?" })).toHaveCount(0);
+  await saved(page);
+  expect((await state(request, id)).carousel).toEqual(offline);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await saved(page);
+  expect((await state(request, id)).carousel).toEqual(latest.carousel);
+});
+
+test("content keys cannot manage credentials or billing, and revocation removes their access", async ({ page }) => {
+  const request = page.request;
+  await signUp(request);
+  const first = await request.post("/api/v1/mcp-keys", { data: { name: "Content access" } });
+  const parent = await first.json() as { id: string; key: string };
+  const second = await request.post("/api/v1/mcp-keys", { data: { name: "Another client" } });
+  const other = await second.json() as { id: string; key: string };
+  const headers = { Authorization: `Bearer ${parent.key}` };
+  expect((await request.get("/api/v1/brand", { headers })).status()).toBe(200);
+  expect((await request.get("/api/v1/mcp-keys", { headers })).status()).toBe(403);
+  const replacement = await request.post("/api/v1/mcp-keys", { headers, data: { name: "Replacement" } });
+  expect(replacement.status()).toBe(403);
+  expect((await replacement.json()).code).toBe("SESSION_REQUIRED");
+  expect((await request.delete(`/api/v1/mcp-keys/${other.id}`, { headers })).status()).toBe(403);
+  expect((await request.post("/api/v1/billing/checkout", { headers })).status()).toBe(403);
+  expect((await request.delete(`/api/v1/mcp-keys/${parent.id}`)).status()).toBe(200);
+  expect((await request.get("/api/v1/brand", { headers })).status()).toBe(401);
+  expect((await request.get("/api/v1/brand", { headers: { Authorization: `Bearer ${other.key}` } })).status()).toBe(200);
+  expect((await (await request.get("/api/v1/mcp-keys")).json()).keys).toHaveLength(2);
+});
+
+test("billing verifies subscriptions, deduplicates stale events, and respects lifecycle states", async ({ page }) => {
+  const userId = await signUp(page.request);
+  const sql = postgres(testDatabaseUrl, { max: 1, prepare: false });
+  try {
+    const [workspace] = await sql<{ id: string }[]>`select id from workspace where owner_id = ${userId}`;
+    await promisify(execFile)(process.execPath, ["--import", require.resolve("tsx", { paths: [resolve(__dirname, "../../mcp")] }), resolve(__dirname, "billing-lifecycle.fixture.mts"), workspace!.id], { env: {
+      ...process.env, DATABASE_URL: testDatabaseUrl, TSX_TSCONFIG_PATH: resolve(__dirname, "../tsconfig.json"),
+    } });
+  } finally { await sql.end(); }
+});
+
+test("Clerk lifecycle sync updates profiles and revoked or deleted identities lose key access", async ({ page }) => {
+  const userId = await signUp(page.request);
+  const minted = await page.request.post("/api/v1/mcp-keys", { data: { name: "Identity lifecycle" } });
+  const { key } = await minted.json() as { key: string };
+  await promisify(execFile)(process.execPath, ["--import", require.resolve("tsx", { paths: [resolve(__dirname, "../../mcp")] }), resolve(__dirname, "identity-lifecycle.fixture.mts"), userId], { env: {
+    ...process.env, DATABASE_URL: testDatabaseUrl, CLERK_SECRET_KEY: "sk_test_fixture_only", TSX_TSCONFIG_PATH: resolve(__dirname, "../tsconfig.json"),
+  } });
+  expect((await page.request.get("/api/v1/brand", { headers: { Authorization: `Bearer ${key}` } })).status()).toBe(401);
+  expect((await page.request.post("/api/v1/mcp-keys", { data: { name: "Should not work" } })).status()).toBe(401);
 });

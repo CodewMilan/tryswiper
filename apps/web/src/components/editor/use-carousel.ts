@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { applyOperations, parseOperations, type Carousel, type CarouselOperation } from "@swiper/schema";
+import { applyOperations, type Carousel, type CarouselOperation } from "@swiper/schema";
+import { readDraftBatches, readRecoveryBackup, type DraftBatch, type RecoveryBackup } from "@/lib/carousel-recovery";
 
-type Batch = { id: string; operations: CarouselOperation[]; version?: number };
 type Payload = {
   title?: string; format_id?: string; version: number; undo_count?: number;
   last_mutation_id?: string; carousel: Carousel; message?: string;
@@ -21,7 +21,9 @@ export function useCarousel(carouselId: string) {
   const [conflict, setConflict] = useState(false);
   const docRef = useRef<Carousel | null>(null);
   const version = useRef(0);
-  const batches = useRef<Batch[]>([]);
+  const batches = useRef<DraftBatch[]>([]);
+  const base = useRef<Carousel | null>(null);
+  const unreadableBackup = useRef<string | null>(null);
   const inFlight = useRef<Promise<boolean> | null>(null);
   const historyBusy = useRef(false);
   const blocked = useRef(false);
@@ -31,12 +33,17 @@ export function useCarousel(carouselId: string) {
 
   const persist = useCallback(() => {
     try {
-      if (batches.current.length) localStorage.setItem(storageKey, JSON.stringify(batches.current));
+      if (unreadableBackup.current) return;
+      if (batches.current.length && base.current && docRef.current) {
+        const backup: RecoveryBackup = { format: "swiper-recovery", version: 1, carouselId, baseVersion: version.current,
+          base: base.current, carousel: docRef.current, batches: batches.current };
+        localStorage.setItem(storageKey, JSON.stringify(backup));
+      }
       else localStorage.removeItem(storageKey);
     } catch {
       setSaveError("Browser storage is unavailable. Keep this tab open until your changes finish saving.");
     }
-  }, [storageKey]);
+  }, [carouselId, storageKey]);
 
   const setDocument = useCallback((next: Carousel) => {
     docRef.current = next;
@@ -73,6 +80,8 @@ export function useCarousel(carouselId: string) {
         }
         batches.current.shift();
         version.current = body.version;
+        base.current = body.carousel;
+        if (batches.current[0]) batches.current[0].version ??= body.version;
         persist();
         setUndoCount(body.undo_count ?? 0);
         setMeta({ title: body.carousel.metadata.title, formatId: body.carousel.metadata.formatId, version: body.version });
@@ -100,33 +109,69 @@ export function useCarousel(carouselId: string) {
     const body = await response.json() as Payload;
     if (!response.ok) throw new Error(body.message ?? "Could not open carousel.");
     version.current = body.version;
-    let pending: Batch[] = [];
+    base.current = body.carousel;
+    let pending: DraftBatch[] = [];
+    let backup: RecoveryBackup | null = null;
+    let legacy = false;
+    let raw: string | null = null;
+    unreadableBackup.current = null;
+    blocked.current = false;
+    setConflict(false);
     try {
-      const saved: unknown = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
-      if (Array.isArray(saved)) pending = saved.filter((item): item is Batch =>
-        typeof item?.id === "string" && parseOperations(item.operations) !== null &&
-        (item.version === undefined || Number.isInteger(item.version)));
-    } catch { /* An unavailable storage area does not prevent loading server content. */ }
-    if (pending[0]?.id === body.last_mutation_id) pending.shift();
-    let restored = body.carousel;
-    try {
-      for (const batch of pending) restored = applyOperations(restored, batch.operations);
-      if (pending[0]?.version !== undefined && pending[0].version !== body.version) {
-        throw new Error("version");
+      raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const saved: unknown = JSON.parse(raw);
+        legacy = Array.isArray(saved);
+        if (legacy) pending = readDraftBatches(saved);
+        else { backup = readRecoveryBackup(saved, carouselId); pending = backup.batches; }
       }
     } catch {
+      // Never erase an unreadable backup merely by opening the editor.
+      unreadableBackup.current = raw;
+      blocked.current = !!raw;
+      setConflict(!!raw);
+      setSaveState("error");
+      setSaveError(raw ? "Your local backup could not be opened. Download it before loading the latest version." : "Browser storage is unavailable. Keep this tab open until your changes finish saving.");
+    }
+    const acknowledged = pending[0]?.id === body.last_mutation_id;
+    if (acknowledged) pending.shift();
+    let restored = body.carousel;
+    try {
+      if (pending.length) {
+        const expected = pending[0]?.version ?? (acknowledged ? body.version : backup?.baseVersion);
+        if (expected !== undefined && expected !== body.version) {
+          if (backup) restored = backup.carousel;
+          else if (legacy) {
+            // Older outboxes stored only operations. Recover their original base from history.
+            const previousResponse = await fetch(`/api/v1/carousels/${carouselId}?version=${expected}`);
+            if (!previousResponse.ok) throw new Error("history");
+            const previous = await previousResponse.json() as Payload;
+            restored = previous.carousel;
+            base.current = previous.carousel;
+            version.current = previous.version;
+            for (const batch of pending) restored = applyOperations(restored, batch.operations);
+          }
+          throw new Error("version");
+        }
+        for (const batch of pending) restored = applyOperations(restored, batch.operations);
+      }
+    } catch {
+      if (backup) restored = backup.carousel;
       blocked.current = true;
       setConflict(true);
       setSaveState("error");
       setSaveError("This carousel changed elsewhere. Download your local draft before loading the latest version.");
     }
     batches.current = pending;
-    persist();
     setDocument(restored);
+    // Retain the original base when conflict recovery is displayed.
+    if (blocked.current && backup) { base.current = backup.base; version.current = backup.baseVersion; }
+    persist();
     setMeta({ title: restored.metadata.title, formatId: restored.metadata.formatId, version: body.version });
     setUndoCount(body.undo_count ?? 0);
     setLoadError(null);
     if (pending.length && !blocked.current) schedule(0);
+    else if (!blocked.current && !unreadableBackup.current) { setSaveState("saved"); setSaveError(null); }
   }, [carouselId, storageKey, persist, schedule, setDocument]);
 
   useEffect(() => {
@@ -183,6 +228,7 @@ export function useCarousel(carouselId: string) {
       const body = await response.json() as Payload;
       if (!response.ok) throw new Error(body.message ?? "Undo failed.");
       version.current = body.version;
+      base.current = body.carousel;
       setDocument(body.carousel);
       setMeta({ title: body.carousel.metadata.title, formatId: body.carousel.metadata.formatId, version: body.version });
       setUndoCount(body.undo_count ?? 0);
@@ -197,11 +243,49 @@ export function useCarousel(carouselId: string) {
   const discardLocal = useCallback(() => {
     batches.current = [];
     blocked.current = false;
+    unreadableBackup.current = null;
     setConflict(false);
     persist();
     setSaveError(null);
     reload();
   }, [persist, reload]);
+
+  const recoveryBackup = useCallback(() => {
+    if (unreadableBackup.current) return unreadableBackup.current;
+    if (!base.current || !docRef.current) return null;
+    return JSON.stringify({ format: "swiper-recovery", version: 1, carouselId, baseVersion: version.current,
+      base: base.current, carousel: docRef.current, batches: batches.current }, null, 2);
+  }, [carouselId]);
+
+  const restoreDraft = useCallback(async (carousel: Carousel) => {
+    if (inFlight.current) await inFlight.current;
+    if (historyBusy.current) throw new Error("Wait for undo to finish before restoring a backup.");
+    if (timer.current) clearTimeout(timer.current);
+    setSaveState("saving");
+    let latest: Payload;
+    historyBusy.current = true;
+    try {
+      const response = await fetch(`/api/v1/carousels/${carouselId}`);
+      latest = await response.json() as Payload;
+      if (!response.ok) throw new Error(latest.message ?? "Could not load the current draft. Try again before restoring.");
+    } catch (error) {
+      setSaveState("error");
+      setSaveError(error instanceof Error ? error.message : "Could not load the current draft.");
+      throw error;
+    } finally { historyBusy.current = false; }
+    base.current = latest.carousel;
+    version.current = latest.version;
+    unreadableBackup.current = null;
+    blocked.current = false;
+    setConflict(false);
+    batches.current = [{ id: crypto.randomUUID(), version: latest.version, operations: [{ op: "restore_document", carousel }] }];
+    setDocument(carousel);
+    setMeta({ title: carousel.metadata.title, formatId: carousel.metadata.formatId, version: latest.version });
+    persist();
+    setSaveState("saving");
+    setSaveError(null);
+    schedule(0);
+  }, [carouselId, persist, schedule, setDocument]);
 
   useEffect(() => {
     const retry = () => { void flushRef.current(); };
@@ -210,5 +294,5 @@ export function useCarousel(carouselId: string) {
   }, []);
 
   return { doc, meta, undoCount, loading, loadError, saveState, saveError, setSaveError,
-    reload, mutate, undo, settle, conflict, discardLocal, retry: flush };
+    reload, mutate, undo, settle, conflict, discardLocal, retry: flush, recoveryBackup, restoreDraft };
 }

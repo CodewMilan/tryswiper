@@ -18,7 +18,8 @@ function periodStart() {
 
 export async function workspacePlan(workspaceId: string): Promise<Plan> {
   const billing = await getBilling(workspaceId);
-  return billing?.plan === "pro" && billing.status === "active" ? "pro" : "free";
+  return billing?.plan === "pro" && ["active", "past_due"].includes(billing.status) &&
+    (!billing.paidThrough || billing.paidThrough.getTime() > Date.now()) ? "pro" : "free";
 }
 
 export async function usageFor(workspaceId: string) {

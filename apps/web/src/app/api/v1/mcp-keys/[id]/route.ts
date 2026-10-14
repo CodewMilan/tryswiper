@@ -1,5 +1,5 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { requireAuth } from "@/lib/api-auth";
+import { requireAccountManagement } from "@/lib/api-auth";
 import { db, schema } from "@/lib/db";
 import { apiError, fromUnknownError, json } from "@/lib/http";
 
@@ -8,7 +8,7 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authContext = await requireAuth(request);
+    const authContext = await requireAccountManagement(request);
     const { id } = await context.params;
     const [revoked] = await db
       .update(schema.mcpKey)

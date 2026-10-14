@@ -1,16 +1,21 @@
 import { eq } from "drizzle-orm";
 import { schema } from "@swiper/db";
-import { requireAuth } from "@/lib/api-auth";
+import { requireAccountManagement } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { createDodoCheckout } from "@/lib/dodo";
 import { apiError, fromUnknownError, json } from "@/lib/http";
 import { appUrl } from "@/lib/utils";
+import { getBilling } from "@/server/billing";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const authContext = await requireAuth(request);
+    const authContext = await requireAccountManagement(request);
+    const existing = await getBilling(authContext.workspaceId);
+    if (existing?.dodoSubscriptionId && ["active", "past_due", "paused", "on_hold"].includes(existing.status)) {
+      return apiError("SUBSCRIPTION_EXISTS", "This workspace already has a subscription. Manage it through billing support instead of starting another checkout.", 409);
+    }
     const [person] = await db
       .select({ email: schema.user.email, name: schema.user.name })
       .from(schema.user)

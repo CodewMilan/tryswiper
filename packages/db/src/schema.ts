@@ -15,6 +15,8 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
+  disabledAt: timestamp("disabled_at"),
+  identityCheckedAt: timestamp("identity_checked_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -263,7 +265,21 @@ export const billing = pgTable("billing", {
   dodoCustomerId: text("dodo_customer_id"),
   dodoSubscriptionId: text("dodo_subscription_id"),
   dodoPaymentId: text("dodo_payment_id"),
+  productId: text("product_id"),
+  subscriptionCreatedAt: timestamp("subscription_created_at"),
+  paidThrough: timestamp("paid_through"),
+  cancelAtNextBilling: boolean("cancel_at_next_billing").notNull().default(false),
+  lastEventAt: timestamp("last_event_at"),
+  lastVerifiedAt: timestamp("last_verified_at"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const billingWebhook = pgTable("billing_webhook", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id").notNull().references(() => workspace.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  occurredAt: timestamp("occurred_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const usageEvent = pgTable(
@@ -316,6 +332,7 @@ export const schema = {
   asset,
   mcpKey,
   billing,
+  billingWebhook,
   usageEvent,
   publishJob,
 };

@@ -7,6 +7,7 @@ import {
 } from "./carousel";
 
 export const carouselOperationSchema = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("restore_document"), carousel: carouselSchema }),
   z.object({ op: z.literal("rename"), title: z.string().trim().min(1).max(120) }),
   z.object({
     op: z.literal("set_text_style"),
@@ -122,7 +123,9 @@ export function applyOperations(
     if ("elementId" in operation && !next.slides.find((slide) => slide.id === operation.slideId)?.elements.some((element) => element.id === operation.elementId)) {
       throw new Error("Element no longer exists");
     }
-    if (operation.op === "rename") {
+    if (operation.op === "restore_document") {
+      next = carouselSchema.parse(operation.carousel);
+    } else if (operation.op === "rename") {
       next.metadata.title = operation.title;
     } else if (operation.op === "set_text_style") {
       next.slides = mapElement(next, operation.slideId, operation.elementId, (element) => ({ ...element, style: operation.style }));

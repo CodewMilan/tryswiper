@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/api-auth";
 import { editorUrl } from "@/lib/utils";
 import { fromUnknownError, json } from "@/lib/http";
-import { deleteCarousel, getCarousel, undoDepth, updateCarousel } from "@/server/carousels";
+import { deleteCarousel, getCarousel, getHistoricalCarousel, undoDepth, updateCarousel } from "@/server/carousels";
 
 export async function GET(
   request: Request,
@@ -10,7 +10,9 @@ export async function GET(
   try {
     const authContext = await requireAuth(request);
     const { id } = await context.params;
-    const row = await getCarousel(authContext, id);
+    const historicalVersion = new URL(request.url).searchParams.get("version");
+    const row = historicalVersion === null ? await getCarousel(authContext, id)
+      : await getHistoricalCarousel(authContext, id, Number(historicalVersion));
     return json({
       carousel_id: row.id,
       editor_url: editorUrl(row.id),

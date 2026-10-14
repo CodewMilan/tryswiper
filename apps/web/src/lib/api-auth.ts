@@ -3,6 +3,7 @@ import { schema } from "@swiper/db";
 import { db } from "./db";
 import { hashMcpKey } from "./ids";
 import { getSessionUser } from "./session";
+import { assertActiveIdentity } from "@/server/identity";
 
 export type AuthContext = {
   userId: string;
@@ -37,6 +38,7 @@ export async function requireAuth(request: Request): Promise<AuthContext> {
     if (!row) {
       throw Object.assign(new Error("Invalid API key"), { status: 401, code: "UNAUTHORIZED" });
     }
+    await assertActiveIdentity(row.userId);
     await verifyMembership(request, row.userId, row.workspaceId);
     await db
       .update(schema.mcpKey)
@@ -56,4 +58,18 @@ export async function requireAuth(request: Request): Promise<AuthContext> {
     workspaceId: session.workspaceId,
     source: "session",
   };
+}
+
+/** Credentials and billing are managed by an interactive owner/admin, never by a content key. */
+export async function requireAccountManagement(request: Request): Promise<AuthContext> {
+  const context = await requireAuth(request);
+  if (context.source !== "session") {
+    throw Object.assign(new Error("Sign in to manage agent keys or billing."), { status: 403, code: "SESSION_REQUIRED" });
+  }
+  const [member] = await db.select({ role: schema.membership.role }).from(schema.membership)
+    .where(and(eq(schema.membership.userId, context.userId), eq(schema.membership.workspaceId, context.workspaceId))).limit(1);
+  if (!member || !["owner", "admin"].includes(member.role)) {
+    throw Object.assign(new Error("Only workspace owners and admins can manage agent keys or billing."), { status: 403, code: "FORBIDDEN" });
+  }
+  return context;
 }
