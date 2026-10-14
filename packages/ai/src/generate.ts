@@ -39,6 +39,12 @@ Rules:
 - Headlines under 90 characters. Body under 220 characters.
 - Match the requested format roles exactly.`;
 
+function fallbackEvent(operation: "draft" | "revision", error: unknown, startedAt: number) {
+  const value = error as { name?: string; statusCode?: number } | null;
+  console.warn(JSON.stringify({ event: "generation_fallback", operation, duration_ms: Date.now() - startedAt,
+    category: value?.name === "TimeoutError" || value?.name === "AbortError" ? "timeout" : value?.statusCode === 401 || value?.statusCode === 403 ? "provider_auth" : value?.statusCode === 429 ? "provider_limit" : "provider_error", source: "local" }));
+}
+
 export async function generatePlan(input: {
   brief: string;
   formatId?: string;
@@ -48,6 +54,7 @@ export async function generatePlan(input: {
   template?: CarouselPlan;
 }): Promise<{ plan: CarouselPlan; source: "model" | "local" }> {
   const fallback = planLocally(input);
+  const startedAt = Date.now();
   try {
     const loaded = await model();
     if (!loaded) return { plan: fallback, source: "local" };
@@ -74,7 +81,8 @@ export async function generatePlan(input: {
       if (object.formatId !== input.template.formatId || object.slides.length !== input.template.slides.length || object.slides.some((slide, index) => slide.role !== input.template!.slides[index]!.role || slide.layout !== input.template!.slides[index]!.layout)) return { plan: fallback, source: "local" };
     } else if (!getFormat(object.formatId) || input.formatId && object.formatId !== input.formatId || input.slideCount && object.slides.length !== input.slideCount) return { plan: fallback, source: "local" };
     return { plan: object, source: "model" };
-  } catch {
+  } catch (error) {
+    fallbackEvent("draft", error, startedAt);
     return { plan: fallback, source: "local" };
   }
 }
@@ -86,6 +94,7 @@ export async function reviseSlidePlan(input: {
   brand: BrandContext;
 }): Promise<{ plan: CarouselPlan; source: "model" | "local" }> {
   const current = input.plan.slides[input.slideIndex];
+  const startedAt = Date.now();
   if (!current) return { plan: input.plan, source: "local" };
   const fallback = (): CarouselPlan => {
     const lower = input.instruction.toLowerCase();
@@ -131,7 +140,8 @@ export async function reviseSlidePlan(input: {
     const slides = [...input.plan.slides];
     slides[input.slideIndex] = { ...current, ...object, role: current.role, layout: current.layout };
     return { plan: { ...input.plan, slides }, source: "model" };
-  } catch {
+  } catch (error) {
+    fallbackEvent("revision", error, startedAt);
     return { plan: fallback(), source: "local" };
   }
 }

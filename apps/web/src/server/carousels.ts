@@ -310,10 +310,11 @@ export async function getCarousel(authContext: AuthContext, id: string) {
   return row.carousel;
 }
 
-export async function deleteCarousel(authContext: AuthContext, id: string) {
+export async function deleteCarousel(authContext: AuthContext, id: string, expectedVersion?: number) {
+  if (expectedVersion !== undefined && (!Number.isInteger(expectedVersion) || expectedVersion < 1)) throw Object.assign(new Error("Provide a positive expected version."), { status: 400, code: "INVALID_VERSION" });
   return db.transaction(async (tx) => {
     const [row] = await tx
-      .select({ id: schema.carousel.id })
+      .select({ id: schema.carousel.id, version: schema.carousel.version })
       .from(schema.carousel)
       .innerJoin(schema.project, eq(schema.project.id, schema.carousel.projectId))
       .where(and(eq(schema.carousel.id, id), eq(schema.project.workspaceId, authContext.workspaceId)))
@@ -322,6 +323,7 @@ export async function deleteCarousel(authContext: AuthContext, id: string) {
       throw Object.assign(new Error("Carousel not found"), { status: 404, code: "NOT_FOUND" });
     }
     // Versions and publish jobs cascade; reusable workspace formats are kept.
+    if (expectedVersion !== undefined && row.version !== expectedVersion) throw Object.assign(new Error("The draft changed. Review it before deleting."), { status: 409, code: "VERSION_CONFLICT", details: { current_version: row.version } });
     await tx.delete(schema.carousel).where(eq(schema.carousel.id, row.id));
     return { carousel_id: row.id, deleted: true };
   });

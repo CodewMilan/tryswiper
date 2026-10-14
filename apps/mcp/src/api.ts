@@ -48,7 +48,7 @@ export async function swiperResponse(path: string, init?: RequestInit, credentia
     signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(90000)]) : AbortSignal.timeout(90000),
     headers: {
       Authorization: `Bearer ${apiKey(credentials)}`,
-      "Content-Type": "application/json",
+      ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       ...(init?.headers ?? {}),
     },
   }); } catch {

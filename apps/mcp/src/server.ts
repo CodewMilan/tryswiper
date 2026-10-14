@@ -342,6 +342,53 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
     },
   );
 
+  server.registerTool("swiper.upload_asset", {
+    description: "Upload a PNG/JPEG/WebP image (up to 8 MiB) for a logo or slide. Returns an owned asset ID and URL; never supply remote image URLs to edits.",
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    inputSchema: z.object({ mime_type: z.enum(["image/png", "image/jpeg", "image/webp"]),
+      data_base64: z.string().min(4).max(11184812).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/).describe("Raw base64 bytes, without a data URL prefix.") }),
+  }, async ({ mime_type, data_base64 }) => {
+    try {
+      const bytes = Buffer.from(data_base64, "base64");
+      if (bytes.length > 8 * 1024 * 1024) throw new SwiperApiError("FILE_TOO_LARGE", "Images must be 8 MiB or smaller.");
+      const form = new FormData();
+      form.set("file", new Blob([new Uint8Array(bytes)], { type: mime_type }), "upload");
+      return ok(await call("/api/v1/assets", { method: "POST", body: form }));
+    } catch (error) { return fail(error); }
+  });
+
+  server.registerTool("swiper.save_format", {
+    description: "Save this draft's design, images and semantic copy slots as a workspace format. New generations replace headline/kicker/body/proof/CTA; fixed labels and captions stay saved. Duplicate names return a conflict.",
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    inputSchema: z.object({ carousel_id: z.string(), name: z.string().trim().min(2).max(80), description: z.string().max(240).optional() }),
+  }, async (input) => {
+    try { return ok(await call("/api/v1/formats", { method: "POST", body: JSON.stringify(input) })); } catch (error) { return fail(error); }
+  });
+
+  server.registerTool("swiper.undo_carousel", {
+    description: "Restore the previous saved draft. Read the current version first. A repeated request with the old expected_version returns a conflict and never undoes twice.",
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    inputSchema: z.object({ carousel_id: z.string(), expected_version: z.number().int().positive() }),
+  }, async ({ carousel_id, expected_version }) => {
+    try { return ok(await call(`/api/v1/carousels/${encodeURIComponent(carousel_id)}/undo`, { method: "POST", body: JSON.stringify({ expected_version }) })); } catch (error) { return fail(error); }
+  });
+
+  server.registerTool("swiper.delete_carousel", {
+    description: "Permanently delete a carousel and its undo history. Saved formats remain. Only do this when the user asks; read the current version before deleting. Repeated deletion returns not found.",
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    inputSchema: z.object({ carousel_id: z.string(), expected_version: z.number().int().positive() }),
+  }, async ({ carousel_id, expected_version }) => {
+    try { return ok(await call(`/api/v1/carousels/${encodeURIComponent(carousel_id)}?expected_version=${expected_version}`, { method: "DELETE" })); } catch (error) { return fail(error); }
+  });
+
+  server.registerTool("swiper.get_request_status", {
+    description: "Recover a committed creation or slide-revision result after a timeout or disconnected call. A not_completed result can still be in flight; retry with the same request_id and unchanged input.",
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    inputSchema: z.object({ request_id: z.string().min(1).max(120) }),
+  }, async ({ request_id }) => {
+    try { return ok(await call(`/api/v1/requests/${encodeURIComponent(request_id)}`)); } catch (error) { return fail(error); }
+  });
+
   server.registerResource("carousel-export", new ResourceTemplate("swiper://carousels/{carousel_id}/versions/{version}/exports/{format}", { list: undefined }),
     { description: "Authenticated version-bound export bytes; PNG/JPG bundles are ZIP files. Reads consume export allowance (except JSON)." },
     async (uri, variables) => {

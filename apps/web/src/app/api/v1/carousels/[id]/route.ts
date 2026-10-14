@@ -51,7 +51,8 @@ export async function DELETE(
   try {
     const authContext = await requireAuth(request);
     const { id } = await context.params;
-    return json(await deleteCarousel(authContext, id));
+    const expected = new URL(request.url).searchParams.get("expected_version");
+    return json(await deleteCarousel(authContext, id, expected === null ? undefined : Number(expected)));
   } catch (error) {
     return fromUnknownError(error);
   }

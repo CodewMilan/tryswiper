@@ -91,6 +91,7 @@ export default function NewCarouselPage() {
   const [restored, setRestored] = useState(false);
   const [thinBrand, setThinBrand] = useState(false);
   const pendingRequest = useRef<{ key: string; payload: string } | null>(null);
+  const [recoveredDraftId, setRecoveredDraftId] = useState<string | null>(null);
   const usage = workspaceUsage.data;
   const carouselFull = !!usage && (usage.usage.carousel ?? 0) >= usage.limits.carousel;
   const generationFull = !!usage && (usage.usage.generation ?? 0) >= usage.limits.generation;
@@ -145,6 +146,14 @@ export default function NewCarouselPage() {
           }
         }
         setDraftKey(key);
+        const pending = JSON.parse(sessionStorage.getItem(`${key}:request`) ?? "null") as { key?: string } | null;
+        if (pending?.key) {
+          const statusResponse = await fetch(`/api/v1/requests/${encodeURIComponent(pending.key)}`);
+          if (statusResponse.ok) {
+            const status = await statusResponse.json() as { status: string; result?: { carousel_id?: string } };
+            if (active && status.status === "completed" && status.result?.carousel_id) setRecoveredDraftId(status.result.carousel_id);
+          }
+        }
       } catch { /* Storage is optional; creation still works without it. */ }
     }
     void restoreDraft();
@@ -187,6 +196,7 @@ export default function NewCarouselPage() {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": requestId },
         body: payload,
+        signal: AbortSignal.timeout(90000),
       });
       const body = (await response.json()) as UsageApiError & {
         carousel_id?: string;
@@ -213,7 +223,7 @@ export default function NewCarouselPage() {
       const query = params.toString();
       router.push(`/c/${body.carousel_id}${query ? `?${query}` : ""}`);
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Could not start the carousel.");
+      setError(submitError instanceof Error && submitError.name === "TimeoutError" ? "The connection timed out. Your brief and request ID are saved. Retry unchanged to recover the same draft; reopening this page also checks for a completed result." : submitError instanceof Error ? submitError.message : "Could not start the carousel. Retry unchanged to recover the same draft.");
       setPending(false);
     }
   }
@@ -241,6 +251,7 @@ export default function NewCarouselPage() {
         </div>
       ) : null}
       {restored ? <p role="status" className="mt-5 text-sm text-ink-soft">Your unfinished brief was restored in this tab.</p> : null}
+      {recoveredDraftId ? <p role="status" className="mt-5 text-sm">Your previous request finished. <Link className="underline underline-offset-4" href={`/c/${recoveredDraftId}`}>Open the recovered draft</Link> before generating again.</p> : null}
       <form onSubmit={onSubmit} className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
         <fieldset disabled={pending} className="min-w-0">
         <legend className="sr-only">Create your carousel</legend>
@@ -395,7 +406,7 @@ export default function NewCarouselPage() {
         {loadState === "ready" ? (
           <div className="sticky bottom-4 mt-10 flex flex-wrap items-center gap-4 rounded-[24px] border border-black/8 bg-white p-4">
             <Button type="submit" disabled={pending || allowanceBlocked || !selected || (mode === "generate" && brief.trim().length < 12)} aria-busy={pending}>{pending ? (mode === "generate" ? "Generating…" : "Opening…") : mode === "generate" ? "Generate carousel" : "Open in editor"}</Button>
-            <p role="status" className="text-sm text-ink-soft">{pending ? "We’re creating your editable draft. Keep this page open." : selected ? `${selected.name} · ${slideCount(selected)}` : "Choose a format"}</p>
+            <p role="status" className="text-sm text-ink-soft">{pending ? "Creating your editable draft. Model calls have a one-minute limit; an unavailable model produces a labeled local draft. Reopening this page checks whether your request finished." : selected ? `${selected.name} · ${slideCount(selected)}` : "Choose a format"}</p>
           </div>
         ) : null}
         </TabsContent>
