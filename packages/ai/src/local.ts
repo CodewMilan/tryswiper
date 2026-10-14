@@ -2,6 +2,7 @@ import {
   defaultFormatId,
   FORMATS,
   getFormat,
+  formatSlides,
   type CarouselPlan,
   type LayoutType,
   type ProductContext,
@@ -203,6 +204,7 @@ function copyForRole(
 export function planLocally(input: {
   brief: string;
   formatId?: string;
+  slideCount?: number;
   brand: BrandContext;
 }): CarouselPlan {
   const formatId = chooseFormatId(input.brief, input.formatId);
@@ -214,7 +216,7 @@ export function planLocally(input: {
     title: firstSentence(cleaned, `${product.name} carousel`).slice(0, 80),
     formatId: format.id,
     product,
-    slides: format.slides.map((def, index) => {
+    slides: formatSlides(format, input.slideCount).map((def, index) => {
       const copy = copyForRole(def.role, product, input.brief, index);
       return {
         role: def.role,

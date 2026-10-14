@@ -10,6 +10,7 @@ import {
   applySlideRevision,
   carouselFontFamily,
   DEFAULT_THEME,
+  FORMATS,
   getFormat,
   instantiateCarouselTemplate,
   instantiateTemplatePlan,
@@ -149,6 +150,15 @@ export async function generateCarousel(input: {
 }) {
   const previous = await replayRequest(input.auth, input.request);
   if (previous) return previous;
+  let formatId = input.formatId;
+  if (formatId && !getFormat(formatId)) throw Object.assign(new Error("Choose an official story format for generation. Saved workspace formats can currently be started by hand."), { status: 400, code: "UNKNOWN_FORMAT" });
+  if (input.slideCount !== undefined) {
+    const format = formatId ? getFormat(formatId) : FORMATS.find((candidate) => input.slideCount! >= candidate.slideCount.min && input.slideCount! <= candidate.slideCount.max);
+    if (!Number.isInteger(input.slideCount) || input.slideCount < 3 || input.slideCount > 12 || !format || input.slideCount < format.slideCount.min || input.slideCount > format.slideCount.max) {
+      throw Object.assign(new Error(format ? `${format.name} supports ${format.slideCount.min}–${format.slideCount.max} slides.` : "No current story format supports that slide count. Pick a supported format and count."), { status: 400, code: "INVALID_SLIDE_COUNT" });
+    }
+    formatId = format.id;
+  }
   await assertUsage(input.auth.workspaceId, "carousel");
   if (generationModelConfigured()) await assertUsage(input.auth.workspaceId, "generation");
   const brandRow = await getWorkspaceBrand(input.auth.workspaceId);
@@ -160,7 +170,8 @@ export async function generateCarousel(input: {
   const thinBrand = isThinBrand(brandRow);
   const { plan, source } = await generatePlan({
     brief: input.brief,
-    formatId: input.formatId,
+    formatId,
+    slideCount: input.slideCount,
     brand,
   });
   if (input.title) plan.title = input.title;

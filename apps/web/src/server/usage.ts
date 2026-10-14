@@ -60,21 +60,21 @@ export async function assertUsage(workspaceId: string, kind: UsageKind) {
 }
 
 export async function recordUsage(workspaceId: string, kind: UsageKind, writer: Pick<typeof db, "insert"> = db) {
-  await writer.insert(schema.usageEvent).values({ id: sid("use"), workspaceId, kind });
+  await writer.insert(schema.usageEvent).values({ id: sid("use"), workspaceId, kind, createdAt: new Date() });
 }
 
 export type UsageTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /** Admit and commit billable work together; model/render work runs before this short lock. */
 export async function withUsageTransaction<T>(workspaceId: string, kinds: UsageKind[], work: (tx: UsageTransaction) => Promise<T>, replay?: (tx: UsageTransaction) => Promise<{ value: T } | null>) {
-  await workspacePlan(workspaceId);
+  const verifiedPlan = await workspacePlan(workspaceId);
   return db.transaction(async (tx) => {
     const [workspace] = await tx.select({ id: schema.workspace.id }).from(schema.workspace).where(eq(schema.workspace.id, workspaceId)).for("no key update");
     if (!workspace) throw Object.assign(new Error("Workspace not found."), { status: 404, code: "NOT_FOUND" });
     const previous = await replay?.(tx);
     if (previous) return previous.value;
     const [billing] = await tx.select().from(schema.billing).where(eq(schema.billing.workspaceId, workspaceId)).limit(1);
-    const plan: Plan = billing?.plan === "pro" && ["active", "past_due"].includes(billing.status) &&
+    const plan: Plan = verifiedPlan === "pro" && billing?.plan === "pro" && ["active", "past_due"].includes(billing.status) &&
       (!billing.paidThrough || billing.paidThrough.getTime() > Date.now()) ? "pro" : "free";
     const usage = await usageFor(workspaceId, tx);
     for (const kind of kinds) {

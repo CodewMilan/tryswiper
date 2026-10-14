@@ -1023,3 +1023,25 @@ test("malformed generation, revision, brand and key inputs return readable clien
   expect((await page.request.patch("/api/v1/brand", { data: { guidelines: "x".repeat(10001) } })).status()).toBe(400);
   expect((await page.request.post("/api/v1/mcp-keys", { data: { name: 42 } })).status()).toBe(400);
 });
+
+test("generation honors supported slide counts and rejects unknown or incompatible formats", async ({ page }) => {
+  await signUp(page.request);
+  const request = page.request;
+  const brief = "Explain how product founders can turn customer interviews into clear marketing.";
+  const three = await request.post("/api/v1/carousels/generate", { data: { brief, slide_count: 3 } });
+  expect(three.status()).toBe(201);
+  expect((await three.json()).carousel.slides).toHaveLength(3);
+  const eight = await request.post("/api/v1/carousels/generate", { data: { brief, slide_count: 8, format_id: "problem-insight-product" } });
+  expect(eight.status()).toBe(201);
+  const result = await eight.json();
+  expect(result.carousel.slides).toHaveLength(8);
+  expect(result.format_id).toBe("problem-insight-product");
+  expect(result.carousel.slides.at(-1).role).toBe("cta");
+  const invalidFormat = await request.post("/api/v1/carousels/generate", { data: { brief, format_id: "does-not-exist" } });
+  expect(invalidFormat.status()).toBe(400);
+  expect((await invalidFormat.json()).code).toBe("UNKNOWN_FORMAT");
+  const incompatible = await request.post("/api/v1/carousels/generate", { data: { brief, slide_count: 3, format_id: "five-things" } });
+  expect(incompatible.status()).toBe(400);
+  expect((await incompatible.json()).code).toBe("INVALID_SLIDE_COUNT");
+  expect((await (await request.get("/api/v1/billing")).json()).usage.carousel).toBe(2);
+});

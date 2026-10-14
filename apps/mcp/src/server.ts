@@ -140,10 +140,10 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
       description:
         "Create a complete, editable social carousel from a brief. Reads brand context, picks a format unless one is supplied, writes slides, and runs quality checks. Returns an editor URL.",
       inputSchema: z.object({
-        brief: z.string().describe("What the carousel should argue or explain"),
-        title: z.string().optional(),
-        format_id: z.string().optional(),
-        slide_count: z.number().optional(),
+        brief: z.string().trim().min(12).max(10000).describe("What the carousel should argue or explain"),
+        title: z.string().max(120).optional(),
+        format_id: z.string().min(1).max(120).optional(),
+        slide_count: z.number().int().min(3).max(12).optional().describe("Must be within the selected format's advertised slide range."),
         request_id: z.string().min(1).max(120).optional().describe("Reuse this ID when retrying the same creation request; use a new ID for a different brief."),
       }),
     },
@@ -238,7 +238,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
       inputSchema: z.object({
         carousel_id: z.string(),
         slide_id: z.string(),
-        instruction: z.string(),
+        instruction: z.string().trim().min(1).max(2000),
         request_id: z.string().min(1).max(120).optional().describe("Reuse this ID when retrying the same slide revision."),
       }),
     },

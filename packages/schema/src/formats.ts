@@ -173,6 +173,18 @@ export function getFormat(id: string): FormatDefinition | undefined {
   return FORMATS.find((format) => format.id === id);
 }
 
+export function formatSlides(format: FormatDefinition, count = format.slides.length) {
+  if (!Number.isInteger(count) || count < format.slideCount.min || count > format.slideCount.max) throw new Error(`${format.name} supports ${format.slideCount.min}–${format.slideCount.max} slides.`);
+  const slides = format.slides.map((slide) => ({ ...slide }));
+  if (count < slides.length) return [slides[0]!, ...slides.slice(1, count - 1), slides.at(-1)!];
+  let detail = 1;
+  while (slides.length < count) {
+    const transition = slides.findIndex((slide) => ["proof", "product", "cta"].includes(slide.role));
+    slides.splice(transition < 0 ? slides.length - 1 : transition, 0, { role: `detail-${detail++}`, layout: "split", job: "Add a concrete supporting example or detail." });
+  }
+  return slides;
+}
+
 export function listFormats() {
   return FORMATS.map((format) => ({
     id: format.id,

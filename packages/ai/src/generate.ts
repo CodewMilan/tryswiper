@@ -1,4 +1,4 @@
-import { carouselPlanSchema, slidePlanSchema, clip, type CarouselPlan } from "@swiper/schema";
+import { carouselPlanSchema, slidePlanSchema, getFormat, formatSlides, clip, type CarouselPlan } from "@swiper/schema";
 import { generateObject } from "ai";
 import { compactBrand, type BrandContext } from "./brand";
 import { planLocally } from "./local";
@@ -41,6 +41,7 @@ Rules:
 export async function generatePlan(input: {
   brief: string;
   formatId?: string;
+  slideCount?: number;
   brand: BrandContext;
   instruction?: string;
 }): Promise<{ plan: CarouselPlan; source: "model" | "local" }> {
@@ -57,13 +58,16 @@ export async function generatePlan(input: {
       prompt: [
         compactBrand(input.brand),
         input.formatId ? `Format id: ${input.formatId}` : "Pick the best official format.",
+        input.slideCount ? `Return exactly ${input.slideCount} slides.` : "",
+        input.formatId && getFormat(input.formatId) ? `Use these narrative roles in order: ${formatSlides(getFormat(input.formatId)!, input.slideCount).map((slide) => slide.role).join(", ")}` : "",
         `Brief: ${input.brief}`,
         input.instruction ? `Extra instruction: ${input.instruction}` : "",
-        "Official formats include: problem-insight-product, five-things, before-after, myth-reality, step-by-step, product-teardown, founder-story, comparison, mistakes, curiosity-list.",
+        "Official formats include: problem-insight-product, five-things, before-after, myth-reality, step-by-step, product-teardown, founder-story, comparison, mistakes, curiosity-list, freeform.",
       ]
         .filter(Boolean)
         .join("\n\n"),
     });
+    if (!getFormat(object.formatId) || input.formatId && object.formatId !== input.formatId || input.slideCount && object.slides.length !== input.slideCount) return { plan: fallback, source: "local" };
     return { plan: object, source: "model" };
   } catch {
     return { plan: fallback, source: "local" };
