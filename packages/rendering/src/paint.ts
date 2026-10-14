@@ -11,6 +11,7 @@ function textLayout(ctx: SKRSContext2D, element: Slide["elements"][number], them
   const weight = style?.fontWeight ?? 500;
   const family = familyForWeight(weight, element.role === "headline" ? theme.fontFamily : (theme.bodyFontFamily ?? theme.fontFamily));
   ctx.font = `${family === "Lora" ? weight + " " : ""}${fontSize}px "${family}"`;
+  ctx.textBaseline = "top";
   (ctx as ContextWithSpacing).letterSpacing = `${style?.letterSpacing ?? 0}px`;
   return { fontSize, lineHeight: fontSize * (style?.lineHeight ?? 1.2), lines: wrapLines(element.text ?? "", element.width, (value) => ctx.measureText(value).width) };
 }
@@ -23,7 +24,13 @@ export function textFitIssues(carousel: Carousel): Issue[] {
   for (const [slideIndex, slide] of carousel.slides.entries()) for (const element of slide.elements) {
     if (element.type !== "text" || !element.text?.trim()) continue;
     const { fontSize, lineHeight, lines } = textLayout(ctx, element, carousel.theme);
-    if (fontSize + Math.max(0, lines.length - 1) * lineHeight > element.height + 1 || lines.some((line) => ctx.measureText(line).width > element.width + 1)) issues.push({ code: "TEXT_OVERFLOW", severity: "error", slideIndex,
+    const clippedInk = lines.some((line, index) => {
+      const metrics = ctx.measureText(line);
+      const align = element.style?.align ?? "left";
+      const x = align === "center" ? (element.width - metrics.width) / 2 : align === "right" ? element.width - metrics.width : 0;
+      return metrics.width > element.width + 1 || x - metrics.actualBoundingBoxLeft < -2 || x + metrics.actualBoundingBoxRight > element.width + 2 || index * lineHeight + metrics.actualBoundingBoxDescent > element.height + 1;
+    });
+    if (fontSize + Math.max(0, lines.length - 1) * lineHeight > element.height + 1 || clippedInk) issues.push({ code: "TEXT_OVERFLOW", severity: "error", slideIndex,
       message: `Slide ${slideIndex + 1} ${element.role ?? "text"} is clipped in the export. Enlarge its box, reduce the font size, or shorten the copy.`, suggestedAction: "resize_or_shorten_text" });
     if (fontSize < 12) issues.push({ code: "SMALL_TEXT", severity: "warning", slideIndex, message: `Slide ${slideIndex + 1} has very small text. Check readability at phone size.`, suggestedAction: "increase_font_size" });
   }

@@ -1,4 +1,5 @@
 import { and, asc, count, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import {
   type BrandContext,
   generatePlan,
@@ -56,9 +57,11 @@ function validateOutput(carousel: Carousel, options?: Parameters<typeof validate
 }
 
 type CreationResult = { carousel_id: string; editor_url: string; status: "draft"; format_id: string; carousel: Carousel; validation: ValidationResult;
-  source?: "model" | "local"; warnings?: GenerationWarning[] };
+  source?: "model" | "local"; warnings?: GenerationWarning[]; request_ref?: string };
 type RevisionResult = { carousel_id: string; editor_url: string; source: "model" | "local"; warnings: GenerationWarning[];
-  version: number; undo_count: number; validation: ValidationResult; carousel: Carousel };
+  version: number; undo_count: number; validation: ValidationResult; carousel: Carousel; request_ref?: string };
+
+function generationRef(request?: CreationRequest) { return request ? createHash("sha256").update(request.key).digest("hex").slice(0, 16) : sid("run"); }
 
 async function replayRequest<T = CreationResult>(auth: AuthContext, request?: CreationRequest, reader: Pick<typeof db, "select"> = db): Promise<T | null> {
   if (!request) return null;
@@ -189,11 +192,13 @@ export async function generateCarousel(input: {
   const brand = toBrandContext(brandRow);
   const theme = themeFromBrand(brandRow);
   const thinBrand = isThinBrand(brandRow);
+  const requestRef = generationRef(input.request);
   const writePlan = () => generatePlan({
     brief: input.brief,
     formatId,
     slideCount: input.slideCount,
     brand,
+    requestRef,
     template: workspaceFormat ? { ...planFromCarousel(workspaceFormat.contentJson, { name: brand.name, forbiddenClaims: brand.wordsToAvoid ?? [] }), formatId: workspaceFormat.id } : undefined,
   });
   const { plan, source } = generationModelConfigured() ? await withResourceBudget(input.auth.workspaceId, "generation", writePlan) : await writePlan();
@@ -230,6 +235,7 @@ export async function generateCarousel(input: {
     status: "draft" as const,
     format_id: result.plan.formatId,
     source,
+    request_ref: requestRef,
     warnings,
     validation: result.validation,
     carousel: result.carousel,
@@ -519,10 +525,12 @@ export async function generateSlide(
     cta: brandRow.cta ?? undefined,
     forbiddenClaims: brandRow.wordsToAvoid,
   });
+  const requestRef = generationRef(request);
   const revise = () => reviseSlidePlan({
     plan,
     slideIndex,
     instruction,
+    requestRef,
     brand: toBrandContext(brandRow),
   });
   const { plan: nextPlan, source } = generationModelConfigured() ? await withResourceBudget(authContext.workspaceId, "generation", revise) : await revise();
@@ -561,7 +569,7 @@ export async function generateSlide(
     if (source === "local") query.set("generation", "local");
     if (content.metadata.thinBrand) query.set("brand", "thin");
     const result: RevisionResult = { carousel_id: id, editor_url: query.size ? `${editorUrl(id)}?${query}` : editorUrl(id),
-      source, warnings, version, undo_count: depth?.count ?? 0, validation, carousel };
+      source, warnings, version, undo_count: depth?.count ?? 0, validation, carousel, request_ref: requestRef };
     if (request) await tx.insert(schema.creationRequest).values({ id: sid("req"), workspaceId: authContext.workspaceId,
       requestKey: request.key, payloadHash: request.hash, carouselId: id, resultJson: result });
     await pruneRequestResults(tx, authContext.workspaceId);

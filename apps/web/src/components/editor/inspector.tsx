@@ -54,7 +54,7 @@ export function Inspector({
   }
 
   const box = boxOf(element);
-  const textStyle = { fontSize: 24, fontWeight: 400, align: "left" as const, ...element.style };
+  const textStyle = { fontSize: 24, fontWeight: 500, align: "left" as const, ...element.style };
 
   async function replace(file: File) {
     if (!element) return;
@@ -98,7 +98,7 @@ export function Inspector({
             </div>
             <div>
               <Label htmlFor="font-weight">Weight</Label>
-              <select id="font-weight" className="editor-select mt-1" value={element.style?.fontWeight ?? 400}
+              <select id="font-weight" className="editor-select mt-1" value={element.style?.fontWeight ?? 500}
                 onChange={(event) => onStyle(element.id, { ...textStyle, fontWeight: Number(event.target.value) })}>
                 <option value={400}>Regular</option><option value={500}>Medium</option><option value={600}>Semibold</option><option value={700}>Bold</option><option value={800}>Extra bold</option>
               </select>

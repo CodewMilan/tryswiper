@@ -1,4 +1,4 @@
-import { carouselPlanSchema, slidePlanSchema, getFormat, formatSlides, clip, type CarouselPlan } from "@swiper/schema";
+import { carouselPlanSchema, slidePlanSchema, getFormat, formatSlides, FORMATS, clip, type CarouselPlan } from "@swiper/schema";
 import { generateObject } from "ai";
 import { compactBrand, type BrandContext } from "./brand";
 import { planLocally } from "./local";
@@ -39,10 +39,10 @@ Rules:
 - Headlines under 90 characters. Body under 220 characters.
 - Match the requested format roles exactly.`;
 
-function fallbackEvent(operation: "draft" | "revision", error: unknown, startedAt: number) {
+function fallbackEvent(operation: "draft" | "revision", error: unknown, startedAt: number, requestRef?: string, usage?: { inputTokens?: number; outputTokens?: number }) {
   const value = error as { name?: string; statusCode?: number } | null;
   console.warn(JSON.stringify({ event: "generation_fallback", operation, duration_ms: Date.now() - startedAt,
-    category: value?.name === "TimeoutError" || value?.name === "AbortError" ? "timeout" : value?.statusCode === 401 || value?.statusCode === 403 ? "provider_auth" : value?.statusCode === 429 ? "provider_limit" : "provider_error", source: "local" }));
+    category: value?.name === "TimeoutError" || value?.name === "AbortError" ? "timeout" : /InvalidModelOutput|NoObjectGenerated/.test(value?.name ?? "") ? "invalid_output" : value?.statusCode === 401 || value?.statusCode === 403 ? "provider_auth" : value?.statusCode === 429 ? "provider_limit" : "provider_error", source: "local", request_ref: requestRef, input_tokens: usage?.inputTokens, output_tokens: usage?.outputTokens }));
 }
 
 export async function generatePlan(input: {
@@ -52,9 +52,11 @@ export async function generatePlan(input: {
   brand: BrandContext;
   instruction?: string;
   template?: CarouselPlan;
+  requestRef?: string;
 }): Promise<{ plan: CarouselPlan; source: "model" | "local" }> {
   const fallback = planLocally(input);
   const startedAt = Date.now();
+  const invalidOutput = (usage: { inputTokens?: number; outputTokens?: number }) => { fallbackEvent("draft", { name: "InvalidModelOutput" }, startedAt, input.requestRef, usage); return { plan: fallback, source: "local" as const }; };
   try {
     const loaded = await model();
     if (!loaded) return { plan: fallback, source: "local" };
@@ -73,18 +75,21 @@ export async function generatePlan(input: {
         input.formatId && getFormat(input.formatId) ? `Use these narrative roles in order: ${formatSlides(getFormat(input.formatId)!, input.slideCount).map((slide) => slide.role).join(", ")}` : "",
         `Brief: ${input.brief}`,
         input.instruction ? `Extra instruction: ${input.instruction}` : "",
-        "Official formats include: problem-insight-product, five-things, before-after, myth-reality, step-by-step, product-teardown, founder-story, comparison, mistakes, curiosity-list, freeform.",
+        input.template ? "" : `Official formats and native roles: ${JSON.stringify(FORMATS.map((format) => ({ id: format.id, roles: format.slides.map((slide) => slide.role), count: format.slideCount })))}. For extra slides, add detail-1, detail-2, etc. immediately before proof/product/CTA.`,
       ]
         .filter(Boolean)
         .join("\n\n"),
     });
     if (input.template) {
-      if (object.formatId !== input.template.formatId || object.slides.length !== input.template.slides.length || object.slides.some((slide, index) => slide.role !== input.template!.slides[index]!.role || slide.layout !== input.template!.slides[index]!.layout)) return { plan: fallback, source: "local" };
-    } else if (!getFormat(object.formatId) || input.formatId && object.formatId !== input.formatId || input.slideCount && object.slides.length !== input.slideCount) return { plan: fallback, source: "local" };
-    console.info(JSON.stringify({ event: "generation_success", operation: "draft", provider: process.env.ANTHROPIC_API_KEY?.trim() ? "anthropic" : "openai", duration_ms: Date.now() - startedAt, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, source: "model" }));
+      if (object.formatId !== input.template.formatId || object.slides.length !== input.template.slides.length || object.slides.some((slide, index) => slide.role !== input.template!.slides[index]!.role || slide.layout !== input.template!.slides[index]!.layout)) return invalidOutput(usage);
+    } else {
+      const format = getFormat(object.formatId);
+      if (!format || input.formatId && object.formatId !== input.formatId || input.slideCount && object.slides.length !== input.slideCount || object.slides.length < format.slideCount.min || object.slides.length > format.slideCount.max || object.slides.some((slide, index) => slide.role !== formatSlides(format, object.slides.length)[index]?.role)) return invalidOutput(usage);
+    }
+    console.info(JSON.stringify({ event: "generation_success", operation: "draft", provider: process.env.ANTHROPIC_API_KEY?.trim() ? "anthropic" : "openai", duration_ms: Date.now() - startedAt, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, source: "model", request_ref: input.requestRef }));
     return { plan: object, source: "model" };
   } catch (error) {
-    fallbackEvent("draft", error, startedAt);
+    fallbackEvent("draft", error, startedAt, input.requestRef);
     return { plan: fallback, source: "local" };
   }
 }
@@ -94,6 +99,7 @@ export async function reviseSlidePlan(input: {
   slideIndex: number;
   instruction: string;
   brand: BrandContext;
+  requestRef?: string;
 }): Promise<{ plan: CarouselPlan; source: "model" | "local" }> {
   const current = input.plan.slides[input.slideIndex];
   const startedAt = Date.now();
@@ -142,10 +148,10 @@ export async function reviseSlidePlan(input: {
     });
     const slides = [...input.plan.slides];
     slides[input.slideIndex] = { ...current, ...object, role: current.role, layout: current.layout };
-    console.info(JSON.stringify({ event: "generation_success", operation: "revision", provider: process.env.ANTHROPIC_API_KEY?.trim() ? "anthropic" : "openai", duration_ms: Date.now() - startedAt, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, source: "model" }));
+    console.info(JSON.stringify({ event: "generation_success", operation: "revision", provider: process.env.ANTHROPIC_API_KEY?.trim() ? "anthropic" : "openai", duration_ms: Date.now() - startedAt, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, source: "model", request_ref: input.requestRef }));
     return { plan: { ...input.plan, slides }, source: "model" };
   } catch (error) {
-    fallbackEvent("revision", error, startedAt);
+    fallbackEvent("revision", error, startedAt, input.requestRef);
     return { plan: fallback(), source: "local" };
   }
 }

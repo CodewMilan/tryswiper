@@ -18,8 +18,8 @@ function periodStart() {
 
 export async function workspacePlan(workspaceId: string): Promise<Plan> {
   const billing = await getBilling(workspaceId);
-  return billing?.plan === "pro" && ["active", "past_due"].includes(billing.status) &&
-    (!billing.paidThrough || billing.paidThrough.getTime() > Date.now()) ? "pro" : "free";
+  return billing?.plan === "pro" && billing.dodoSubscriptionId && billing.productId && billing.lastVerifiedAt && ["active", "past_due"].includes(billing.status) &&
+    billing.paidThrough && billing.paidThrough.getTime() > Date.now() ? "pro" : "free";
 }
 
 export async function usageFor(workspaceId: string, reader: Pick<typeof db, "select"> = db) {
@@ -74,8 +74,8 @@ export async function withUsageTransaction<T>(workspaceId: string, kinds: UsageK
     const previous = await replay?.(tx);
     if (previous) return previous.value;
     const [billing] = await tx.select().from(schema.billing).where(eq(schema.billing.workspaceId, workspaceId)).limit(1);
-    const plan: Plan = verifiedPlan === "pro" && billing?.plan === "pro" && ["active", "past_due"].includes(billing.status) &&
-      (!billing.paidThrough || billing.paidThrough.getTime() > Date.now()) ? "pro" : "free";
+    const plan: Plan = verifiedPlan === "pro" && billing?.plan === "pro" && billing.dodoSubscriptionId && billing.productId && billing.lastVerifiedAt && ["active", "past_due"].includes(billing.status) &&
+      billing.paidThrough && billing.paidThrough.getTime() > Date.now() ? "pro" : "free";
     const usage = await usageFor(workspaceId, tx);
     for (const kind of kinds) {
       const used = usage[kind] ?? 0; const limit = PLAN_LIMITS[plan][kind];

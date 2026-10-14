@@ -11,8 +11,9 @@ export async function getBilling(workspaceId: string) {
     .where(eq(schema.billing.workspaceId, workspaceId))
     .limit(1);
   if (!row) return null;
+  if (row.plan === "pro" && !row.dodoSubscriptionId) return { ...row, plan: "free", status: "verification_required" };
   if (row.dodoSubscriptionId && (!row.productId || !row.lastVerifiedAt || Date.now() - row.lastVerifiedAt.getTime() > 5 * 60_000 ||
-    (row.plan === "pro" && row.paidThrough && row.paidThrough.getTime() <= Date.now()))) {
+    (row.plan === "pro" && (!row.paidThrough || row.paidThrough.getTime() <= Date.now())))) {
     try {
       const subscription = await retrieveDodoSubscription(row.dodoSubscriptionId);
       if ((subscription.metadata.workspace_id ?? subscription.metadata.workspaceId) !== workspaceId) return { ...row, plan: "free", status: "verification_required" };
@@ -24,7 +25,7 @@ export async function getBilling(workspaceId: string) {
       return changed ?? null;
     } catch {
       // Previously verified paid time can still be honored during a provider outage.
-      if (!row.paidThrough || row.paidThrough.getTime() <= Date.now()) return { ...row, plan: "free", status: "verification_required" };
+      if (!row.lastVerifiedAt || !row.productId || !row.paidThrough || row.paidThrough.getTime() <= Date.now()) return { ...row, plan: "free", status: "verification_required" };
     }
   }
   return row;

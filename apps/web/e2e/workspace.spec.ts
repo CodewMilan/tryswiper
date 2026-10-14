@@ -1070,7 +1070,7 @@ test("preparation is bound to a version and retries survive the quota boundary",
   const sql = postgres(testDatabaseUrl, { max: 1, prepare: false });
   try {
     const [workspace] = await sql<{ id: string }[]>`select id from workspace where owner_id = ${userId}`;
-    await sql`insert into billing(workspace_id, plan, status, paid_through) values(${workspace!.id},'pro','active',${new Date(Date.now() + 3600000)})`;
+    await sql`insert into billing(workspace_id, plan, status, paid_through, dodo_subscription_id, product_id, last_verified_at) values(${workspace!.id},'pro','active',${new Date(Date.now() + 3600000)},'fixture_subscription','fixture_product',${new Date()})`;
     for (let i = 0; i < 99; i++) await sql`insert into usage_event(id,workspace_id,kind) values(${`use_${crypto.randomUUID()}`},${workspace!.id},'publish')`;
     const headers = { "Idempotency-Key": crypto.randomUUID() };
     const responses = await Promise.all(Array.from({ length: 3 }, () => request.post(`/api/v1/carousels/${id}/publish`, { headers, data: { expected_version: 1 } })));
@@ -1268,4 +1268,61 @@ test("reopening creation recovers a completed request even when the allowance is
   await page.getByRole("link", { name: "Open the recovered draft" }).click();
   await expect(page.getByTestId("slide-canvas")).toBeVisible();
   expect((await (await request.get("/api/v1/billing")).json()).usage.carousel).toBe(5);
+});
+
+test("unverified legacy payment rows cannot retain unlimited Pro access", async ({ page }) => {
+  const userId = await signUp(page.request);
+  const sql = postgres(testDatabaseUrl, { max: 1, prepare: false });
+  try {
+    const [workspace] = await sql<{ id: string }[]>`select id from workspace where owner_id=${userId}`;
+    await sql`insert into billing(workspace_id,plan,status,dodo_payment_id) values(${workspace!.id},'pro','active','old_unverified_payment')`;
+    const billing = await (await page.request.get("/api/v1/billing")).json();
+    expect(billing.plan).toBe("free");
+    expect(billing.status).toBe("verification_required");
+    const draft = await create(page.request);
+    expect((await page.request.get(`/api/v1/carousels/${draft.carousel_id}/export?format=jpg`)).status()).toBe(403);
+  } finally { await sql.end(); }
+});
+
+test("library pagination and search reach older drafts without loading every document", async ({ page }) => {
+  const userId = await signUp(page.request);
+  const sql = postgres(testDatabaseUrl, { max: 1, prepare: false });
+  try {
+    const source = await create(page.request);
+    const [row] = await sql`select project_id from carousel where id=${source.carousel_id}`;
+    for (let i = 0; i < 28; i++) await sql`insert into carousel(id,project_id,title,format_id,content_json,created_by,updated_at) values(${`car_${crypto.randomUUID()}`},${row!.project_id},${`Page draft ${i}`},'freeform',${sql.json(source.carousel)},${userId},${new Date(Date.now() + i * 1000)})`;
+    const first = await (await page.request.get("/api/v1/projects")).json();
+    expect(first.carousels).toHaveLength(25); expect(first.next_offset).toBe(25); expect(first.total).toBe(29);
+    const second = await (await page.request.get("/api/v1/projects?offset=25")).json();
+    expect(second.carousels).toHaveLength(4); expect(second.next_offset).toBeNull();
+    expect(new Set([...first.carousels, ...second.carousels].map((row: { id: string }) => row.id)).size).toBe(29);
+    await page.goto("/library");
+    await expect(page.getByRole("button", { name: "Load more carousels" })).toBeVisible();
+    await page.getByRole("button", { name: "Load more carousels" }).click();
+    await expect(page.locator("article")).toHaveCount(29);
+    await page.getByLabel("Search carousels").fill("Page draft 0");
+    await expect(page.locator("article")).toHaveCount(1);
+  } finally { await sql.end(); }
+});
+
+test("undo snapshots stay bounded and expired request responses cannot generate duplicate work", async ({ page }) => {
+  await signUp(page.request);
+  const request = page.request;
+  const requestId = crypto.randomUUID();
+  const input = { format_id: "freeform", title: "History retention QA" };
+  const draft = await (await request.post("/api/v1/carousels", { data: input, headers: { "Idempotency-Key": requestId } })).json();
+  const sql = postgres(testDatabaseUrl, { max: 1, prepare: false });
+  try {
+    for (let i = 1; i <= 105; i++) await sql`insert into carousel_version(id,carousel_id,version,content_json,created_at) values(${`ver_${crypto.randomUUID()}`},${draft.carousel_id},${i},${sql.json(draft.carousel)},${new Date(Date.now() - (106 - i) * 1000)})`;
+    await sql`update carousel set version=106 where id=${draft.carousel_id}`;
+    const edited = await request.patch(`/api/v1/carousels/${draft.carousel_id}`, { data: { expected_version: 106, operations: [{ op: "rename", title: "Retained latest history" }] } });
+    expect(edited.status()).toBe(200); expect((await edited.json()).undo_count).toBe(100);
+    const [bounds] = await sql`select min(version) as oldest, max(version) as newest from carousel_version where carousel_id=${draft.carousel_id}`;
+    expect(Number(bounds!.oldest)).toBe(7); expect(Number(bounds!.newest)).toBe(106);
+    await sql`update creation_request set created_at=${new Date(Date.now() - 31 * 86400000)} where request_key=${requestId}`;
+    const expired = await request.post("/api/v1/carousels", { data: input, headers: { "Idempotency-Key": requestId } });
+    expect(expired.status()).toBe(410); expect((await expired.json()).code).toBe("REQUEST_EXPIRED");
+    expect((await (await request.get(`/api/v1/requests/${requestId}`)).json()).status).toBe("expired");
+    expect((await (await request.get("/api/v1/billing")).json()).usage.carousel).toBe(1);
+  } finally { await sql.end(); }
 });
