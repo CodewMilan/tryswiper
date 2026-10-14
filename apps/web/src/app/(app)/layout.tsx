@@ -12,7 +12,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="hero-grid flex min-h-full flex-col">
       <WorkspaceNav />
-      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col pt-16 lg:pt-14">{children}</div>
     </div>
   );
 }

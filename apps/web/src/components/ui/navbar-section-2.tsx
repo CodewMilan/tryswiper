@@ -23,14 +23,22 @@ const productItems: PanelItem[] = [
   { title: "Agents", description: "Mint a key and use Swiper from Cursor, Claude, or ChatGPT.", href: "/#agents" },
 ];
 
+type NavLink = { href: string; label: string };
+
 export default function NavbarSectionTwo({
   mode,
   hideSignIn = false,
   hideStartForFree = false,
+  links,
+  accountLinks = [],
+  showNew = true,
 }: {
   mode: Mode;
   hideSignIn?: boolean;
   hideStartForFree?: boolean;
+  links?: NavLink[];
+  accountLinks?: NavLink[];
+  showNew?: boolean;
 }) {
   const pathname = usePathname();
   const reduced = useReducedMotion();
@@ -71,20 +79,20 @@ export default function NavbarSectionTwo({
     };
   }, [productOpen, mobileOpen]);
 
-  const barLinks = mode === "member"
-    ? [
-        { href: "/library", label: "Library" },
-        { href: "/brand", label: "Brand" },
-        { href: "/connect", label: "Connect" },
-        { href: "/pricing", label: "Pricing" },
-        { href: "/guide", label: "Guide" },
-      ]
-    : [
+  const memberLinks: NavLink[] = [
+    { href: "/library", label: "Library" },
+    { href: "/brand", label: "Brand" },
+    { href: "/connect", label: "Connect" },
+    { href: "/pricing", label: "Pricing" },
+    { href: "/guide", label: "Guide" },
+  ];
+  const barLinks = links ?? (mode === "member" ? memberLinks : [
         { href: "/guide", label: "How it works" },
         { href: "/connect", label: "Connect" },
         { href: "/pricing", label: "Pricing" },
         ...(showSignIn ? [{ href: "/login", label: "Sign in" }] : []),
-      ];
+      ]);
+  const showNewCarousel = mode === "member" && showNew;
 
   return (
     <header ref={rootRef} className="pointer-events-none fixed inset-x-0 top-0 z-40 px-3 font-sans text-zinc-900 lg:px-6">
@@ -116,11 +124,14 @@ export default function NavbarSectionTwo({
                     <ChevronDown className={`size-3.5 opacity-70 transition-transform duration-300 ${productOpen ? "rotate-180" : ""}`} />
                   </button>
                 ) : null}
-                {barLinks.map((item) => (
-                  <Link key={item.href} href={item.href} className="rounded-md px-2.5 py-1 text-zinc-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80">
-                    {item.label}
-                  </Link>
-                ))}
+                {barLinks.map((item) => {
+                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return (
+                    <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={`rounded-md px-2.5 py-1 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 ${active ? "bg-[#18181b] text-white" : "text-zinc-400"}`}>
+                      {item.label}
+                    </Link>
+                  );
+                })}
               </nav>
             </div>
             <AnimatePresence initial={false}>
@@ -161,11 +172,13 @@ export default function NavbarSectionTwo({
         <div className="relative z-10 hidden items-center gap-2 lg:flex">
           {mode === "member" ? (
             <>
-              <Link href="/new" className="inline-flex items-center gap-1 rounded-lg bg-white px-3.5 py-1.5 text-[12px] font-semibold text-black transition-colors hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
-                New carousel
-                <ArrowRight className="size-3" />
-              </Link>
-              <AccountMenu />
+              {showNewCarousel ? (
+                <Link href="/new" className="inline-flex items-center gap-1 rounded-lg bg-white px-3.5 py-1.5 text-[12px] font-semibold text-black transition-colors hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                  New carousel
+                  <ArrowRight className="size-3" />
+                </Link>
+              ) : null}
+              <AccountMenu links={accountLinks} />
             </>
           ) : showStart ? (
             <Link href="/signup" className="inline-flex items-center gap-1 rounded-lg bg-white px-3.5 py-1.5 text-[12px] font-semibold text-black transition-colors hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
@@ -177,14 +190,14 @@ export default function NavbarSectionTwo({
           ) : null}
         </div>
         <div className="relative z-10 flex items-center gap-2 lg:hidden">
-          {mode === "member" ? <AccountMenu className="mr-1" /> : null}
+          {mode === "member" ? <AccountMenu className="mr-1" links={accountLinks} /> : null}
           {showStart ? (
             <Link href="/signup" className="inline-flex items-center gap-1 rounded-lg bg-black px-3 py-1.5 text-xs font-semibold text-white">
               Start for free
               <ArrowRight className="size-3" />
             </Link>
           ) : null}
-          {mode === "member" ? (
+          {showNewCarousel ? (
             <Link href="/new" className="inline-flex items-center gap-1 rounded-lg bg-black px-3 py-1.5 text-xs font-semibold text-white">
               New
             </Link>
@@ -235,11 +248,11 @@ export default function NavbarSectionTwo({
                 </div>
               ) : null}
               {barLinks.map((item) => (
-                <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className="flex min-h-11 items-center rounded-lg px-3 text-sm text-zinc-300 hover:bg-white/10 hover:text-white">
+                <Link key={item.href} href={item.href} aria-current={pathname === item.href || pathname.startsWith(`${item.href}/`) ? "page" : undefined} onClick={() => setMobileOpen(false)} className="flex min-h-11 items-center rounded-lg px-3 text-sm text-zinc-300 hover:bg-white/10 hover:text-white">
                   {item.label}
                 </Link>
               ))}
-              {mode === "member" ? (
+              {showNewCarousel ? (
                 <Link href="/new" onClick={() => setMobileOpen(false)} className="flex min-h-11 items-center rounded-lg px-3 text-sm text-white hover:bg-white/10">
                   New carousel
                 </Link>
