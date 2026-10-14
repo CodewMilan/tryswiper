@@ -78,7 +78,7 @@ export async function createDodoCheckout(input: {
     message?: string;
   };
   if (!response.ok) {
-    console.error("billing_checkout_provider_error", { status: response.status, message: body.message });
+    console.error("billing_checkout_provider_error", { status: response.status });
     const message = "Checkout could not start. Please try again later.";
     throw Object.assign(new Error(message), { status: 502, code: "CHECKOUT_FAILED" });
   }

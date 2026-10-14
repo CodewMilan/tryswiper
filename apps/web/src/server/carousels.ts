@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import {
   type BrandContext,
   generatePlan,
@@ -439,7 +439,7 @@ async function retainUndoHistory(tx: UsageTransaction, id: string) {
 }
 
 async function pruneRequestResults(tx: UsageTransaction, workspaceId: string) {
-  await tx.update(schema.creationRequest).set({ resultJson: { expired: true } }).where(and(eq(schema.creationRequest.workspaceId, workspaceId), sql`${schema.creationRequest.createdAt} < ${new Date(Date.now() - 30 * 86400000)}`, sql`${schema.creationRequest.resultJson} ? 'carousel'`));
+  await tx.update(schema.creationRequest).set({ resultJson: { expired: true } }).where(and(eq(schema.creationRequest.workspaceId, workspaceId), lt(schema.creationRequest.createdAt, new Date(Date.now() - 30 * 86400000)), sql`${schema.creationRequest.resultJson} ? 'carousel'`));
 }
 
 export async function updateCarousel(

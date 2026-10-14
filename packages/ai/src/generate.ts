@@ -61,6 +61,7 @@ export async function generatePlan(input: {
     const { object, usage } = await generateObject({
       model: loaded,
       schema: input.template ? carouselPlanSchema.extend({ slides: z.array(slidePlanSchema).length(input.template.slides.length) }) : carouselPlanSchema,
+      maxOutputTokens: 6000,
       abortSignal: AbortSignal.timeout(60000),
       maxRetries: 0,
       system: SYSTEM,
@@ -127,6 +128,7 @@ export async function reviseSlidePlan(input: {
     const { object, usage } = await generateObject({
       model: loaded,
       schema: slidePlanSchema,
+      maxOutputTokens: 1200,
       abortSignal: AbortSignal.timeout(60000),
       maxRetries: 0,
       system: SYSTEM,

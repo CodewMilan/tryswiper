@@ -12,7 +12,7 @@ const previousEnv = { key: process.env.DODO_PAYMENTS_API_KEY, product: process.e
 try {
   const canvas = createCanvas(120, 60);
   for (const mime of ["image/png", "image/jpeg", "image/webp"] as const) {
-    const size = imageDimensions(canvas.toBuffer(mime));
+    const size = imageDimensions(mime === "image/png" ? canvas.toBuffer("image/png") : canvas.toBuffer(mime));
     assert.deepEqual(size, { width: 120, height: 60, mimeType: mime });
   }
   const releases: (() => void)[] = [];

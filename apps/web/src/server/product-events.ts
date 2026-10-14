@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { sid } from "@/lib/ids";
 import type { UsageTransaction } from "./usage";
@@ -18,7 +18,7 @@ export async function recordProductEvent(workspaceId: string, kind: ProductEvent
 export async function productMetrics(workspaceId: string) {
   const rows = await db.select({ kind: schema.productEvent.kind, source: schema.productEvent.source, value: schema.productEvent.value,
     events: count(), drafts: sql<number>`count(distinct ${schema.productEvent.carouselId})` }).from(schema.productEvent)
-    .where(and(eq(schema.productEvent.workspaceId, workspaceId), sql`${schema.productEvent.createdAt} >= ${new Date(Date.now() - 90 * 86400000)}`))
+    .where(and(eq(schema.productEvent.workspaceId, workspaceId), gte(schema.productEvent.createdAt, new Date(Date.now() - 90 * 86400000))))
     .groupBy(schema.productEvent.kind, schema.productEvent.source, schema.productEvent.value);
   return { period_days: 90, stages: rows, note: "Observed product events since instrumentation began. These are stage counts, not a user-cohort conversion rate; source and feedback help compare model and local drafts." };
 }
