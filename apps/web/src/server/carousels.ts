@@ -50,8 +50,9 @@ import { decodeAssets, textFitIssues } from "@swiper/rendering";
 function validateOutput(carousel: Carousel, options?: Parameters<typeof validateCarousel>[1]) {
   const result = validateCarousel(carousel, options);
   if (result.errors.some((issue) => issue.code === "INVALID_SCHEMA")) return result;
-  const errors = [...result.errors, ...textFitIssues(carousel)];
-  return { ...result, ok: errors.length === 0, errors };
+  const measured = textFitIssues(carousel);
+  const errors = [...result.errors, ...measured.filter((issue) => issue.severity === "error")];
+  return { ...result, ok: errors.length === 0, errors, warnings: [...result.warnings, ...measured.filter((issue) => issue.severity === "warning")] };
 }
 
 type CreationResult = { carousel_id: string; editor_url: string; status: "draft"; format_id: string; carousel: Carousel; validation: ValidationResult;
