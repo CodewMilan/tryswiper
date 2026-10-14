@@ -91,7 +91,9 @@ export async function createWorkspaceFormat(input: {
     });
   }
 
-  const sources = await db
+  return db.transaction(async (tx) => {
+  await tx.select({ id: schema.workspace.id }).from(schema.workspace).where(eq(schema.workspace.id, input.auth.workspaceId)).for("no key update");
+  const sources = await tx
     .select({ carousel: schema.carousel, workspaceId: schema.project.workspaceId })
     .from(schema.carousel)
     .innerJoin(schema.project, eq(schema.project.id, schema.carousel.projectId))
@@ -110,7 +112,7 @@ export async function createWorkspaceFormat(input: {
     });
   }
 
-  const duplicate = await db
+  const duplicate = await tx
     .select({ id: schema.workspaceFormat.id })
     .from(schema.workspaceFormat)
     .where(
@@ -128,7 +130,7 @@ export async function createWorkspaceFormat(input: {
   }
 
   const id = sid("fmt");
-  const [created] = await db
+  const [created] = await tx
     .insert(schema.workspaceFormat)
     .values({
       id,
@@ -151,4 +153,5 @@ export async function createWorkspaceFormat(input: {
     sourceCarouselId: source.carousel.id,
   });
   return { format: formatSummary(created!) };
+  });
 }

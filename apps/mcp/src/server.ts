@@ -130,11 +130,11 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
     {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       description: "List projects and carousels in the authenticated workspace.",
-      inputSchema: z.object({}),
+      inputSchema: z.object({ offset: z.number().int().min(0).max(10000).default(0), limit: z.number().int().min(1).max(50).default(25), query: z.string().max(100).default("") }),
     },
-    async () => {
+    async ({ offset, limit, query }) => {
       try {
-        return ok(await call("/api/v1/projects"));
+        return ok(await call(`/api/v1/projects?offset=${offset}&limit=${limit}&q=${encodeURIComponent(query)}`));
       } catch (error) {
         return fail(error);
       }
@@ -388,6 +388,18 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
   }, async ({ request_id }) => {
     try { return ok(await call(`/api/v1/requests/${encodeURIComponent(request_id)}`)); } catch (error) { return fail(error); }
   });
+
+  server.registerTool("swiper.list_assets", {
+    description: "List owned uploaded-image metadata in pages of 50. Use returned asset IDs for images or explicit unused-image cleanup.",
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    inputSchema: z.object({ offset: z.number().int().min(0).max(200).default(0) }),
+  }, async ({ offset }) => { try { return ok(await call(`/api/v1/assets?offset=${offset}`)); } catch (error) { return fail(error); } });
+
+  server.registerTool("swiper.delete_asset", {
+    description: "Permanently delete an unused uploaded image only when the user requests it. Drafts, saved formats, brand logos and retained undo history protect their images. A local unsaved backup is not a server reference; confirm it does not need the image.",
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    inputSchema: z.object({ asset_id: z.string().regex(/^[A-Za-z0-9_-]+$/) }),
+  }, async ({ asset_id }) => { try { return ok(await call(`/api/v1/assets/${asset_id}`, { method: "DELETE" })); } catch (error) { return fail(error); } });
 
   server.registerResource("carousel-export", new ResourceTemplate("swiper://carousels/{carousel_id}/versions/{version}/exports/{format}", { list: undefined }),
     { description: "Authenticated version-bound export bytes; PNG/JPG bundles are ZIP files. Reads consume export allowance (except JSON)." },

@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { requireAccountManagement } from "@/lib/api-auth";
 import { db, schema } from "@/lib/db";
-import { apiError, fromUnknownError, json } from "@/lib/http";
+import { apiError, fromUnknownError, json, readJson } from "@/lib/http";
 import { createMcpKey, sid } from "@/lib/ids";
 
 export async function GET(request: Request) {
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const authContext = await requireAccountManagement(request);
-    const body = (await request.json().catch(() => ({}))) as { name?: string };
+    const body = (await readJson(request).catch(() => ({}))) as { name?: string };
     if (!body || (body.name !== undefined && (typeof body.name !== "string" || !body.name.trim() || body.name.length > 80))) {
       return apiError("INVALID_KEY_NAME", "Agent key names must be between 1 and 80 characters.");
     }

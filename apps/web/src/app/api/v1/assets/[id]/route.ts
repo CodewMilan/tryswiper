@@ -1,6 +1,6 @@
 import { requireAuth } from "@/lib/api-auth";
-import { fromUnknownError } from "@/lib/http";
-import { getAsset } from "@/server/assets";
+import { fromUnknownError, json } from "@/lib/http";
+import { deleteAsset, getAsset } from "@/server/assets";
 
 export const runtime = "nodejs";
 
@@ -22,4 +22,9 @@ export async function GET(
   } catch (error) {
     return fromUnknownError(error);
   }
+}
+
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+  try { const auth = await requireAuth(request); const { id } = await context.params; return json(await deleteAsset(auth, id)); }
+  catch (error) { return fromUnknownError(error); }
 }

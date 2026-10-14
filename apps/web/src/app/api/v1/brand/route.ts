@@ -10,7 +10,7 @@ import {
   type BrandFonts,
 } from "@/lib/brand-visuals";
 import { db, schema } from "@/lib/db";
-import { apiError, fromUnknownError, json } from "@/lib/http";
+import { apiError, fromUnknownError, json, readJson } from "@/lib/http";
 import { getAsset } from "@/server/assets";
 import { getWorkspaceBrand } from "@/lib/workspace";
 
@@ -59,7 +59,7 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const authContext = await requireAuth(request);
-    const body = (await request.json()) as Record<string, unknown>;
+    const body = (await readJson(request)) as Record<string, unknown>;
     if (!body || typeof body !== "object" || Array.isArray(body)) return badRequest("Provide a brand object.");
     for (const field of ["description", "audience", "positioning", "tone", "cta", "website", "guidelines"]) {
       const limit = field === "cta" ? 120 : field === "website" ? 2000 : 10000;
@@ -69,6 +69,8 @@ export async function PATCH(request: Request) {
       if (field in body && (!Array.isArray(body[field]) || body[field].length > 100 || !body[field].every((item: unknown) => typeof item === "string" && item.trim().length > 0 && item.length <= 1000))) return badRequest(`${field} must be a list of nonempty short text entries.`);
     }
     if ("name" in body && (typeof body.name !== "string" || !body.name.trim() || body.name.length > 120)) return badRequest("Product name must be between 1 and 120 characters.");
+    return db.transaction(async (tx) => {
+    await tx.select({ id: schema.workspace.id }).from(schema.workspace).where(eq(schema.workspace.id, authContext.workspaceId)).for("no key update");
     const current = await getWorkspaceBrand(authContext.workspaceId);
     if (!current) {
       return fromUnknownError(
@@ -102,7 +104,7 @@ export async function PATCH(request: Request) {
       }
     }
 
-    const [updated] = await db
+    const [updated] = await tx
       .update(schema.brand)
       .set({
         name: typeof body.name === "string" ? body.name : current.name,
@@ -133,6 +135,7 @@ export async function PATCH(request: Request) {
       .returning();
 
     return json({ brand: updated });
+    });
   } catch (error) {
     return fromUnknownError(error);
   }

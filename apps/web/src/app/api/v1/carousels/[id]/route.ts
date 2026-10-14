@@ -1,6 +1,6 @@
 import { requireAuth } from "@/lib/api-auth";
 import { editorUrl } from "@/lib/utils";
-import { fromUnknownError, json } from "@/lib/http";
+import { fromUnknownError, json, readJson } from "@/lib/http";
 import { deleteCarousel, getCarousel, getHistoricalCarousel, undoDepth, updateCarousel } from "@/server/carousels";
 
 export async function GET(
@@ -37,7 +37,7 @@ export async function PATCH(
   try {
     const authContext = await requireAuth(request);
     const { id } = await context.params;
-    const body = (await request.json()) as { operations?: unknown[]; expected_version?: number; mutation_id?: string };
+    const body = (await readJson(request)) as { operations?: unknown[]; expected_version?: number; mutation_id?: string };
     return json(await updateCarousel(authContext, id, body.operations ?? [], body.expected_version, body.mutation_id));
   } catch (error) {
     return fromUnknownError(error);

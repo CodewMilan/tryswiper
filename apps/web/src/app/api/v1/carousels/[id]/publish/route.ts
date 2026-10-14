@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/api-auth";
 import { db, schema } from "@/lib/db";
-import { apiError, fromUnknownError, json } from "@/lib/http";
+import { apiError, fromUnknownError, json, readJson } from "@/lib/http";
 import { sid } from "@/lib/ids";
 import { appUrl } from "@/lib/utils";
 import { getCarousel, validateExisting } from "@/server/carousels";
@@ -36,7 +36,7 @@ export async function POST(
     if (!idempotencyKey || !/^[A-Za-z0-9._:-]{1,120}$/.test(idempotencyKey)) {
       return apiError("IDEMPOTENCY_KEY_REQUIRED", "Send an Idempotency-Key of up to 120 letters, digits, dots, colons, underscores or hyphens.", 400);
     }
-    const body = request.headers.get("content-type")?.includes("application/json") ? await request.json() as { expected_version?: number } : {};
+    const body = request.headers.get("content-type")?.includes("application/json") ? await readJson(request) as { expected_version?: number } : {};
     if (!body || typeof body !== "object" || (body.expected_version !== undefined && (!Number.isInteger(body.expected_version) || body.expected_version < 1))) return apiError("INVALID_VERSION", "Provide a positive expected_version.", 400);
     if (body.expected_version !== undefined && body.expected_version !== current.version) return apiError("VERSION_CONFLICT", "Save and review the latest draft before preparing files.", 409);
     const replay = async (reader: Pick<typeof db, "select">) => {

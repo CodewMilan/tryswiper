@@ -41,25 +41,25 @@ export const backgroundSchema = z.object({
 });
 
 export const textStyleSchema = z.object({
-  fontSize: z.number().positive(),
+  fontSize: z.number().positive().max(240),
   fontWeight: z.number().min(100).max(900),
   align: z.enum(["left", "center", "right"]),
   color: colorSchema.optional(),
-  lineHeight: z.number().positive().optional(),
-  letterSpacing: z.number().optional(),
+  lineHeight: z.number().positive().max(5).optional(),
+  letterSpacing: z.number().min(-20).max(100).optional(),
 });
 
 export const elementSchema = z.object({
   id: z.string().min(1),
   type: elementTypeSchema,
   role: elementRoleSchema.optional(),
-  text: z.string().optional(),
+  text: z.string().max(10000).optional(),
   assetId: z.string().optional(),
   src: z.string().optional(),
   x: z.number(),
   y: z.number(),
-  width: z.number().positive(),
-  height: z.number().positive(),
+  width: z.number().positive().max(1080),
+  height: z.number().positive().max(1350),
   style: textStyleSchema.optional(),
 }).superRefine((element, ctx) => {
   if (element.type === "image" || element.type === "logo") {
@@ -75,7 +75,7 @@ export const slideSchema = z.object({
   layout: layoutTypeSchema,
   role: z.string().min(1),
   background: backgroundSchema,
-  elements: z.array(elementSchema).min(1),
+  elements: z.array(elementSchema).min(1).max(100),
 });
 
 export const themeSchema = z.object({
@@ -130,7 +130,10 @@ export const carouselSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   metadata: carouselMetadataSchema,
   theme: themeSchema,
-  slides: z.array(slideSchema).min(1),
+  slides: z.array(slideSchema).min(1).max(12),
+}).superRefine((carousel, ctx) => {
+  const length = carousel.slides.reduce((total, slide) => total + slide.elements.reduce((sum, element) => sum + (element.text?.length ?? 0), 0), 0);
+  if (length > 50000) ctx.addIssue({ code: "custom", message: "A document can contain at most 50,000 text characters." });
 });
 
 export type LayoutType = z.infer<typeof layoutTypeSchema>;

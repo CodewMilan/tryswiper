@@ -6,6 +6,7 @@ import { apiError, fromUnknownError, json } from "@/lib/http";
 import { assetsForWorkspace } from "@/server/assets";
 import { getCarousel } from "@/server/carousels";
 import { assertUsage, recordUsage, requireFeature, withUsageTransaction } from "@/server/usage";
+import { withResourceBudget } from "@/server/resource-budget";
 
 export const runtime = "nodejs";
 
@@ -62,14 +63,15 @@ export async function GET(
     if (format === "jpg") await requireFeature(authContext.workspaceId, "jpg");
     await assertUsage(authContext.workspaceId, "export");
 
-    const assetIds = parsed.data.slides.flatMap((slide) =>
+    const selectedSlides = slideIndex === undefined ? parsed.data.slides : [parsed.data.slides[slideIndex]!];
+    const assetIds = selectedSlides.flatMap((slide) =>
       slide.elements.map((element) => element.assetId).filter((id): id is string => id != null),
     );
     const assets = assetIds.length
       ? await assetsForWorkspace(authContext.workspaceId, assetIds)
       : undefined;
 
-    const rendered = await renderExport(parsed.data, format, slideIndex, assets);
+    const rendered = await withResourceBudget(authContext.workspaceId, "render", () => renderExport(parsed.data, format, slideIndex, assets));
     const extension =
       (format === "png" || format === "jpg") && slideIndex != null ? format : rendered.extension;
     const name =

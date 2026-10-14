@@ -1,5 +1,5 @@
 import { requireAuth } from "@/lib/api-auth";
-import { fromUnknownError, json } from "@/lib/http";
+import { fromUnknownError, json, readJson } from "@/lib/http";
 import { createWorkspaceFormat, listAvailableFormats } from "@/server/workspace-formats";
 
 export async function GET(request: Request) {
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const authContext = await requireAuth(request);
-    const body = (await request.json()) as {
+    const body = (await readJson(request)) as {
       carousel_id?: string;
       name?: string;
       description?: string;

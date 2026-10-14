@@ -34,6 +34,8 @@ export default function LibraryPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("recent");
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [loadingPage, setLoadingPage] = useState(false);
   const visibleItems = items.filter((item) => `${item.title} ${getFormat(item.format_id)?.name ?? item.format_id}`.toLowerCase().includes(query.trim().toLowerCase()))
     .sort((a, b) => sort === "title" ? a.title.localeCompare(b.title) : new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
@@ -56,26 +58,29 @@ export default function LibraryPage() {
     }
   }
 
-  const load = useCallback(async () => {
-    setState("loading");
+  const load = useCallback(async (offset = 0, signal?: AbortSignal) => {
+    setState((state) => state === "ready" ? state : "loading");
+    setLoadingPage(true);
     setError(null);
     try {
-      const response = await fetch("/api/v1/projects");
-      const body = (await response.json()) as { carousels?: CarouselRow[]; message?: string };
+      const response = await fetch(`/api/v1/projects?offset=${offset}&q=${encodeURIComponent(query)}&sort=${sort}`, { signal });
+      const body = (await response.json()) as { carousels?: CarouselRow[]; message?: string; next_offset?: number | null };
       if (!response.ok) throw new Error(body.message ?? "Could not load your carousels.");
-      setItems(body.carousels ?? []);
+      setItems((previous) => offset ? [...previous, ...(body.carousels ?? []).filter((item) => !previous.some((prior) => prior.id === item.id))] : body.carousels ?? []);
+      setNextOffset(body.next_offset ?? null);
       setState("ready");
     } catch (loadError) {
+      if (loadError instanceof Error && loadError.name === "AbortError") return;
       setError(loadError instanceof Error ? loadError.message : "Could not load your carousels.");
       setState("error");
-    }
-  }, []);
+    } finally { setLoadingPage(false); }
+  }, [query, sort]);
 
   useEffect(() => {
-    // Synchronize this client view with its authenticated API resource.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load();
-  }, [load]);
+    const controller = new AbortController();
+    const timer = setTimeout(() => { void load(0, controller.signal); }, query ? 250 : 0);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [load, query]);
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-[1100px] px-6 py-12">
@@ -163,6 +168,7 @@ export default function LibraryPage() {
             </article>
           ))}
         </Settle>
+        {nextOffset !== null ? <Button className="mt-6" variant="outline" disabled={loadingPage} onClick={() => void load(nextOffset)}>{loadingPage ? "Loading…" : "Load more carousels"}</Button> : null}
         </>
       ) : null}
 

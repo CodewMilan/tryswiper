@@ -74,7 +74,17 @@ export function mcpOptions() {
 export async function handleMcpRequest(request: Request) {
   const key = readKey(request);
   if (!key) return unauthorized();
-  const cleaned = withoutQueryKey(request, key);
+  let cleaned = withoutQueryKey(request, key);
+  if (cleaned.body) {
+    const limit = 12 * 1024 * 1024;
+    const reject = () => withCors(new Response(JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32600, message: "MCP request exceeds 12 MiB." } }), { status: 413, headers: { "content-type": "application/json" } }));
+    if (Number(cleaned.headers.get("content-length")) > limit) return reject();
+    const reader = cleaned.body.getReader(); const chunks: Uint8Array[] = []; let size = 0;
+    try {
+      while (true) { const chunk = await reader.read(); if (chunk.done) break; size += chunk.value.byteLength; if (size > limit) { await reader.cancel(); return reject(); } chunks.push(chunk.value); }
+    } finally { reader.releaseLock(); }
+    cleaned = new Request(cleaned.url, { method: cleaned.method, headers: cleaned.headers, signal: cleaned.signal, body: Buffer.concat(chunks) });
+  }
   const handler = createMcpHandler(() =>
     createSwiperServer({ key, base: new URL(cleaned.url).origin }),
   );

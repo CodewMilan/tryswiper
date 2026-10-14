@@ -1,4 +1,4 @@
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import {
   type BrandContext,
   generatePlan,
@@ -34,7 +34,7 @@ import { sid } from "../lib/ids";
 import { editorUrl } from "../lib/utils";
 import { getWorkspaceBrand } from "../lib/workspace";
 import { getWorkspaceFormat } from "./workspace-formats";
-import { assetsForWorkspace, getAsset } from "./assets";
+import { assetsForWorkspace } from "./assets";
 import {
   isThinBrand,
   localGenerationWarning,
@@ -137,6 +137,10 @@ async function namedProject(authContext: AuthContext, name: string, description:
 async function persistNewCarousel(auth: AuthContext, content: Carousel, plan: CarouselPlan | null, method: "agent" | "manual", modelUsed: boolean,
   request: CreationRequest | undefined, response: (id: string) => CreationResult) {
   return withUsageTransaction(auth.workspaceId, modelUsed ? ["carousel", "generation"] : ["carousel"], async (tx) => {
+    for (const assetId of new Set(content.slides.flatMap((slide) => slide.elements.flatMap((element) => element.assetId ? [element.assetId] : [])))) {
+      const [asset] = await tx.select({ id: schema.asset.id }).from(schema.asset).where(and(eq(schema.asset.id, assetId), eq(schema.asset.workspaceId, auth.workspaceId)));
+      if (!asset) throw Object.assign(new Error("A saved image was removed. Replace it before creating this draft."), { status: 422, code: "MISSING_ASSET" });
+    }
     const project = await namedProject(auth, method === "agent" ? "Agent carousels" : "Drafts", method === "agent" ? "Carousels created through MCP" : "Carousels started in the browser", tx);
     const id = sid("car");
     await tx.insert(schema.carousel).values({ id, projectId: project.id, title: content.metadata.title, formatId: content.metadata.formatId,
@@ -315,6 +319,7 @@ export async function getCarousel(authContext: AuthContext, id: string) {
 export async function deleteCarousel(authContext: AuthContext, id: string, expectedVersion?: number) {
   if (expectedVersion !== undefined && (!Number.isInteger(expectedVersion) || expectedVersion < 1)) throw Object.assign(new Error("Provide a positive expected version."), { status: 400, code: "INVALID_VERSION" });
   return db.transaction(async (tx) => {
+    await tx.select({ id: schema.workspace.id }).from(schema.workspace).where(eq(schema.workspace.id, authContext.workspaceId)).for("no key update");
     const [row] = await tx
       .select({ id: schema.carousel.id, version: schema.carousel.version })
       .from(schema.carousel)
@@ -343,40 +348,23 @@ export async function getHistoricalCarousel(authContext: AuthContext, id: string
   return { ...current, version, contentJson: content, planJson: previous.planJson, title: content.metadata.title, lastMutationId: null };
 }
 
-export async function listProjects(authContext: AuthContext) {
-  const projects = await db
-    .select()
-    .from(schema.project)
-    .where(eq(schema.project.workspaceId, authContext.workspaceId))
-    .orderBy(desc(schema.project.updatedAt));
-
-  const carousels = await db
-    .select()
-    .from(schema.carousel)
-    .innerJoin(schema.project, eq(schema.project.id, schema.carousel.projectId))
-    .where(eq(schema.project.workspaceId, authContext.workspaceId))
-    .orderBy(desc(schema.carousel.updatedAt));
-
-  return {
-    projects: projects.map((project) => ({
-      id: project.id,
-      name: project.name,
-      status: project.status,
-      updated_at: project.updatedAt,
-    })),
-    carousels: carousels.map(({ carousel: item }) => ({
-      id: item.id,
-      title: item.title,
-      status: item.status,
-      format_id: item.formatId,
-      editor_url: editorUrl(item.id),
-      updated_at: item.updatedAt,
-      slide_count: (item.contentJson as Carousel).slides.length,
-      preview: {
-        slide: (item.contentJson as Carousel).slides[0],
-        theme: (item.contentJson as Carousel).theme,
-      },
-    })),
+export async function listProjects(authContext: AuthContext, options: { offset?: number; limit?: number; query?: string; sort?: string } = {}) {
+  const offset = options.offset ?? 0, limit = options.limit ?? 25, query = options.query?.trim() ?? "";
+  if (!Number.isInteger(offset) || offset < 0 || offset > 10000 || !Number.isInteger(limit) || limit < 1 || limit > 50 || query.length > 100) throw Object.assign(new Error("Provide a valid library page (1–50 items) and a short search."), { status: 400, code: "INVALID_PAGE" });
+  const formatIds = FORMATS.filter((format) => format.name.toLowerCase().includes(query.toLowerCase())).map((format) => format.id);
+  const filter = and(eq(schema.project.workspaceId, authContext.workspaceId), query ? or(ilike(schema.carousel.title, `%${query}%`), ilike(schema.carousel.formatId, `%${query}%`), formatIds.length ? inArray(schema.carousel.formatId, formatIds) : undefined) : undefined);
+  const [projects, carousels, [total]] = await Promise.all([
+    db.select().from(schema.project).where(eq(schema.project.workspaceId, authContext.workspaceId)).orderBy(desc(schema.project.updatedAt)).limit(50),
+    db.select({ id: schema.carousel.id, title: schema.carousel.title, status: schema.carousel.status, formatId: schema.carousel.formatId, version: schema.carousel.version,
+      updatedAt: schema.carousel.updatedAt, slideCount: sql<number>`jsonb_array_length(${schema.carousel.contentJson}->'slides')`,
+      slide: sql<Carousel["slides"][number]>`${schema.carousel.contentJson}->'slides'->0`, theme: sql<Theme>`${schema.carousel.contentJson}->'theme'` })
+      .from(schema.carousel).innerJoin(schema.project, eq(schema.project.id, schema.carousel.projectId)).where(filter)
+      .orderBy(options.sort === "title" ? asc(schema.carousel.title) : desc(schema.carousel.updatedAt), desc(schema.carousel.id)).limit(limit).offset(offset),
+    db.select({ value: count() }).from(schema.carousel).innerJoin(schema.project, eq(schema.project.id, schema.carousel.projectId)).where(filter),
+  ]);
+  return { projects: projects.map((project) => ({ id: project.id, name: project.name, status: project.status, updated_at: project.updatedAt })),
+    carousels: carousels.map((item) => ({ id: item.id, title: item.title, status: item.status, version: item.version, format_id: item.formatId, editor_url: editorUrl(item.id), updated_at: item.updatedAt, slide_count: Number(item.slideCount), preview: { slide: item.slide, theme: item.theme } })),
+    total: Number(total?.value ?? 0), next_offset: offset + carousels.length < Number(total?.value ?? 0) ? offset + carousels.length : null,
   };
 }
 
@@ -392,6 +380,7 @@ export async function undoDepth(carouselId: string) {
 export async function undoCarousel(authContext: AuthContext, id: string, expectedVersion?: number) {
   await getCarousel(authContext, id);
   return db.transaction(async (tx) => {
+    await tx.select({ id: schema.workspace.id }).from(schema.workspace).where(eq(schema.workspace.id, authContext.workspaceId)).for("no key update");
   const [current] = await tx.select().from(schema.carousel).where(eq(schema.carousel.id, id)).for("update");
   if (!current) throw Object.assign(new Error("Carousel not found"), { status: 404 });
   if (expectedVersion !== undefined && current.version !== expectedVersion) throw Object.assign(new Error("Carousel changed elsewhere. Reload before undoing."), { status: 409 });
@@ -454,6 +443,7 @@ export async function updateCarousel(
   }
   await getCarousel(authContext, id);
   return db.transaction(async (tx) => {
+    await tx.select({ id: schema.workspace.id }).from(schema.workspace).where(eq(schema.workspace.id, authContext.workspaceId)).for("no key update");
     const [current] = await tx.select().from(schema.carousel).where(eq(schema.carousel.id, id)).for("update");
     if (!current) throw Object.assign(new Error("Carousel not found"), { status: 404 });
     if (mutationId && current.lastMutationId === mutationId) {
@@ -469,9 +459,12 @@ export async function updateCarousel(
       throw Object.assign(new Error("That edit would leave the carousel in an invalid state"), { status: 400, code: "INVALID_OPERATION" });
     }
     for (const assetId of new Set(content.slides.flatMap((slide) => slide.elements.flatMap((element) => element.assetId ? [element.assetId] : [])))) {
-      await getAsset(authContext, assetId);
+      const [asset] = await tx.select({ id: schema.asset.id }).from(schema.asset).where(and(eq(schema.asset.id, assetId), eq(schema.asset.workspaceId, authContext.workspaceId)));
+      if (!asset) throw Object.assign(new Error("A referenced image is unavailable."), { status: 422, code: "MISSING_ASSET" });
     }
     await tx.insert(schema.carouselVersion).values({ id: sid("ver"), carouselId: id, version: current.version, contentJson: current.contentJson, planJson: current.planJson });
+    const older = await tx.select({ id: schema.carouselVersion.id }).from(schema.carouselVersion).where(eq(schema.carouselVersion.carouselId, id)).orderBy(desc(schema.carouselVersion.createdAt), desc(schema.carouselVersion.version)).offset(100);
+    if (older.length) await tx.delete(schema.carouselVersion).where(inArray(schema.carouselVersion.id, older.map((row) => row.id)));
     const nextVersion = current.version + 1;
     const previousPlan = current.planJson as CarouselPlan | null;
     const plan = previousPlan ? planFromCarousel(content, previousPlan.product) : null;
@@ -567,9 +560,12 @@ export async function validateExisting(authContext: AuthContext, id: string) {
   if (!validation.errors.some((issue) => issue.code === "INVALID_SCHEMA")) {
     try {
       const assetIds = content.slides.flatMap((slide) => slide.elements.flatMap((element) => element.assetId ? [element.assetId] : []));
-      if (assetIds.length) await decodeAssets(await assetsForWorkspace(authContext.workspaceId, assetIds));
+      if (assetIds.length) {
+        const assets = await assetsForWorkspace(authContext.workspaceId, assetIds);
+        await withResourceBudget(authContext.workspaceId, "render", () => decodeAssets(assets));
+      }
     } catch (error) {
-      if (!(error instanceof Error) || !("code" in error) || !["MISSING_ASSET", "UNREADABLE_ASSET"].includes(String(error.code))) throw error;
+      if (!(error instanceof Error) || !("code" in error) || !["MISSING_ASSET", "UNREADABLE_ASSET", "RENDER_ASSET_BUDGET"].includes(String(error.code))) throw error;
       validation.errors.push({ code: String(error.code), message: error.message, severity: "error", suggestedAction: "replace_image" });
       validation.ok = false;
     }

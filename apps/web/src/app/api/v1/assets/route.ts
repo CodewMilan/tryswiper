@@ -1,13 +1,19 @@
 import { requireAuth } from "@/lib/api-auth";
-import { apiError, fromUnknownError, json } from "@/lib/http";
-import { createAsset, MAX_ASSET_BYTES } from "@/server/assets";
+import { apiError, fromUnknownError, json, readBody } from "@/lib/http";
+import { createAsset, listAssets, MAX_ASSET_BYTES } from "@/server/assets";
 
 export const runtime = "nodejs";
+
+export async function GET(request: Request) {
+  try { const auth = await requireAuth(request); return json(await listAssets(auth, Number(new URL(request.url).searchParams.get("offset") ?? 0))); }
+  catch (error) { return fromUnknownError(error); }
+}
 
 export async function POST(request: Request) {
   try {
     const authContext = await requireAuth(request);
-    const form = await request.formData();
+    const bytesWithForm = await readBody(request, MAX_ASSET_BYTES + 128 * 1024);
+    const form = await new Request(request.url, { method: "POST", headers: request.headers, body: Buffer.from(bytesWithForm) }).formData();
     const file = form.get("file");
     if (!(file instanceof File)) {
       return apiError("NO_FILE", "Attach an image as the file field.");

@@ -47,6 +47,7 @@ export function SiteFooter({ signedIn }: { signedIn: boolean }) {
           </Link>
           <p className="mt-8 font-mono text-[13px] text-ink-soft">© 2026. All rights reserved.</p>
           <a href="mailto:milan@cassettelabs.in" className="mt-3 inline-flex min-h-11 items-center text-sm underline underline-offset-4">Contact support</a>
+          <p className="mt-2 text-xs text-ink-soft">Operated by MILAN SAMPATH.</p>
         </div>
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
           {columns.map((column) => (

@@ -1,5 +1,21 @@
 import { NextResponse } from "next/server";
 
+export async function readBody(request: Request, limit = 1024 * 1024): Promise<Uint8Array> {
+  const tooLarge = () => Object.assign(new Error("This request is too large."), { status: 413, code: "REQUEST_TOO_LARGE" });
+  if (Number(request.headers.get("content-length")) > limit) throw tooLarge();
+  const reader = request.body?.getReader();
+  if (!reader) return new Uint8Array();
+  const chunks: Uint8Array[] = []; let size = 0;
+  try {
+    while (true) { const chunk = await reader.read(); if (chunk.done) break; size += chunk.value.byteLength; if (size > limit) { await reader.cancel(); throw tooLarge(); } chunks.push(chunk.value); }
+  } finally { reader.releaseLock(); }
+  const bytes = new Uint8Array(size); let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return bytes;
+}
+
+export async function readJson(request: Request) { return JSON.parse(new TextDecoder().decode(await readBody(request))) as unknown; }
+
 export function json(data: unknown, status = 200) {
   return NextResponse.json(data, { status });
 }

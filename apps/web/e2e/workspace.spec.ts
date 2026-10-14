@@ -1113,7 +1113,7 @@ test("agent tools discover typed edits, reuse saved designs, inspect images and 
   const discovery = await mcp(request, key, "tools/list");
   expect(discovery.error).toBeUndefined();
   const tools = discovery.result.tools as { name: string; annotations: Record<string, boolean>; inputSchema: { properties: Record<string, unknown>; required?: string[] } }[];
-  expect(tools).toHaveLength(17);
+  expect(tools).toHaveLength(19);
   for (const tool of tools) expect(Object.keys(tool.annotations)).toEqual(expect.arrayContaining(["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"]));
   const editTool = tools.find((tool) => tool.name === "swiper.update_carousel")!;
   expect(editTool.inputSchema.required).toEqual(expect.arrayContaining(["expected_version", "mutation_id"]));

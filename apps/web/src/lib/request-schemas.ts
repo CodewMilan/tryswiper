@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { readJson } from "./http";
 
 const creationFields = {
   title: z.string().trim().max(120).optional(),
@@ -13,7 +14,7 @@ export const generationSchema = z.object({ ...creationFields,
 export const slideRevisionSchema = z.object({ instruction: z.string().trim().min(1).max(2000) });
 
 export async function readRequestBody<T>(request: Request, schema: z.ZodType<T>): Promise<T> {
-  const result = schema.safeParse(await request.json());
+  const result = schema.safeParse(await readJson(request));
   if (!result.success) throw Object.assign(new Error(result.error.issues[0]?.message ?? "Provide a valid request."), {
     status: 400, code: "INVALID_REQUEST", details: { fields: result.error.issues.map((issue) => issue.path.join(".")) },
   });
