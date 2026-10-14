@@ -5,7 +5,7 @@ import { apiError, fromUnknownError, json } from "@/lib/http";
 import { sid } from "@/lib/ids";
 import { appUrl } from "@/lib/utils";
 import { getCarousel, validateExisting } from "@/server/carousels";
-import { assertUsage, recordUsage, requireFeature } from "@/server/usage";
+import { recordUsage, requireFeature, withUsageTransaction } from "@/server/usage";
 
 function result(id: string, carouselId: string, status: string) {
   const base = appUrl().replace(/\/$/, "");
@@ -30,7 +30,6 @@ export async function POST(
   try {
     const authContext = await requireAuth(request);
     await requireFeature(authContext.workspaceId, "publish");
-    await assertUsage(authContext.workspaceId, "publish");
     const { id } = await context.params;
     await getCarousel(authContext, id);
     const idempotencyKey = request.headers.get("Idempotency-Key")?.trim();
@@ -51,7 +50,7 @@ export async function POST(
     }
 
     const jobId = sid("pub");
-    await db.transaction(async (tx) => {
+    await withUsageTransaction(authContext.workspaceId, ["publish"], async (tx) => {
       await tx.insert(schema.publishJob).values({
         id: jobId,
         workspaceId: authContext.workspaceId,
@@ -61,8 +60,8 @@ export async function POST(
         idempotencyKey,
       });
       await tx.update(schema.carousel).set({ status: "approved", updatedAt: new Date() }).where(eq(schema.carousel.id, id));
+      await recordUsage(authContext.workspaceId, "publish", tx);
     });
-    await recordUsage(authContext.workspaceId, "publish");
     return json({ ...result(jobId, id, "ready"), validation }, 201);
   } catch (error) {
     return fromUnknownError(error);

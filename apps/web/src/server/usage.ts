@@ -22,15 +22,15 @@ export async function workspacePlan(workspaceId: string): Promise<Plan> {
     (!billing.paidThrough || billing.paidThrough.getTime() > Date.now()) ? "pro" : "free";
 }
 
-export async function usageFor(workspaceId: string) {
+export async function usageFor(workspaceId: string, reader: Pick<typeof db, "select"> = db) {
   const start = periodStart();
   const [rows, [carousels]] = await Promise.all([
-    db
+    reader
       .select({ kind: schema.usageEvent.kind, value: count() })
       .from(schema.usageEvent)
       .where(and(eq(schema.usageEvent.workspaceId, workspaceId), gte(schema.usageEvent.createdAt, start)))
       .groupBy(schema.usageEvent.kind),
-    db
+    reader
       .select({ value: count() })
       .from(schema.carousel)
       .innerJoin(schema.project, eq(schema.project.id, schema.carousel.projectId))
@@ -59,8 +59,30 @@ export async function assertUsage(workspaceId: string, kind: UsageKind) {
   return { plan, used, limit };
 }
 
-export async function recordUsage(workspaceId: string, kind: UsageKind) {
-  await db.insert(schema.usageEvent).values({ id: sid("use"), workspaceId, kind });
+export async function recordUsage(workspaceId: string, kind: UsageKind, writer: Pick<typeof db, "insert"> = db) {
+  await writer.insert(schema.usageEvent).values({ id: sid("use"), workspaceId, kind });
+}
+
+export type UsageTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Admit and commit billable work together; model/render work runs before this short lock. */
+export async function withUsageTransaction<T>(workspaceId: string, kinds: UsageKind[], work: (tx: UsageTransaction) => Promise<T>) {
+  await workspacePlan(workspaceId);
+  return db.transaction(async (tx) => {
+    const [workspace] = await tx.select({ id: schema.workspace.id }).from(schema.workspace).where(eq(schema.workspace.id, workspaceId)).for("no key update");
+    if (!workspace) throw Object.assign(new Error("Workspace not found."), { status: 404, code: "NOT_FOUND" });
+    const [billing] = await tx.select().from(schema.billing).where(eq(schema.billing.workspaceId, workspaceId)).limit(1);
+    const plan: Plan = billing?.plan === "pro" && ["active", "past_due"].includes(billing.status) &&
+      (!billing.paidThrough || billing.paidThrough.getTime() > Date.now()) ? "pro" : "free";
+    const usage = await usageFor(workspaceId, tx);
+    for (const kind of kinds) {
+      const used = usage[kind] ?? 0; const limit = PLAN_LIMITS[plan][kind];
+      if (used >= limit) throw Object.assign(new Error(`This workspace reached its monthly ${kind} limit.`), {
+        status: 429, code: "USAGE_LIMIT", details: { kind, used, limit, plan },
+      });
+    }
+    return work(tx);
+  });
 }
 
 export async function requireFeature(workspaceId: string, feature: "jpg" | "publish") {

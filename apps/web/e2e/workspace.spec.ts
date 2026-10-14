@@ -958,3 +958,21 @@ test("Clerk lifecycle sync updates profiles and revoked or deleted identities lo
   expect((await page.request.get("/api/v1/brand", { headers: { Authorization: `Bearer ${key}` } })).status()).toBe(401);
   expect((await page.request.post("/api/v1/mcp-keys", { data: { name: "Should not work" } })).status()).toBe(401);
 });
+
+test("concurrent creation and exports cannot overrun the last Free allowance", async ({ page }) => {
+  const userId = await signUp(page.request);
+  const request = page.request;
+  for (let i = 0; i < 4; i++) await create(request);
+  const parallel = await Promise.all(Array.from({ length: 4 }, (_, index) => request.post("/api/v1/carousels", { data: { format_id: "freeform", title: `Parallel ${index}` } })));
+  expect(parallel.map((response) => response.status()).sort()).toEqual([201, 429, 429, 429]);
+  expect((await (await request.get("/api/v1/billing")).json()).usage.carousel).toBe(5);
+  const created = await parallel.find((response) => response.status() === 201)!.json();
+  const sql = postgres(testDatabaseUrl, { max: 1, prepare: false });
+  try {
+    const [workspace] = await sql<{ id: string }[]>`select id from workspace where owner_id = ${userId}`;
+    for (let i = 0; i < 19; i++) await sql`insert into usage_event(id,workspace_id,kind) values(${`use_${crypto.randomUUID()}`},${workspace!.id},'export')`;
+    const exports = await Promise.all(Array.from({ length: 3 }, () => request.get(`/api/v1/carousels/${created.carousel_id}/export?format=png&slide=1`)));
+    expect(exports.map((response) => response.status()).sort()).toEqual([200, 429, 429]);
+    expect((await (await request.get("/api/v1/billing")).json()).usage.export).toBe(20);
+  } finally { await sql.end(); }
+});

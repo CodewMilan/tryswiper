@@ -5,7 +5,7 @@ import { appUrl, editorUrl } from "@/lib/utils";
 import { apiError, fromUnknownError, json } from "@/lib/http";
 import { assetsForWorkspace } from "@/server/assets";
 import { getCarousel } from "@/server/carousels";
-import { assertUsage, recordUsage, requireFeature } from "@/server/usage";
+import { assertUsage, recordUsage, requireFeature, withUsageTransaction } from "@/server/usage";
 
 export const runtime = "nodejs";
 
@@ -74,7 +74,7 @@ export async function GET(
       (format === "png" || format === "jpg") && slideIndex != null
         ? fileName(row.title, format).replace(new RegExp(`\\.${format}$`), `-${String(slideIndex + 1).padStart(2, "0")}.${format}`)
         : fileName(row.title, extension);
-    await recordUsage(authContext.workspaceId, "export");
+    await withUsageTransaction(authContext.workspaceId, ["export"], async (tx) => { await recordUsage(authContext.workspaceId, "export", tx); });
     return fileResponse(rendered.bytes, rendered.contentType, name);
   } catch (error) {
     return fromUnknownError(error);

@@ -51,6 +51,8 @@ export async function generatePlan(input: {
     const { object } = await generateObject({
       model: loaded,
       schema: carouselPlanSchema,
+      abortSignal: AbortSignal.timeout(60000),
+      maxRetries: 0,
       system: SYSTEM,
       prompt: [
         compactBrand(input.brand),
@@ -106,6 +108,8 @@ export async function reviseSlidePlan(input: {
     const { object } = await generateObject({
       model: loaded,
       schema: slidePlanSchema,
+      abortSignal: AbortSignal.timeout(60000),
+      maxRetries: 0,
       system: SYSTEM,
       prompt: [
         compactBrand(input.brand),

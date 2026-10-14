@@ -57,7 +57,7 @@ export const account = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (table) => [index("account_user_id_idx").on(table.userId)],
+  (table) => [index("account_user_id_idx").on(table.userId), uniqueIndex("account_provider_identity_idx").on(table.providerId, table.accountId)],
 );
 
 export const verification = pgTable("verification", {
@@ -67,6 +67,13 @@ export const verification = pgTable("verification", {
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const accountIdentityArchive = pgTable("account_identity_archive", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  data: jsonb("data").notNull(),
+  archivedAt: timestamp("archived_at").notNull().defaultNow(),
 });
 
 export const workspace = pgTable("workspace", {
@@ -322,6 +329,7 @@ export const schema = {
   session,
   account,
   verification,
+  accountIdentityArchive,
   workspace,
   membership,
   brand,

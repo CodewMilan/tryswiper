@@ -50,6 +50,13 @@
       "when": 1791972001000,
       "tag": "0006_identity_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791972002000,
+      "tag": "0007_identity_uniqueness",
+      "breakpoints": true
     }
   ]
 }

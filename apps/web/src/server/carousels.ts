@@ -39,7 +39,7 @@ import {
   thinBrandWarning,
   type GenerationWarning,
 } from "@/lib/generation-notices";
-import { assertUsage, recordUsage } from "./usage";
+import { assertUsage, recordUsage, withUsageTransaction } from "./usage";
 
 function themeFromBrand(brand: NonNullable<Awaited<ReturnType<typeof getWorkspaceBrand>>>): Theme {
   return {
@@ -83,8 +83,8 @@ function addBrandLogo(content: Carousel, assetId: string | null) {
   }
 }
 
-async function namedProject(authContext: AuthContext, name: string, description: string) {
-  const existing = await db
+async function namedProject(authContext: AuthContext, name: string, description: string, writer: Pick<typeof db, "select" | "insert"> = db) {
+  const existing = await writer
     .select()
     .from(schema.project)
     .where(
@@ -93,8 +93,8 @@ async function namedProject(authContext: AuthContext, name: string, description:
     .limit(1);
   if (existing[0]) return existing[0];
 
-  const brand = await getWorkspaceBrand(authContext.workspaceId);
-  const [created] = await db
+  const [brand] = await writer.select().from(schema.brand).where(eq(schema.brand.workspaceId, authContext.workspaceId)).limit(1);
+  const [created] = await writer
     .insert(schema.project)
     .values({
       id: sid("prj"),
@@ -108,12 +108,16 @@ async function namedProject(authContext: AuthContext, name: string, description:
   return created!;
 }
 
-function agentProject(authContext: AuthContext) {
-  return namedProject(authContext, "Agent carousels", "Carousels created through MCP");
-}
-
-function draftsProject(authContext: AuthContext) {
-  return namedProject(authContext, "Drafts", "Carousels started in the browser");
+async function persistNewCarousel(auth: AuthContext, content: Carousel, plan: CarouselPlan | null, method: "agent" | "manual", modelUsed = false) {
+  return withUsageTransaction(auth.workspaceId, modelUsed ? ["carousel", "generation"] : ["carousel"], async (tx) => {
+    const project = await namedProject(auth, method === "agent" ? "Agent carousels" : "Drafts", method === "agent" ? "Carousels created through MCP" : "Carousels started in the browser", tx);
+    const id = sid("car");
+    await tx.insert(schema.carousel).values({ id, projectId: project.id, title: content.metadata.title, formatId: content.metadata.formatId,
+      status: "draft", contentJson: content, planJson: plan, createdBy: auth.userId });
+    await recordUsage(auth.workspaceId, "carousel", tx);
+    if (modelUsed) await recordUsage(auth.workspaceId, "generation", tx);
+    return id;
+  });
 }
 
 export async function generateCarousel(input: {
@@ -142,26 +146,13 @@ export async function generateCarousel(input: {
     forbiddenWords: brand.wordsToAvoid,
     allowedProof: brand.proofPoints,
   });
-  const project = await agentProject(input.auth);
   addBrandLogo(result.carousel, brandRow.logoAssetId);
   result.carousel.metadata = {
     ...result.carousel.metadata,
     generationSource: source,
     ...(thinBrand ? { thinBrand: true } : {}),
   };
-  const id = sid("car");
-  await db.insert(schema.carousel).values({
-    id,
-    projectId: project.id,
-    title: result.plan.title,
-    formatId: result.plan.formatId,
-    status: "draft",
-    contentJson: result.carousel,
-    planJson: result.plan,
-    createdBy: input.auth.userId,
-  });
-  await recordUsage(input.auth.workspaceId, "carousel");
-  if (source === "model") await recordUsage(input.auth.workspaceId, "generation");
+  const id = await persistNewCarousel(input.auth, result.carousel, result.plan, "agent", source === "model");
   const warnings: GenerationWarning[] = [
     ...(source === "local" ? [localGenerationWarning()] : []),
     ...(thinBrand ? [thinBrandWarning()] : []),
@@ -194,9 +185,6 @@ export async function startCarouselFromFormat(input: {
     throw Object.assign(new Error("Brand kit missing"), { status: 400, code: "NO_BRAND" });
   }
 
-  const project = await draftsProject(input.auth);
-  const id = sid("car");
-
   if (!format) {
     const workspaceFormat = await getWorkspaceFormat(input.auth, input.formatId);
     if (!workspaceFormat) {
@@ -215,17 +203,7 @@ export async function startCarouselFromFormat(input: {
       formatId: workspaceFormat.id,
       title,
     });
-    await db.insert(schema.carousel).values({
-      id,
-      projectId: project.id,
-      title,
-      formatId: workspaceFormat.id,
-      status: "draft",
-      contentJson: content,
-      planJson: plan,
-      createdBy: input.auth.userId,
-    });
-    await recordUsage(input.auth.workspaceId, "carousel");
+    const id = await persistNewCarousel(input.auth, content, plan, "manual");
     console.info("carousel_started_from_workspace_format", {
       carouselId: id,
       formatId: workspaceFormat.id,
@@ -257,17 +235,7 @@ export async function startCarouselFromFormat(input: {
     allowedProof: brandRow.proofPoints,
   });
   addBrandLogo(result.carousel, brandRow.logoAssetId);
-  await db.insert(schema.carousel).values({
-    id,
-    projectId: project.id,
-    title: result.plan.title,
-    formatId: result.plan.formatId,
-    status: "draft",
-    contentJson: result.carousel,
-    planJson: result.plan,
-    createdBy: input.auth.userId,
-  });
-  await recordUsage(input.auth.workspaceId, "carousel");
+  const id = await persistNewCarousel(input.auth, result.carousel, result.plan, "manual");
   return {
     carousel_id: id,
     editor_url: editorUrl(id),
@@ -502,7 +470,7 @@ export async function generateSlide(
     forbiddenWords: brandRow.wordsToAvoid,
     allowedProof: brandRow.proofPoints,
   });
-  const committed = await db.transaction(async (tx) => {
+  const committed = await withUsageTransaction(authContext.workspaceId, source === "model" ? ["generation"] : [], async (tx) => {
     const [latest] = await tx.select().from(schema.carousel).where(eq(schema.carousel.id, id)).for("update");
     if (!latest) throw Object.assign(new Error("Carousel no longer exists."), { status: 404, code: "NOT_FOUND" });
     if (latest.version !== current.version) {
