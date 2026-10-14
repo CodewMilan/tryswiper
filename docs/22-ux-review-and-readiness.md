@@ -80,3 +80,9 @@ There is no automatic social publishing, scheduling, or analytics in this releas
 ## Beta usability check
 
 Give a first-time user a product description and ask them to create one carousel without coaching. Observe whether they can find setup, connect their preferred client or choose browser creation, open the editor, make a correction, download the right file, and understand how to post it. Measure completion and time to first reviewed download. Use that evidence to prioritize the next iteration rather than treating these reviewer scores as customer validation.
+
+## Follow-up — 14 October 2026
+
+The assessment above records the earlier review. Subsequent audit repairs added faithful recovery import, preservation of manual edits during single-slide revisions, typed/versioned MCP edits, saved-format generation, model-visible previews, protected file resources, asset cleanup, bounded history/storage/concurrency and local product metrics. The browser now combines checking and handoff in Export; Pro's value is higher limits and JPG. A session-only billing portal and support/operator information are implemented. The shared account-menu view has keyboard and synthetic signed-in coverage.
+
+These changes supersede the older missing-feature statements about recovery import and subscription management. Redo, account-deletion policy, live provider/host certification and real customer validation remain open. Use [the dated beta and release protocol](23-beta-and-release-checks.md) for the current gates; the earlier qualitative scores are not newly measured beta results.

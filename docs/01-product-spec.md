@@ -2,7 +2,7 @@
 
 ## One sentence
 
-Swiper lets an AI agent turn a product, idea, or brief into a polished social carousel that can be edited, approved, exported, and eventually published.
+Swiper lets an AI agent turn a product, idea, or brief into a social carousel that can be edited, reviewed, exported, and shared manually.
 
 ## Problem
 
@@ -24,17 +24,17 @@ Describe the post you want. Swiper gives your agent the tools to build the actua
 - Slide
 - Template
 - Asset
-- Campaign
-- Publish job
-- Social account
-- Analytics event
+- Request receipt
+- Local product event
+
+Campaigns, social accounts and automatic publishing are future concepts, not implemented product objects. Legacy manual preparation records remain internal compatibility state.
 
 ## MVP success criteria
 
 A new user should be able to:
 
 1. Sign in.
-2. Create a workspace.
+2. Receive an automatically created workspace.
 3. Add a product/site description.
 4. Define brand colors, fonts, logo and tone.
 5. Connect an AI agent through MCP.

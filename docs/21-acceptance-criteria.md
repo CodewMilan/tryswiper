@@ -25,20 +25,20 @@
 - Elements can be moved and resized.
 - Slides can be reordered.
 - Assets can be replaced.
-- Undo/redo works.
+- Undo restores retained saved snapshots; redo is not implemented.
 - Autosave recovers after refresh.
 
 ## Reliability
 
-- Generation jobs survive worker restarts.
-- Publishing jobs are idempotent.
+- Committed generation results can be recovered and retried without duplication. In-flight synchronous model work is not a restart-safe background job.
+- Identical creation/revision retries are idempotent; legacy manual preparation binds approval to the checked version.
 - Failed jobs expose actionable errors.
 - Database migrations are reproducible.
 
 ## Quality
 
-- Generated carousels do not contain unsupported claims.
-- Text does not overflow.
+- Automated heuristics flag known unsupported-claim patterns; users verify every factual claim.
+- Native export measurements flag clipping and unsupported visuals; users review the rendered result.
 - Images are not stretched incorrectly.
 - Templates produce structurally coherent stories.
 - Product CTAs are relevant.
@@ -53,3 +53,5 @@ A feature is not done until:
 5. logs exist
 6. documentation is updated
 7. production configuration is documented
+
+Public and paid release require dated live evidence in [the release checklist](23-beta-and-release-checks.md), in addition to local regression tests.
