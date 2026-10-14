@@ -96,8 +96,6 @@ export async function createWorkspaceFormat(input: {
   await tx.select({ id: schema.workspace.id }).from(schema.workspace).where(eq(schema.workspace.id, input.auth.workspaceId)).for("no key update");
   const existingFormats = await tx.select({ id: schema.workspaceFormat.id }).from(schema.workspaceFormat).where(eq(schema.workspaceFormat.workspaceId, input.auth.workspaceId)).limit(100);
   if (existingFormats.length >= 100) throw Object.assign(new Error("This workspace reached its limit of 100 saved formats."), { status: 413, code: "FORMAT_STORAGE_LIMIT" });
-  const existingFormats = await tx.select({ id: schema.workspaceFormat.id }).from(schema.workspaceFormat).where(eq(schema.workspaceFormat.workspaceId, input.auth.workspaceId)).limit(100);
-  if (existingFormats.length >= 100) throw Object.assign(new Error("This workspace reached its limit of 100 saved formats."), { status: 413, code: "FORMAT_STORAGE_LIMIT" });
   const sources = await tx
     .select({ carousel: schema.carousel, workspaceId: schema.project.workspaceId })
     .from(schema.carousel)

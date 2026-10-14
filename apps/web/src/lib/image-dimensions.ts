@@ -2,6 +2,14 @@
 export function imageDimensions(bytes: Uint8Array): { width: number; height: number; mimeType: string } | null {
   const b = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (b.length >= 24 && b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) && b.toString("ascii", 12, 16) === "IHDR") {
+    for (let cursor = 8; cursor + 12 <= b.length;) {
+      const kind = b.toString("ascii", cursor + 4, cursor + 8);
+      if (kind === "acTL") return null;
+      if (kind === "IDAT") break;
+      const length = b.readUInt32BE(cursor);
+      if (cursor + length + 12 > b.length) break;
+      cursor += length + 12;
+    }
     return { width: b.readUInt32BE(16), height: b.readUInt32BE(20), mimeType: "image/png" };
   }
   if (b.length >= 4 && b[0] === 255 && b[1] === 216) {
@@ -22,7 +30,7 @@ export function imageDimensions(bytes: Uint8Array): { width: number; height: num
   }
   if (b.length >= 30 && b.toString("ascii", 0, 4) === "RIFF" && b.toString("ascii", 8, 12) === "WEBP") {
     const kind = b.toString("ascii", 12, 16);
-    if (kind === "VP8X") return { width: b.readUIntLE(24, 3) + 1, height: b.readUIntLE(27, 3) + 1, mimeType: "image/webp" };
+    if (kind === "VP8X" && !(b[20]! & 2)) return { width: b.readUIntLE(24, 3) + 1, height: b.readUIntLE(27, 3) + 1, mimeType: "image/webp" };
     if (kind === "VP8L" && b[20] === 47) {
       const value = b.readUInt32LE(21);
       return { width: (value & 0x3fff) + 1, height: ((value >>> 14) & 0x3fff) + 1, mimeType: "image/webp" };
