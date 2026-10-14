@@ -1,7 +1,10 @@
 "use client";
 
-import { useRef } from "react";
-import { SpotlightCard } from "@/components/motion/spotlight-card";
+import { useEffect, useId, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, Stack } from "@phosphor-icons/react";
+import { SlidePreview } from "@/components/editor/slide-frame";
+import { formatExample, FORMAT_EXAMPLE_THEME } from "@/components/format-examples";
+import { Button } from "@/components/ui/button";
 
 export type FormatCard = {
   id: string;
@@ -12,185 +15,151 @@ export type FormatCard = {
   roles: string[];
 };
 
-const SCHEMATICS: Record<string, string> = {
-  "problem-insight-product": `┌────┐
-│HOOK│
-└─┬──┘
-  ▼
-PAIN → VIEW
-  │
-PROOF → PROD
-  │
-└─ CTA`,
-  "five-things": `┌──┬──┬──┐
-│01│02│03│
-├──┼──┼──┤
-│04│05│→ │
-└──┴──┴──┘
- five notes
- then one ask`,
-  "before-after": `BEFORE   AFTER
-░░░░░░   ██████
- tabs  →  1 doc
- mess     clean
-     │
-   [CTA]`,
-  "myth-reality": `  “MYTH”
-   ~~~~
-     ↓
-  REALITY
-   ════
- product as
- the mechanic`,
-  "step-by-step": `1 ●────
-2 ●────
-3 ●────
-4 ●────
-      ╲
-     CTA
- do it here`,
-  "product-teardown": `┌────────┐
-│ surface│
-├────────┤
-│mechanic│
-├────────┤
-│  edge  │
-└────────┘
-  honest
-  limit`,
-};
-
-function schematicFor(id: string, roles: string[]) {
-  if (SCHEMATICS[id]) return SCHEMATICS[id];
-  return roles
-    .slice(0, 6)
-    .map((role, index) => `${String(index + 1).padStart(2, "0")}  ${role.toUpperCase()}`)
-    .join("\n");
-}
-
-function label(role: string | undefined, fallback: string) {
-  if (!role) return fallback;
-  return role.replace(/-/g, " ").toUpperCase();
-}
+type RailPosition = { page: number; stops: number[]; first: number; last: number };
 
 export function FormatRail({ items }: { items: FormatCard[] }) {
   const scroller = useRef<HTMLDivElement>(null);
+  const id = useId();
+  const [position, setPosition] = useState<RailPosition>({ page: 0, stops: [0], first: 1, last: 1 });
 
-  function scrollByCard(direction: number) {
+  useEffect(() => {
     const node = scroller.current;
     if (!node) return;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    node.scrollBy({ left: direction * 340, behavior: reduced ? "auto" : "smooth" });
+    let frame = 0;
+
+    function measure() {
+      if (!node) return;
+      const cards = Array.from(node.children) as HTMLElement[];
+      const max = Math.max(0, node.scrollWidth - node.clientWidth);
+      const offsets = cards.map((card) => card.offsetLeft - cards[0].offsetLeft);
+      const stops = [...new Set(offsets.map((offset) => Math.min(offset, max)))];
+      let page = 0;
+      for (let index = 1; index < stops.length; index++) {
+        if (Math.abs(stops[index] - node.scrollLeft) < Math.abs(stops[page] - node.scrollLeft)) page = index;
+      }
+      const first = Math.max(0, offsets.findIndex((offset, index) => offset + cards[index].offsetWidth > node.scrollLeft + 8));
+      const visible = offsets.filter((offset) => offset < node.scrollLeft + node.clientWidth - 8).length;
+      setPosition({ page, stops, first: first + 1, last: visible });
+    }
+
+    function onScroll() {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    }
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    node.addEventListener("scroll", onScroll, { passive: true });
+    measure();
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      node.removeEventListener("scroll", onScroll);
+    };
+  }, [items.length]);
+
+  function goTo(page: number) {
+    const node = scroller.current;
+    if (!node) return;
+    const next = Math.max(0, Math.min(page, position.stops.length - 1));
+    node.scrollTo({
+      left: position.stops[next],
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
   }
 
   return (
-    <div>
-      <div className="mb-6 flex items-end justify-between gap-4">
-        <h2 className="max-w-xl text-[32px] font-light leading-tight tracking-[-0.02em] text-black sm:text-[40px]">
-          Formats the agent already knows
-        </h2>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            aria-label="Previous formats"
-            onClick={() => scrollByCard(-1)}
-            className="inline-flex size-10 items-center justify-center rounded-full border border-black/10 bg-white text-black motion-safe:transition-[transform,background-color,color] motion-safe:duration-150 hover:scale-[1.04] hover:bg-black hover:text-white active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            ←
-          </button>
-          <button
-            type="button"
-            aria-label="Next formats"
-            onClick={() => scrollByCard(1)}
-            className="inline-flex size-10 items-center justify-center rounded-full border border-black/10 bg-white text-black motion-safe:transition-[transform,background-color,color] motion-safe:duration-150 hover:scale-[1.04] hover:bg-black hover:text-white active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            →
-          </button>
+    <div role="region" aria-roledescription="carousel" aria-labelledby={`${id}-heading`}>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-5">
+        <div>
+          <h2 id={`${id}-heading`} className="max-w-2xl text-[32px] font-light leading-[1.12] tracking-[-0.03em] text-foreground sm:text-[40px]">
+            Formats the agent already knows
+          </h2>
+          <p className="mt-3 max-w-xl text-base font-normal leading-6 text-muted-foreground">
+            A strong story starts with the right structure.
+          </p>
         </div>
+        {items.length > 0 && (
+          <div className="flex gap-2">
+            <Button variant="outline" className="size-11 rounded-full p-0" aria-label="Previous formats" aria-controls={`${id}-track`} disabled={position.page === 0} onClick={() => goTo(position.page - 1)}>
+              <ArrowLeft size={20} aria-hidden weight="regular" />
+            </Button>
+            <Button variant="outline" className="size-11 rounded-full p-0" aria-label="Next formats" aria-controls={`${id}-track`} disabled={position.page >= position.stops.length - 1} onClick={() => goTo(position.page + 1)}>
+              <ArrowRight size={20} aria-hidden weight="regular" />
+            </Button>
+          </div>
+        )}
       </div>
-      <div className="relative">
-        <div
-          ref={scroller}
-          tabIndex={0}
-          onKeyDown={(event) => {
-            if (event.key === "ArrowRight") {
-              event.preventDefault();
-              scrollByCard(1);
-            }
-            if (event.key === "ArrowLeft") {
-              event.preventDefault();
-              scrollByCard(-1);
-            }
-          }}
-          className="flex snap-x gap-4 overflow-x-auto pb-3 [scrollbar-width:none] focus-visible:outline-none"
-        >
-          {items.map((item) => (
-            <article
-              key={item.id}
-              className="group w-[280px] shrink-0 snap-start sm:w-[300px]"
-            >
-              <SpotlightCard className="rounded-[20px] border border-black/6 bg-[#ecece9]">
-                <FormatPreview item={item} />
-              </SpotlightCard>
-              <p className="mt-4 inline-flex rounded-md bg-white px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-soft">
-                {item.count}
-              </p>
-              <h3 className="mt-3 text-[18px] font-medium tracking-[-0.02em] text-black">{item.name}</h3>
-              <p className="mt-2 text-[15px] font-light leading-6 text-ink-soft">{item.description}</p>
-            </article>
-          ))}
-        </div>
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-background to-transparent"
-        />
-      </div>
-    </div>
-  );
-}
 
-function FormatPreview({ item }: { item: FormatCard }) {
-  const ascii = schematicFor(item.id, item.roles);
-  const mid = label(item.roles[1], "02");
-  const back = label(item.roles[2], "03");
+      {items.length === 0 ? (
+        <p className="rounded-2xl border border-border bg-card p-8 text-muted-foreground">New formats are on the way.</p>
+      ) : (
+        <>
+          <div
+            ref={scroller}
+            id={`${id}-track`}
+            tabIndex={0}
+            aria-label="Carousel formats. Use left and right arrow keys to browse."
+            onKeyDown={(event) => {
+              if (event.target !== event.currentTarget) return;
+              if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
+              event.preventDefault();
+              if (event.key === "Home") goTo(0);
+              else if (event.key === "End") goTo(position.stops.length - 1);
+              else goTo(position.page + (event.key === "ArrowRight" ? 1 : -1));
+            }}
+            className="relative flex snap-x snap-mandatory gap-5 overflow-x-auto rounded-[20px] pb-2 [scrollbar-width:none] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring [&::-webkit-scrollbar]:hidden"
+          >
+            {items.map((item, index) => (
+              <article
+                key={item.id}
+                aria-roledescription="slide"
+                aria-label={`${index + 1} of ${items.length}: ${item.name}`}
+                className="w-[calc(100%-24px)] shrink-0 snap-start overflow-hidden rounded-[20px] border border-border bg-card sm:w-[340px] lg:w-[calc((100%-40px)/3)]"
+              >
+                <div className="relative flex h-[352px] items-center justify-center overflow-hidden bg-secondary">
+                  <div className="absolute inset-x-5 top-4 flex items-center justify-between text-xs font-normal text-muted-foreground">
+                    <span>Example hook</span>
+                    <span className="font-mono">4:5</span>
+                  </div>
+                  <div className="mt-5 rounded-md shadow-[0_8px_24px_-8px_color-mix(in_srgb,var(--foreground)_18%,transparent)]">
+                    <SlidePreview slide={formatExample(item.id, item.hook)} theme={FORMAT_EXAMPLE_THEME} width={224} />
+                  </div>
+                </div>
+                <div className="flex min-h-[188px] flex-col border-t border-border p-5 sm:p-6">
+                  <div className="mb-3 flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
+                    <Stack size={16} aria-hidden />
+                    <span>{item.count}</span>
+                  </div>
+                  <h3 className="text-[19px] font-medium leading-6 tracking-[-0.025em] text-foreground">{item.name}</h3>
+                  <p className="mt-2 text-sm font-normal leading-[1.65] text-muted-foreground">{item.description}</p>
+                </div>
+              </article>
+            ))}
+          </div>
 
-  return (
-    <div className="relative h-[236px] overflow-hidden">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-70"
-        style={{
-          backgroundImage:
-            "linear-gradient(to right, rgba(0,0,0,0.045) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.045) 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
-        }}
-      />
-      <div
-        aria-hidden
-        className="absolute right-5 top-8 aspect-[4/5] w-[42%] rounded-xl border border-black/8 bg-white/55 shadow-sm motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-[cubic-bezier(0.16,1,0.3,1)] rotate-[8deg] group-hover:rotate-[12deg]"
-      >
-        <p className="px-2 pt-2 font-mono text-[9px] tracking-[0.12em] text-ink-faint">03</p>
-        <p className="px-2 text-[10px] font-medium uppercase tracking-[0.08em] text-black/50">{back}</p>
-      </div>
-      <div
-        aria-hidden
-        className="absolute right-9 top-6 aspect-[4/5] w-[42%] rounded-xl border border-black/8 bg-white/80 shadow-sm motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-[cubic-bezier(0.16,1,0.3,1)] rotate-[4deg] group-hover:rotate-[7deg]"
-      >
-        <p className="px-2 pt-2 font-mono text-[9px] tracking-[0.12em] text-ink-faint">02</p>
-        <p className="px-2 text-[10px] font-medium uppercase tracking-[0.08em] text-black/60">{mid}</p>
-      </div>
-      <div className="absolute left-4 top-4 flex aspect-[4/5] w-[48%] flex-col overflow-hidden rounded-xl border border-black/10 bg-white shadow-[0_12px_28px_-16px_rgba(0,0,0,0.45)] motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:-translate-y-0.5">
-        <div className="flex items-center justify-between border-b border-black/6 px-2.5 py-1.5">
-          <p className="font-mono text-[9px] tracking-[0.14em] text-accent">01 · HOOK</p>
-          <span className="size-1.5 rounded-full bg-accent" />
-        </div>
-        <pre className="flex-1 overflow-hidden px-2.5 py-2 font-mono text-[10px] leading-[13px] tracking-[-0.02em] text-black/70">
-          {ascii}
-        </pre>
-        <p className="border-t border-black/6 px-2.5 py-1.5 text-[9px] font-medium leading-3 tracking-[-0.02em] text-black">
-          {item.hook}
-        </p>
-      </div>
+          <div className="mt-4 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <p aria-live="polite" aria-atomic="true" className="text-xs font-normal text-muted-foreground">
+              Showing {position.first}{position.last > position.first ? `–${position.last}` : ""} of {items.length} formats
+            </p>
+            <div className="flex gap-0.5 sm:gap-2" aria-label="Format pages">
+              {position.stops.map((_, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  aria-label={`Go to format page ${index + 1}`}
+                  aria-current={position.page === index ? "true" : undefined}
+                  aria-controls={`${id}-track`}
+                  onClick={() => goTo(index)}
+                  className="group flex size-11 items-center justify-center rounded-md px-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                >
+                  <span className={`h-1 w-full rounded-full motion-safe:transition-colors motion-safe:duration-150 ${position.page === index ? "bg-foreground" : "bg-foreground/15 group-hover:bg-foreground/35"}`} />
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
