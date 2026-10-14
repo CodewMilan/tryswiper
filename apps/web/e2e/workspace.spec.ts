@@ -1113,7 +1113,7 @@ test("agent tools discover typed edits, reuse saved designs, inspect images and 
   const discovery = await mcp(request, key, "tools/list");
   expect(discovery.error).toBeUndefined();
   const tools = discovery.result.tools as { name: string; annotations: Record<string, boolean>; inputSchema: { properties: Record<string, unknown>; required?: string[] } }[];
-  expect(tools).toHaveLength(19);
+  expect(tools).toHaveLength(20);
   for (const tool of tools) expect(Object.keys(tool.annotations)).toEqual(expect.arrayContaining(["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"]));
   const editTool = tools.find((tool) => tool.name === "swiper.update_carousel")!;
   expect(editTool.inputSchema.required).toEqual(expect.arrayContaining(["expected_version", "mutation_id"]));
@@ -1198,4 +1198,74 @@ test("the real account menu view supports keyboard focus, dismissal, navigation 
   await menu.getByRole("menuitem", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/$/);
   expect((await page.request.get("/api/v1/brand")).status()).toBe(401);
+});
+
+test("image budgets reject oversized inputs and reference-aware cleanup releases unused storage", async ({ page }) => {
+  const userId = await signUp(page.request);
+  const request = page.request;
+  const sql = postgres(testDatabaseUrl, { max: 1, prepare: false });
+  try {
+    const [workspace] = await sql<{ id: string }[]>`select id from workspace where owner_id=${userId}`;
+    await promisify(execFile)(process.execPath, ["--import", require.resolve("tsx", { paths: [resolve(__dirname, "../../mcp")] }), resolve(__dirname, "resource-budget.fixture.mts"), workspace!.id, userId], { env: { ...process.env, DATABASE_URL: testDatabaseUrl, TSX_TSCONFIG_PATH: resolve(__dirname, "../tsconfig.json") } });
+    const oversized = fixtureImage("#B64831");
+    oversized.buffer.writeUInt32BE(20000, 16); oversized.buffer.writeUInt32BE(20000, 20);
+    const rejected = await request.post("/api/v1/assets", { multipart: { file: oversized } });
+    expect(rejected.status()).toBe(413);
+    expect((await rejected.json()).code).toBe("IMAGE_DIMENSIONS_LIMIT");
+    const asset = await (await request.post("/api/v1/assets", { multipart: { file: fixtureImage("#B64831") } })).json();
+    const draft = await create(request);
+    const slide = draft.carousel.slides[0]!;
+    await request.patch(`/api/v1/carousels/${draft.carousel_id}`, { data: { expected_version: 1, operations: [{ op: "add_element", slideId: slide.id, element: { id: "photo", type: "image", assetId: asset.id, src: asset.url, x: 80, y: 900, width: 400, height: 300 } }] } });
+    expect((await request.delete(`/api/v1/assets/${asset.id}`)).status()).toBe(409);
+    const format = await (await request.post("/api/v1/formats", { data: { carousel_id: draft.carousel_id, name: "Protected photo" } })).json();
+    await request.patch(`/api/v1/carousels/${draft.carousel_id}`, { data: { expected_version: 2, operations: [{ op: "delete_element", slideId: slide.id, elementId: "photo" }] } });
+    expect((await request.delete(`/api/v1/assets/${asset.id}`)).status()).toBe(409);
+    await request.delete(`/api/v1/carousels/${draft.carousel_id}`);
+    expect((await request.delete(`/api/v1/assets/${asset.id}`)).status()).toBe(409);
+    expect((await request.delete(`/api/v1/formats/${format.format.id}`)).status()).toBe(200);
+    expect((await request.delete(`/api/v1/assets/${asset.id}`)).status()).toBe(200);
+    expect((await (await request.get("/api/v1/assets")).json()).assets).toHaveLength(0);
+    const fake = `ast_${crypto.randomUUID()}`;
+    await sql`insert into asset(id,workspace_id,mime_type,width,height,byte_size,data,created_by) values(${fake},${workspace!.id},'image/png',120,60,${200 * 1024 * 1024},'',${userId})`;
+    expect((await request.post("/api/v1/assets", { multipart: { file: fixtureImage("#B64831") } })).status()).toBe(413);
+    await sql`delete from asset where id=${fake}`;
+  } finally { await sql.end(); }
+});
+
+test("product metrics record a useful-download path without storing draft copy or credentials", async ({ page }) => {
+  await signUp(page.request);
+  const request = page.request;
+  const draft = await (await request.post("/api/v1/carousels/generate", { data: { brief: "Explain why a bakery uses slow sourdough fermentation." } })).json();
+  const id = draft.carousel_id;
+  await request.patch(`/api/v1/carousels/${id}`, { data: { expected_version: 1, operations: [{ op: "rename", title: "The sourdough story" }] } });
+  await request.post(`/api/v1/carousels/${id}/validate`);
+  expect((await request.get(`/api/v1/carousels/${id}/export?format=png&slide=1`)).status()).toBe(200);
+  expect((await request.post(`/api/v1/carousels/${id}/feedback`, { data: { rating: "useful" } })).status()).toBe(200);
+  const metrics = await (await request.get("/api/v1/metrics")).json();
+  expect(metrics.stages.map((row: { kind: string }) => row.kind)).toEqual(expect.arrayContaining(["created", "edited", "checked", "exported", "feedback"]));
+  expect(metrics.stages.some((row: { kind: string; value: string }) => row.kind === "feedback" && row.value === "useful")).toBe(true);
+  expect(JSON.stringify(metrics)).not.toContain("sourdough");
+  const { key } = await (await request.post("/api/v1/mcp-keys", { data: { name: "Metrics scope" } })).json();
+  expect((await request.get("/api/v1/metrics", { headers: { Authorization: `Bearer ${key}` } })).status()).toBe(403);
+});
+
+test("reopening creation recovers a completed request even when the allowance is full", async ({ page }) => {
+  await signUp(page.request);
+  const request = page.request;
+  const requestId = crypto.randomUUID();
+  const payload = { format_id: "problem-insight-product", brief: "Explain why customer interviews improve product decisions." };
+  const draft = await (await request.post("/api/v1/carousels", { data: payload, headers: { "Idempotency-Key": requestId } })).json();
+  for (let i = 0; i < 4; i++) await create(request);
+  const { brand } = await (await request.get("/api/v1/brand")).json();
+  await page.goto("/new");
+  await page.evaluate(({ brandId, requestId, payload }) => {
+    const key = `swiper:brief:${brandId}`;
+    sessionStorage.setItem(key, JSON.stringify({ brief: payload.brief, title: "", referenceUrl: "", mode: "generate", generateFormatId: payload.format_id, manualFormatId: "freeform" }));
+    sessionStorage.setItem(`${key}:request`, JSON.stringify({ key: requestId, payload: JSON.stringify(payload) }));
+  }, { brandId: brand.id, requestId, payload });
+  await page.reload();
+  await expect(page.getByRole("link", { name: "Open the recovered draft" })).toHaveAttribute("href", `/c/${draft.carousel_id}`);
+  await page.getByRole("link", { name: "Open the recovered draft" }).click();
+  await expect(page.getByTestId("slide-canvas")).toBeVisible();
+  expect((await (await request.get("/api/v1/billing")).json()).usage.carousel).toBe(5);
 });

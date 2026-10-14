@@ -7,7 +7,6 @@ import { imageDimensions } from "../src/lib/image-dimensions";
 import { createDodoPortal } from "../src/lib/dodo";
 
 const workspaceId = process.argv[2]!;
-const auth = { workspaceId, userId: process.argv[3]!, source: "session" as const };
 const priorFetch = globalThis.fetch;
 const previousEnv = { key: process.env.DODO_PAYMENTS_API_KEY, product: process.env.DODO_PAYMENTS_PRODUCT_ID, secret: process.env.DODO_PAYMENTS_WEBHOOK_SECRET };
 try {

@@ -401,6 +401,12 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
     inputSchema: z.object({ asset_id: z.string().regex(/^[A-Za-z0-9_-]+$/) }),
   }, async ({ asset_id }) => { try { return ok(await call(`/api/v1/assets/${asset_id}`, { method: "DELETE" })); } catch (error) { return fail(error); } });
 
+  server.registerTool("swiper.delete_format", {
+    description: "Permanently delete a saved workspace format only when the user asks. Existing carousel copies and their history remain; their images stay protected.",
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    inputSchema: z.object({ format_id: z.string().regex(/^fmt_[A-Za-z0-9_-]+$/) }),
+  }, async ({ format_id }) => { try { return ok(await call(`/api/v1/formats/${format_id}`, { method: "DELETE" })); } catch (error) { return fail(error); } });
+
   server.registerResource("carousel-export", new ResourceTemplate("swiper://carousels/{carousel_id}/versions/{version}/exports/{format}", { list: undefined }),
     { description: "Authenticated version-bound export bytes; PNG/JPG bundles are ZIP files. Reads consume export allowance (except JSON)." },
     async (uri, variables) => {
