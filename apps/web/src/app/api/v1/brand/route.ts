@@ -69,7 +69,7 @@ export async function PATCH(request: Request) {
       if (field in body && (!Array.isArray(body[field]) || body[field].length > 100 || !body[field].every((item: unknown) => typeof item === "string" && item.trim().length > 0 && item.length <= 1000))) return badRequest(`${field} must be a list of nonempty short text entries.`);
     }
     if ("name" in body && (typeof body.name !== "string" || !body.name.trim() || body.name.length > 120)) return badRequest("Product name must be between 1 and 120 characters.");
-    return db.transaction(async (tx) => {
+    return await db.transaction(async (tx) => {
     await tx.select({ id: schema.workspace.id }).from(schema.workspace).where(eq(schema.workspace.id, authContext.workspaceId)).for("no key update");
     const current = await getWorkspaceBrand(authContext.workspaceId);
     if (!current) {

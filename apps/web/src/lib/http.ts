@@ -35,6 +35,7 @@ export function fromUnknownError(error: unknown) {
     const err = error as { status: number; message: string; code?: string; details?: Record<string, unknown> };
     return apiError(err.code ?? "ERROR", err.message, err.status, err.details);
   }
-  console.error(error);
-  return apiError("INTERNAL", "Something went wrong", 500);
+  const errorId = crypto.randomUUID();
+  console.error(JSON.stringify({ event: "api_error", error_id: errorId, error_type: error instanceof Error ? error.name : "unknown" }));
+  return apiError("INTERNAL", "Something went wrong", 500, { error_id: errorId });
 }
