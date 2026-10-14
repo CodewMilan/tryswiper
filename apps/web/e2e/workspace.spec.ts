@@ -660,7 +660,7 @@ test("Free export checks flag copy issues, lead back to the slide, and gate JPG 
   await expect(dialog.getByRole("button", { name: /JPG images/ })).toHaveCount(0);
   await dialog.getByRole("button", { name: "Check carousel", exact: true }).click();
   await expect(dialog).toContainText("uses generic AI phrasing");
-  await dialog.getByRole("button", { name: "Edit slide 1", exact: true }).click();
+  await dialog.getByRole("listitem").filter({ hasText: "uses generic AI phrasing" }).getByRole("button", { name: "Edit slide 1", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await page.getByTestId("slide-canvas").getByRole("button", { name: "headline element", exact: true }).click();
   await page.locator("#element-text").fill("Good product stories start with a real customer problem.");
@@ -1049,4 +1049,65 @@ test("generation honors supported slide counts and rejects unknown or incompatib
 test("production migrations preserve duplicate identity data, reject conflicting mappings and can run twice", async () => {
   test.skip(!["localhost", "127.0.0.1"].includes(new URL(testDatabaseUrl).hostname), "Migration fixtures require a local test database.");
   await promisify(execFile)(process.execPath, ["--import", require.resolve("tsx", { paths: [resolve(__dirname, "../../mcp")] }), resolve(__dirname, "migrations.fixture.mts"), testDatabaseUrl], { env: process.env });
+});
+
+test("export checks catch clipped text and reject unsupported visuals", async ({ page }) => {
+  await signUp(page.request);
+  const request = page.request;
+  const draft = await create(request);
+  const slide = draft.carousel.slides[0]!;
+  const headline = slide.elements.find((element) => element.role === "headline")!;
+  for (const operation of [
+    { op: "set_background", slideId: slide.id, background: { type: "gradient", value: "linear-gradient(red, blue)" } },
+    { op: "add_element", slideId: slide.id, element: { id: "remote", type: "image", src: "https://example.test/photo.jpg", x: 0, y: 0, width: 200, height: 200 } },
+  ]) expect((await request.patch(`/api/v1/carousels/${draft.carousel_id}`, { data: { expected_version: 1, operations: [operation] } })).status()).toBe(400);
+  expect((await request.patch(`/api/v1/carousels/${draft.carousel_id}`, { data: { expected_version: 1, operations: [{ op: "set_element_box", slideId: slide.id, elementId: headline.id, x: headline.x, y: headline.y, width: headline.width, height: 10 }] } })).status()).toBe(200);
+  const validation = await (await request.post(`/api/v1/carousels/${draft.carousel_id}/validate`)).json();
+  expect(validation.ok).toBe(false);
+  expect(validation.errors.some((issue: { code: string }) => issue.code === "TEXT_OVERFLOW")).toBe(true);
+  expect((await request.patch("/api/v1/brand", { data: { proofPoints: [""] } })).status()).toBe(400);
+});
+
+test("preparation is bound to a version and retries survive the quota boundary", async ({ page }) => {
+  const userId = await signUp(page.request);
+  const request = page.request;
+  const draft = await create(request);
+  const id = draft.carousel_id;
+  const sql = postgres(testDatabaseUrl, { max: 1, prepare: false });
+  try {
+    const [workspace] = await sql<{ id: string }[]>`select id from workspace where owner_id = ${userId}`;
+    await sql`insert into billing(workspace_id, plan, status, paid_through) values(${workspace!.id},'pro','active',${new Date(Date.now() + 3600000)})`;
+    for (let i = 0; i < 99; i++) await sql`insert into usage_event(id,workspace_id,kind) values(${`use_${crypto.randomUUID()}`},${workspace!.id},'publish')`;
+    const headers = { "Idempotency-Key": crypto.randomUUID() };
+    const responses = await Promise.all(Array.from({ length: 3 }, () => request.post(`/api/v1/carousels/${id}/publish`, { headers, data: { expected_version: 1 } })));
+    expect(responses.every((response) => response.ok())).toBe(true);
+    const body = await responses[0]!.json();
+    expect(body.version).toBe(1);
+    expect(body.downloads.png).toContain("version=1");
+    expect((await (await request.get("/api/v1/billing")).json()).usage.publish).toBe(100);
+    expect((await request.post(`/api/v1/carousels/${id}/publish`, { headers })).status()).toBe(200);
+    const slide = draft.carousel.slides[0]!;
+    const element = slide.elements[0]!;
+    expect((await request.patch(`/api/v1/carousels/${id}`, { data: { expected_version: 1, operations: [{ op: "set_element_box", slideId: slide.id, elementId: element.id, x: -10, y: element.y, width: element.width, height: element.height }] } })).status()).toBe(200);
+    expect((await request.post(`/api/v1/carousels/${id}/publish`, { headers })).status()).toBe(409);
+    expect((await request.post(`/api/v1/carousels/${id}/publish`, { headers: { "Idempotency-Key": crypto.randomUUID() } })).status()).toBe(422);
+    expect((await request.get(`/api/v1/carousels/${id}/export?format=png&version=1`)).status()).toBe(409);
+    const [row] = await sql`select status from carousel where id=${id}`;
+    expect(row!.status).toBe("draft");
+    expect((await (await request.get("/api/v1/billing")).json()).usage.publish).toBe(100);
+  } finally { await sql.end(); }
+});
+
+test("local fallback drafts stay on topic and identify incomplete scaffolding", async ({ page }) => {
+  await signUp(page.request);
+  for (const brief of ["Explain why our bakery uses a long sourdough fermentation.", "Explain how a consultant prepares discovery interviews.", "Explain how our software backs up customer records.", "Teach students how the water cycle works."]) {
+    const response = await page.request.post("/api/v1/carousels/generate", { data: { brief } });
+    expect(response.status()).toBe(201);
+    const body = await response.json();
+    expect(body.source).toBe("local");
+    const copy = body.carousel.slides.flatMap((slide: Carousel["slides"][number]) => slide.elements.map((element) => element.text ?? "")).join(" ");
+    expect(copy).not.toMatch(/agents|typed carousel|design tool|stitch tools|settings panel/i);
+    expect(copy).toContain(brief.replace(/\.$/, ""));
+    expect(body.validation.warnings.some((issue: { code: string }) => issue.code === "UNFINISHED_COPY")).toBe(true);
+  }
 });

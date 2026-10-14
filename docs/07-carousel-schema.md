@@ -53,13 +53,12 @@ The carousel JSON is the contract shared by the AI, editor and renderer.
 - text
 - image
 - shape
-- icon
 - logo
-- badge
 - line
-- chart
-- screenshot
-- video
+
+Backgrounds are solid opaque hex colors. Theme colors use three or six hex digits; element colors also accept four/eight digits for alpha. Unsupported gradient/image backgrounds and chart/video/icon/badge/screenshot elements are rejected. Upload screenshots as ordinary image assets.
+
+Images/logos require an owned uploaded `assetId`. Their optional `src` must equal `/api/v1/assets/{assetId}`. Images crop to fill; logos fit inside their box. A missing or unreadable asset fails validation and export explicitly.
 
 ## Layout types
 
@@ -72,7 +71,9 @@ Start small:
 - quote
 - list
 - comparison
-- CTA
+- cta
+
+`split` separates headline and body into columns. `image-left`/`image-right` reserve the named side for an uploaded image; add the image yourself. `list` gives the body a tall indented column; `comparison` puts body and proof side by side. `set_layout` moves the first text slot of each semantic role and first image while preserving text, element IDs, assets, colors and font sizes. Other custom elements keep their positions. Review wrapping after changing layout.
 
 ## Coordinate system
 
