@@ -12,6 +12,14 @@ import { readFile } from "node:fs/promises";
 
 const testUserIds: string[] = [];
 
+async function mcp(request: APIRequestContext, key: string, method: string, params: unknown = {}) {
+  const response = await request.post("/mcp", { headers: { Authorization: `Bearer ${key}`, Accept: "application/json, text/event-stream", "MCP-Protocol-Version": "2025-06-18" },
+    data: { jsonrpc: "2.0", id: 1, method, params } });
+  const text = await response.text();
+  expect(response.ok(), text).toBeTruthy();
+  return response.headers()["content-type"]?.includes("text/event-stream") ? JSON.parse(text.split("\n").find((line) => line.startsWith("data: "))!.slice(6)) : JSON.parse(text);
+}
+
 test.afterEach(async () => {
   await cleanupTestUsers(testUserIds.splice(0));
 });
@@ -346,35 +354,21 @@ test("Connect keeps one-time-secret setup templates after refresh", async ({ pag
   await expect(page.getByRole("heading", { name: "Mint a key to connect your agent" })).toBeVisible();
 });
 
-test("Prepare files shows the Free gate upfront and preserves the Pro handoff", async ({ page }) => {
+test("Export includes Free quality checks and Pro JPG without a separate preparation upsell", async ({ page }) => {
   await signUp(page.request);
   const { carousel_id: id } = await create(page.request);
-  let preparations = 0;
-  page.on("request", (request) => { if (request.method() === "POST" && request.url().endsWith(`/carousels/${id}/publish`)) preparations++; });
   await page.goto(`/c/${id}`);
   await page.getByRole("button", { name: "More carousel options", exact: true }).click();
-  await page.getByRole("button", { name: "Prepare files", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Prepare files", exact: true });
-  await expect(dialog).toContainText("Prepare files requires Pro.");
-  await expect(dialog).toContainText("Swiper does not post to social accounts.");
-  await expect(dialog.getByRole("link", { name: "Upgrade to Pro", exact: true })).toHaveAttribute("href", "/pricing");
-  await expect(dialog.getByRole("button", { name: "Validate and prepare files", exact: true })).toHaveCount(0);
-  expect(preparations).toBe(0);
-  await dialog.getByRole("button", { name: "Export PNG or PDF", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "Ready to share", exact: true })).toBeVisible();
-  expect(preparations).toBe(0);
-
-  // Exercise the Pro UI without changing real billing or consuming file-preparation usage.
+  await expect(page.getByRole("button", { name: "Prepare files", exact: true })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Ready to share", exact: true });
+  await expect(dialog.getByRole("button", { name: "Check carousel", exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "PNG images", exact: false })).toBeVisible();
   await page.route("**/api/v1/billing", (route) => route.fulfill({ json: { plan: "pro", usage: {}, limits: { carousel: 100, generation: 250, export: 1000, publish: 100, jpg: true } } }));
-  await page.route(`**/api/v1/carousels/${id}/publish`, (route) => route.fulfill({ json: { status: "ready" } }));
   await page.reload();
-  await page.getByRole("button", { name: "More carousel options", exact: true }).click();
-  await page.getByRole("button", { name: "Prepare files", exact: true }).click();
-  await expect(dialog).toContainText("Your Pro plan includes this publishing handoff.");
-  await dialog.getByRole("button", { name: "Validate and prepare files", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "Ready to share", exact: true })).toBeVisible();
-  await expect(page.getByText("Files ready to download. Swiper does not post to your social accounts.", { exact: true })).toBeVisible();
-  expect(preparations).toBe(1);
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await expect(dialog.getByRole("button", { name: "JPG images · Pro", exact: false })).toBeVisible();
 });
 
 test("monthly allowances guide creation and usage errors preserve the brief", async ({ page }) => {
@@ -459,7 +453,7 @@ test("new carousel cards and editor overflow match the light workspace", async (
     await page.keyboard.press("Enter");
     const options = page.getByRole("region", { name: "Carousel options", exact: true });
     await expect(options.getByRole("button", { name: "Save as format", exact: true })).toBeVisible();
-    await expect(options.getByRole("button", { name: "Prepare files", exact: true })).toBeVisible();
+    await expect(options.getByRole("button", { name: "Prepare files", exact: true })).toHaveCount(0);
     await expect(options.getByRole("link", { name: "Brand", exact: true })).toHaveAttribute("href", "/brand");
     await expect(options.getByRole("link", { name: "Connect", exact: true })).toHaveAttribute("href", "/connect");
     await page.keyboard.press("Tab");
@@ -1110,4 +1104,98 @@ test("local fallback drafts stay on topic and identify incomplete scaffolding", 
     expect(copy).toContain(brief.replace(/\.$/, ""));
     expect(body.validation.warnings.some((issue: { code: string }) => issue.code === "UNFINISHED_COPY")).toBe(true);
   }
+});
+
+test("agent tools discover typed edits, reuse saved designs, inspect images and read protected exports", async ({ page }) => {
+  await signUp(page.request);
+  const request = page.request;
+  const { key } = await (await request.post("/api/v1/mcp-keys", { data: { name: "Agent workflow QA" } })).json();
+  const discovery = await mcp(request, key, "tools/list");
+  expect(discovery.error).toBeUndefined();
+  const tools = discovery.result.tools as { name: string; annotations: Record<string, boolean>; inputSchema: { properties: Record<string, unknown>; required?: string[] } }[];
+  expect(tools).toHaveLength(17);
+  for (const tool of tools) expect(Object.keys(tool.annotations)).toEqual(expect.arrayContaining(["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"]));
+  const editTool = tools.find((tool) => tool.name === "swiper.update_carousel")!;
+  expect(editTool.inputSchema.required).toEqual(expect.arrayContaining(["expected_version", "mutation_id"]));
+  expect(JSON.stringify(editTool.inputSchema.properties.operations)).toContain("set_element_box");
+  const call = async (name: string, args: unknown) => (await mcp(request, key, "tools/call", { name: `swiper.${name}`, arguments: args })).result;
+  const upload = await call("upload_asset", { mime_type: "image/png", data_base64: fixtureImage("#B64831").buffer.toString("base64") });
+  expect(upload.isError).not.toBe(true);
+  const asset = JSON.parse(upload.content[0].text);
+  expect((await call("update_brand", { name: "Hearth", guidelines: "Use plain language", logoAssetId: asset.id })).isError).not.toBe(true);
+  const source = await create(request);
+  const slide = source.carousel.slides[0]!;
+  const headline = slide.elements.find((element) => element.role === "headline")!;
+  const editId = crypto.randomUUID();
+  const edit = { carousel_id: source.carousel_id, expected_version: 1, mutation_id: editId, operations: [
+    { op: "update_text", slideId: slide.id, elementId: headline.id, text: "Old template topic that must be replaced" },
+    { op: "set_element_box", slideId: slide.id, elementId: headline.id, x: 130, y: 240, width: 750, height: 420 },
+  ] };
+  expect((await call("update_carousel", edit)).isError).not.toBe(true);
+  expect((await call("update_carousel", edit)).isError).not.toBe(true);
+  expect((await state(request, source.carousel_id)).version).toBe(2);
+  const stale = await call("update_carousel", { ...edit, mutation_id: crypto.randomUUID() });
+  expect(stale.isError).toBe(true);
+  expect(JSON.parse(stale.content[0].text).details.current_version).toBe(2);
+  const savedFormat = JSON.parse((await call("save_format", { carousel_id: source.carousel_id, name: "Hearth story" })).content[0].text).format;
+  const requestId = crypto.randomUUID();
+  const generated = JSON.parse((await call("generate_carousel", { brief: "Explain why our bakery ferments sourdough slowly.", format_id: savedFormat.id, request_id: requestId })).content[0].text);
+  expect(generated.format_id).toBe(savedFormat.id);
+  expect(generated.carousel.slides).toHaveLength(source.carousel.slides.length);
+  expect(generated.carousel.slides[0].elements.find((element: { role: string }) => element.role === "headline")).toMatchObject({ x: 130, y: 240, width: 750, height: 420 });
+  expect(JSON.stringify(generated.carousel)).not.toContain("Old template topic");
+  expect(generated.carousel.slides[0].elements.some((element: { assetId: string }) => element.assetId === asset.id)).toBe(true);
+  const recovered = JSON.parse((await call("get_request_status", { request_id: requestId })).content[0].text);
+  expect(recovered.status).toBe("completed");
+  expect(recovered.result.carousel_id).toBe(generated.carousel_id);
+  const preview = await call("render_preview", { carousel_id: generated.carousel_id, slide_number: 1 });
+  expect(preview.isError).not.toBe(true);
+  expect(preview.content[1].type).toBe("image");
+  expect(Buffer.from(preview.content[1].data, "base64").subarray(1, 4).toString()).toBe("PNG");
+  const metadata = JSON.parse((await call("export_carousel", { carousel_id: generated.carousel_id })).content[0].text);
+  const resource = await mcp(request, key, "resources/read", { uri: metadata.resources.find((resource: { name: string }) => resource.name.endsWith(".pdf")).uri });
+  expect(resource.error).toBeUndefined();
+  expect(Buffer.from(resource.result.contents[0].blob, "base64").subarray(0, 4).toString()).toBe("%PDF");
+  expect(JSON.stringify(metadata)).not.toContain(key);
+  expect((await call("undo_carousel", { carousel_id: source.carousel_id, expected_version: 2 })).isError).not.toBe(true);
+  expect((await call("undo_carousel", { carousel_id: source.carousel_id, expected_version: 2 })).isError).toBe(true);
+  expect((await call("delete_carousel", { carousel_id: generated.carousel_id, expected_version: 1 })).isError).not.toBe(true);
+  await page.goto("/new");
+  await expect(page.getByLabel("Story shape").getByRole("option", { name: "Hearth story" })).toHaveCount(1);
+  expect((await request.post("/api/v1/billing/portal", { headers: { Authorization: `Bearer ${key}` } })).status()).toBe(403);
+});
+
+test("the real account menu view supports keyboard focus, dismissal, navigation and sign-out", async ({ page }) => {
+  await signUp(page.request);
+  await page.goto("/library");
+  const trigger = page.getByRole("button", { name: "Editor QA", exact: true });
+  await trigger.focus();
+  await page.keyboard.press("ArrowDown");
+  const menu = page.getByRole("menu", { name: "Account actions" });
+  await expect(menu.getByRole("menuitem", { name: "How to use Swiper", exact: true })).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(menu.getByRole("menuitem", { name: "Sign out", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(menu.getByRole("menuitem", { name: "How to use Swiper", exact: true })).toBeFocused();
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowDown");
+  await expect(menu.getByRole("menuitem", { name: "Pricing", exact: true })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(menu.getByRole("menuitem", { name: "Sign out", exact: true })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(menu).toHaveCount(0);
+  await trigger.click();
+  await page.getByRole("heading", { name: "Your carousels" }).click();
+  await expect(menu).toHaveCount(0);
+  await trigger.click();
+  await menu.getByRole("menuitem", { name: "Pricing", exact: true }).click();
+  await expect(page).toHaveURL(/\/pricing$/);
+  await expect(page.getByRole("link", { name: "Email support", exact: true })).toHaveAttribute("href", "mailto:milan@cassettelabs.in");
+  await page.getByRole("button", { name: "Editor QA", exact: true }).click();
+  await menu.getByRole("menuitem", { name: "Sign out", exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
+  expect((await page.request.get("/api/v1/brand")).status()).toBe(401);
 });

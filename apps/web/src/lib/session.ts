@@ -31,7 +31,7 @@ export async function getSessionUser() {
       .limit(1);
     if (!row || row.disabledAt) return null;
     const workspaceId = await ensureWorkspace(row.id, row.name);
-    return { userId: row.id, workspaceId };
+    return { userId: row.id, workspaceId, name: row.name };
   }
 
   if (!clerkConfigured()) return null;
@@ -41,5 +41,5 @@ export async function getSessionUser() {
   const linked = await localUserForClerk(userId);
   if (!linked) return null;
   const workspaceId = await ensureWorkspace(linked.localId, linked.name);
-  return { userId: linked.localId, workspaceId };
+  return { userId: linked.localId, workspaceId, name: linked.name };
 }

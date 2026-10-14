@@ -335,7 +335,19 @@ export const publishJob = pgTable(
   ],
 );
 
+export const operationLease = pgTable("operation_lease", {
+  id: text("id").primaryKey(), workspaceId: text("workspace_id").notNull().references(() => workspace.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(), expiresAt: timestamp("expires_at").notNull(),
+}, (table) => [index("operation_lease_kind_expiry_idx").on(table.kind, table.expiresAt)]);
+
+export const resourceWindow = pgTable("resource_window", {
+  workspaceId: text("workspace_id").notNull().references(() => workspace.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(), startedAt: timestamp("started_at").notNull(), requests: integer("requests").notNull(),
+}, (table) => [uniqueIndex("resource_window_workspace_kind_idx").on(table.workspaceId, table.kind)]);
+
 export const schema = {
+  operationLease,
+  resourceWindow,
   user,
   session,
   account,

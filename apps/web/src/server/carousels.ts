@@ -43,6 +43,7 @@ import {
 } from "@/lib/generation-notices";
 import { assertUsage, recordUsage, withUsageTransaction } from "./usage";
 import type { CreationRequest } from "@/lib/creation-request";
+import { withResourceBudget } from "./resource-budget";
 import { decodeAssets, textFitIssues } from "@swiper/rendering";
 
 function validateOutput(carousel: Carousel, options?: Parameters<typeof validateCarousel>[1]) {
@@ -178,13 +179,14 @@ export async function generateCarousel(input: {
   const brand = toBrandContext(brandRow);
   const theme = themeFromBrand(brandRow);
   const thinBrand = isThinBrand(brandRow);
-  const { plan, source } = await generatePlan({
+  const writePlan = () => generatePlan({
     brief: input.brief,
     formatId,
     slideCount: input.slideCount,
     brand,
-    template: workspaceFormat ? planFromCarousel(workspaceFormat.contentJson, { name: brand.name, forbiddenClaims: brand.wordsToAvoid ?? [] }) : undefined,
+    template: workspaceFormat ? { ...planFromCarousel(workspaceFormat.contentJson, { name: brand.name, forbiddenClaims: brand.wordsToAvoid ?? [] }), formatId: workspaceFormat.id } : undefined,
   });
+  const { plan, source } = generationModelConfigured() ? await withResourceBudget(input.auth.workspaceId, "generation", writePlan) : await writePlan();
   if (input.title) plan.title = input.title;
   const result = validateAndRepair(plan, theme, {
     forbiddenWords: brand.wordsToAvoid,
@@ -506,12 +508,13 @@ export async function generateSlide(
     cta: brandRow.cta ?? undefined,
     forbiddenClaims: brandRow.wordsToAvoid,
   });
-  const { plan: nextPlan, source } = await reviseSlidePlan({
+  const revise = () => reviseSlidePlan({
     plan,
     slideIndex,
     instruction,
     brand: toBrandContext(brandRow),
   });
+  const { plan: nextPlan, source } = generationModelConfigured() ? await withResourceBudget(authContext.workspaceId, "generation", revise) : await revise();
   const revised = repairPlan(nextPlan).slides[slideIndex]!;
   const carousel = applySlideRevision(content, slideId, revised, () => sid("el"));
   carousel.metadata = {

@@ -55,6 +55,7 @@ export async function createDodoCheckout(input: {
 
   const response = await fetch(`${config.base}/checkouts`, {
     method: "POST",
+    signal: AbortSignal.timeout(15000),
     headers: {
       Authorization: `Bearer ${config.apiKey}`,
       "Content-Type": "application/json",
@@ -91,6 +92,18 @@ export async function createDodoCheckout(input: {
     });
   }
   return checkoutUrl;
+}
+
+export async function createDodoPortal(customerId: string) {
+  const config = dodoConfig();
+  if (!config.ready) throw Object.assign(new Error("Subscription management is temporarily unavailable. Email milan@cassettelabs.in for help."), { status: 503, code: "PAYMENTS_NOT_CONFIGURED" });
+  const query = new URLSearchParams({ return_url: `${appUrl()}/pricing`, send_email: "false" });
+  const response = await fetch(`${config.base}/customers/${encodeURIComponent(customerId)}/customer-portal/session?${query}`, {
+    method: "POST", headers: { Authorization: `Bearer ${config.apiKey}` }, signal: AbortSignal.timeout(15000), cache: "no-store",
+  });
+  const body = await response.json().catch(() => ({})) as { link?: string };
+  if (!response.ok || !body.link || !body.link.startsWith("https://")) throw Object.assign(new Error("Could not open subscription management. Email milan@cassettelabs.in for help."), { status: 502, code: "PORTAL_FAILED" });
+  return body.link;
 }
 
 export async function retrieveDodoSubscription(id: string) {

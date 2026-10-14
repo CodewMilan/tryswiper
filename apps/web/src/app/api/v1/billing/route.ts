@@ -16,6 +16,9 @@ export async function GET(request: Request) {
     return json({
       plan,
       status: row?.status ?? "inactive",
+      has_billing_customer: Boolean(row?.dodoCustomerId),
+      paid_through: row?.paidThrough ?? null,
+      cancel_at_next_billing: row?.cancelAtNextBilling ?? false,
       usage,
       limits: PLAN_LIMITS[plan],
     });

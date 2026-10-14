@@ -14,11 +14,11 @@ async function readPlan() {
   try {
   const response = await fetch("/api/v1/billing", { cache: "no-store" });
   if (response.status === 401) return { signedIn: false, plan: "free" as Plan, usage: {} as Usage, limits: null as Limits | null, error: null };
-  const body = (await response.json()) as { plan?: Plan; usage?: Usage; limits?: Limits; message?: string };
+  const body = (await response.json()) as { plan?: Plan; usage?: Usage; limits?: Limits; message?: string; has_billing_customer?: boolean };
   if (!response.ok) {
     return { signedIn: null, plan: "free" as Plan, usage: {} as Usage, limits: null as Limits | null, error: body.message ?? "Could not load the plan." };
   }
-  return { signedIn: true, plan: (body.plan === "pro" ? "pro" : "free") as Plan, usage: body.usage ?? {}, limits: body.limits ?? null, error: null };
+  return { signedIn: true, plan: (body.plan === "pro" ? "pro" : "free") as Plan, usage: body.usage ?? {}, limits: body.limits ?? null, error: null, hasCustomer: body.has_billing_customer ?? false };
   } catch { return { signedIn: null, plan: "free" as Plan, usage: {} as Usage, limits: null as Limits | null, error: "Could not load your plan. Check your connection and try again." }; }
 }
 
@@ -34,6 +34,7 @@ export function PricingPlans({ priceLabel, initialSignedIn }: { priceLabel: stri
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [hasCustomer, setHasCustomer] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +45,7 @@ export function PricingPlans({ priceLabel, initialSignedIn }: { priceLabel: stri
       setUsage(next.usage);
       setLimits(next.limits);
       setError(next.error);
+      setHasCustomer("hasCustomer" in next && Boolean(next.hasCustomer));
       setLoaded(true);
     });
     return () => {
@@ -88,10 +90,20 @@ export function PricingPlans({ priceLabel, initialSignedIn }: { priceLabel: stri
     }
   }
 
+  async function manageSubscription() {
+    setBusy(true); setError(null);
+    try {
+      const response = await fetch("/api/v1/billing/portal", { method: "POST" });
+      const body = await response.json() as { portal_url?: string; message?: string };
+      if (!response.ok || !body.portal_url) throw new Error(body.message ?? "Could not open subscription management.");
+      window.location.assign(body.portal_url);
+    } catch (error) { setError(error instanceof Error ? error.message : "Could not open subscription management."); setBusy(false); }
+  }
+
   return (
     <div className="mx-auto w-full max-w-[1200px] px-6 py-16 sm:py-20">
       <PageIntro title="Pricing">
-        Create and export for free. Pro adds higher monthly limits, JPG files, and the publishing handoff.
+        Create and export for free. Pro adds higher monthly limits and JPG downloads.
       </PageIntro>
       {returned && plan !== "pro" ? (
         <p className="mt-6 max-w-xl text-[15px] font-light leading-6 text-ink-soft">
@@ -128,7 +140,7 @@ export function PricingPlans({ priceLabel, initialSignedIn }: { priceLabel: stri
           <ul className="mt-6 space-y-2 text-[15px] font-light leading-6 text-ink-soft">
             <li>Everything on Free</li>
             <li>100 carousels, 250 AI generations, and 1,000 exports each month</li>
-            <li>JPG export and 100 file preparations each month</li>
+            <li>JPG images for smaller upload files</li>
           </ul>
           <div className="mt-auto pt-8">
             {plan === "pro" ? (
@@ -141,7 +153,9 @@ export function PricingPlans({ priceLabel, initialSignedIn }: { priceLabel: stri
           </div>
         </section>
       </Settle>
+      {signedIn && hasCustomer ? <div className="mt-5"><Button variant="outline" disabled={busy} onClick={() => void manageSubscription()}>{busy ? "Opening…" : "Manage subscription"}</Button><p className="mt-2 text-sm text-ink-soft">View invoices, update payment details, or manage cancellation in the payment provider’s portal.</p></div> : null}
       <p className="mt-5 text-sm leading-6 text-ink-soft">Allowances reset on the first of each month (UTC). Downloads are for you to upload to your social accounts; Swiper does not publish posts automatically.</p>
+      <p className="mt-3 text-sm text-ink-soft">Need help with your account or billing? <a href="mailto:milan@cassettelabs.in" className="underline underline-offset-4">Email support</a>.</p>
       {signedIn && limits ? (
         <section className="mt-6 rounded-[24px] border border-black/8 bg-white p-6 sm:p-8">
           <h2 className="text-lg font-medium tracking-[-0.02em]">This month</h2>

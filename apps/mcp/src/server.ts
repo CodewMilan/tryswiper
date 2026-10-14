@@ -203,12 +203,12 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       description: "Return the canonical carousel JSON, metadata, and editor URL.",
       inputSchema: z.object({
-        carousel_id: z.string(),
+        carousel_id: z.string().regex(/^[A-Za-z0-9_-]+$/),
       }),
     },
     async ({ carousel_id }) => {
       try {
-        return ok(await call(`/api/v1/carousels/${carousel_id}`));
+        return ok(await call(`/api/v1/carousels/${encodeURIComponent(carousel_id)}`));
       } catch (error) {
         return fail(error);
       }
@@ -222,7 +222,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
       description:
         "Apply structured operations instead of rewriting the whole document. Use this for CTA changes, text edits, reorder, insert, and delete.",
       inputSchema: z.object({
-        carousel_id: z.string(),
+        carousel_id: z.string().regex(/^[A-Za-z0-9_-]+$/),
         operations: z.array(carouselOperationSchema).min(1).max(500).describe("Structured edits. Coordinates use the 1080×1350 canvas; images reference uploaded asset IDs."),
         expected_version: z.number().int().positive().describe("Version from get_carousel; stale edits are rejected."),
         mutation_id: z.string().min(1).max(100).describe("Unique edit ID; reuse it for an immediate retry of the same edit."),
@@ -231,7 +231,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
     async ({ carousel_id, operations, expected_version, mutation_id }) => {
       try {
         return ok(
-          await call(`/api/v1/carousels/${carousel_id}`, {
+          await call(`/api/v1/carousels/${encodeURIComponent(carousel_id)}`, {
             method: "PATCH",
             body: JSON.stringify({ operations, expected_version, mutation_id }),
           }),
@@ -249,8 +249,8 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
       description:
         "Regenerate a single slide while preserving the rest of the narrative. Use for requests like “make slide 1 shorter”.",
       inputSchema: z.object({
-        carousel_id: z.string(),
-        slide_id: z.string(),
+        carousel_id: z.string().regex(/^[A-Za-z0-9_-]+$/),
+        slide_id: z.string().regex(/^[A-Za-z0-9_-]+$/),
         instruction: z.string().trim().min(1).max(2000),
         request_id: z.string().min(1).max(120).optional().describe("Reuse this ID when retrying the same slide revision."),
       }),
@@ -259,7 +259,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
       try {
         return ok(
           await call(
-            `/api/v1/carousels/${carousel_id}/slides/${slide_id}/regenerate`,
+            `/api/v1/carousels/${encodeURIComponent(carousel_id)}/slides/${encodeURIComponent(slide_id)}/regenerate`,
             {
               method: "POST",
               ...(request_id ? { headers: { "Idempotency-Key": request_id } } : {}),
@@ -279,13 +279,13 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       description: "Run structural and content quality checks on a carousel.",
       inputSchema: z.object({
-        carousel_id: z.string(),
+        carousel_id: z.string().regex(/^[A-Za-z0-9_-]+$/),
       }),
     },
     async ({ carousel_id }) => {
       try {
         return ok(
-          await call(`/api/v1/carousels/${carousel_id}/validate`, {
+          await call(`/api/v1/carousels/${encodeURIComponent(carousel_id)}/validate`, {
             method: "POST",
           }),
         );
@@ -301,7 +301,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       description: "Render a saved slide as model-visible PNG image content. Review the image and its copy before sharing.",
       inputSchema: z.object({
-        carousel_id: z.string(),
+        carousel_id: z.string().regex(/^[A-Za-z0-9_-]+$/),
         slide_number: z.number().int().min(1).max(12).default(1),
       }),
     },
@@ -325,13 +325,13 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
       description:
         "Create downloadable output for a carousel. Returns URLs for a multi-page PDF and a zip of 1080×1350 PNGs. Use the returned protected MCP resource URI to read file bytes without putting a key in a URL; resource reads consume an export allowance.",
       inputSchema: z.object({
-        carousel_id: z.string(),
+        carousel_id: z.string().regex(/^[A-Za-z0-9_-]+$/),
       }),
     },
     async ({ carousel_id }) => {
       try {
-        const metadata = await call(`/api/v1/carousels/${carousel_id}/export`, { method: "POST" });
-        const draft = await call<{ version: number }>(`/api/v1/carousels/${carousel_id}`);
+        const metadata = await call(`/api/v1/carousels/${encodeURIComponent(carousel_id)}/export`, { method: "POST" });
+        const draft = await call<{ version: number }>(`/api/v1/carousels/${encodeURIComponent(carousel_id)}`);
         return ok({ ...(metadata as object), resources: ["pdf", "png", "jpg", "json"].map((format) => ({
           uri: `swiper://carousels/${encodeURIComponent(carousel_id)}/versions/${draft.version}/exports/${format}`,
           name: `${carousel_id}.${format === "png" || format === "jpg" ? "zip" : format}`,
@@ -360,7 +360,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
   server.registerTool("swiper.save_format", {
     description: "Save this draft's design, images and semantic copy slots as a workspace format. New generations replace headline/kicker/body/proof/CTA; fixed labels and captions stay saved. Duplicate names return a conflict.",
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
-    inputSchema: z.object({ carousel_id: z.string(), name: z.string().trim().min(2).max(80), description: z.string().max(240).optional() }),
+    inputSchema: z.object({ carousel_id: z.string().regex(/^[A-Za-z0-9_-]+$/), name: z.string().trim().min(2).max(80), description: z.string().max(240).optional() }),
   }, async (input) => {
     try { return ok(await call("/api/v1/formats", { method: "POST", body: JSON.stringify(input) })); } catch (error) { return fail(error); }
   });
@@ -368,7 +368,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
   server.registerTool("swiper.undo_carousel", {
     description: "Restore the previous saved draft. Read the current version first. A repeated request with the old expected_version returns a conflict and never undoes twice.",
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
-    inputSchema: z.object({ carousel_id: z.string(), expected_version: z.number().int().positive() }),
+    inputSchema: z.object({ carousel_id: z.string().regex(/^[A-Za-z0-9_-]+$/), expected_version: z.number().int().positive() }),
   }, async ({ carousel_id, expected_version }) => {
     try { return ok(await call(`/api/v1/carousels/${encodeURIComponent(carousel_id)}/undo`, { method: "POST", body: JSON.stringify({ expected_version }) })); } catch (error) { return fail(error); }
   });
@@ -376,7 +376,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
   server.registerTool("swiper.delete_carousel", {
     description: "Permanently delete a carousel and its undo history. Saved formats remain. Only do this when the user asks; read the current version before deleting. Repeated deletion returns not found.",
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
-    inputSchema: z.object({ carousel_id: z.string(), expected_version: z.number().int().positive() }),
+    inputSchema: z.object({ carousel_id: z.string().regex(/^[A-Za-z0-9_-]+$/), expected_version: z.number().int().positive() }),
   }, async ({ carousel_id, expected_version }) => {
     try { return ok(await call(`/api/v1/carousels/${encodeURIComponent(carousel_id)}?expected_version=${expected_version}`, { method: "DELETE" })); } catch (error) { return fail(error); }
   });

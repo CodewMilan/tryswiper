@@ -1,5 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { schema } from "@swiper/db";
+import { imageDimensions } from "@/lib/image-dimensions";
+import { assertAssetStorage, withResourceBudget } from "./resource-budget";
 import { readImageSize } from "@swiper/rendering";
 import type { AuthContext } from "../lib/api-auth";
 import { db } from "../lib/db";
@@ -29,6 +31,10 @@ export async function createAsset(
     });
   }
 
+  const header = imageDimensions(file.bytes);
+  if (!header || header.mimeType !== file.mimeType || !header.width || !header.height) throw Object.assign(new Error("That file has an unsupported image header or MIME type."), { status: 400, code: "UNREADABLE_IMAGE" });
+  if (header.width > 4096 || header.height > 4096 || header.width * header.height > 12000000) throw Object.assign(new Error("Images must be at most 4096 pixels per side and 12 megapixels."), { status: 413, code: "IMAGE_DIMENSIONS_LIMIT" });
+  return withResourceBudget(authContext.workspaceId, "render", async () => {
   const size = await readImageSize(file.bytes);
   if (!size) {
     throw Object.assign(new Error("That file is not a readable image."), {
@@ -38,7 +44,9 @@ export async function createAsset(
   }
 
   const id = sid("ast");
-  await db.insert(schema.asset).values({
+  await db.transaction(async (tx) => {
+  await assertAssetStorage(authContext.workspaceId, file.bytes.byteLength, tx);
+  await tx.insert(schema.asset).values({
     id,
     workspaceId: authContext.workspaceId,
     mimeType: file.mimeType,
@@ -46,7 +54,8 @@ export async function createAsset(
     height: size.height,
     byteSize: file.bytes.byteLength,
     data: Buffer.from(file.bytes).toString("base64"),
-    createdBy: authContext.userId,
+    createdBy: authContext.userId, createdAt: new Date(),
+  });
   });
 
   return {
@@ -56,6 +65,7 @@ export async function createAsset(
     height: size.height,
     mime_type: file.mimeType,
   };
+  });
 }
 
 export async function getAsset(authContext: AuthContext, id: string) {

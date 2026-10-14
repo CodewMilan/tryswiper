@@ -4,6 +4,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { headers } from "next/headers";
 import { e2eEnabled } from "@/lib/auth-env";
 import { AuthRuntimeProvider } from "@/components/auth-runtime";
+import { getSessionUser } from "@/lib/session";
 import "./globals.css";
 
 const inter = localFont({
@@ -29,6 +30,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const fixtureMode = e2eEnabled((await headers()).get("host"));
   const authEnabled = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && !fixtureMode;
+  const fixtureAccount = fixtureMode ? (await getSessionUser())?.name ?? null : null;
   return (
     <html
       lang="en"
@@ -37,7 +39,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col font-sans">
         <a href="#main-content" className="sr-only fixed left-4 top-4 z-[60] rounded-xl bg-card px-4 py-3 text-sm font-medium shadow-lg focus:not-sr-only focus:ring-2 focus:ring-ring">Skip to content</a>
-        <AuthRuntimeProvider enabled={authEnabled}>
+        <AuthRuntimeProvider enabled={authEnabled} fixtureAccount={fixtureAccount}>
         {authEnabled ? (
           <ClerkProvider
             signInUrl="/login"
