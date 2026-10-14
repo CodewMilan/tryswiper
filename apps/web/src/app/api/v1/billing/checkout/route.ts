@@ -13,8 +13,8 @@ export async function POST(request: Request) {
   try {
     const authContext = await requireAccountManagement(request);
     const existing = await getBilling(authContext.workspaceId);
-    if (existing?.dodoSubscriptionId && ["active", "past_due", "paused", "on_hold"].includes(existing.status)) {
-      return apiError("SUBSCRIPTION_EXISTS", "This workspace already has a subscription. Manage it through billing support instead of starting another checkout.", 409);
+    if (existing?.dodoSubscriptionId && !["cancelled", "canceled", "expired", "failed"].includes(existing.status) || existing?.status === "verification_required" && existing.dodoCustomerId) {
+      return apiError("SUBSCRIPTION_EXISTS", "This workspace has a subscription or its current status could not be confirmed. Use Manage subscription or email milan@cassettelabs.in before starting another checkout.", 409);
     }
     const [person] = await db
       .select({ email: schema.user.email, name: schema.user.name })

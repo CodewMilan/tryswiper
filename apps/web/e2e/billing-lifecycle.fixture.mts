@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { db } from "../src/lib/db";
-import { getBilling } from "../src/server/billing";
+import { db, schema } from "../src/lib/db";
+import { applySubscriptionEvent, getBilling } from "../src/server/billing";
+import { eq, sql } from "drizzle-orm";
+import { subscriptionSchema } from "../src/lib/subscription";
 import { workspacePlan } from "../src/server/usage";
 import { POST } from "../src/app/api/v1/billing/webhook/route";
 
@@ -76,4 +78,27 @@ try {
   assert.equal((await event("subscription.cancelled", 14)).reason, "superseded_subscription");
   assert.equal((await getBilling(workspaceId))!.dodoSubscriptionId, replacement.subscription_id);
   assert.equal(await workspacePlan(workspaceId), "pro");
+  subscription = replacement;
+  await db.execute(sql`update billing set last_verified_at=null, updated_at=now() + interval '0.000123 seconds' where workspace_id=${workspaceId}`);
+  const beforeRevision = (await db.select().from(schema.billing).where(eq(schema.billing.workspaceId, workspaceId)))[0]!.revision;
+  const refreshed = await getBilling(workspaceId);
+  assert.equal(refreshed!.revision, beforeRevision + 1);
+  assert.ok(refreshed!.lastVerifiedAt);
+  const olderVerification = await applySubscriptionEvent({ eventId: crypto.randomUUID(), type: "subscription.paused", occurredAt: new Date(epoch + 15_000), workspaceId,
+    subscription: subscriptionSchema.parse({ ...replacement, status: "paused" }), verificationStartedAt: new Date(Date.now() - 3600000) });
+  assert.equal(olderVerification.reason, "newer_verification");
+  assert.equal(await workspacePlan(workspaceId), "pro");
+
+  await db.update(schema.billing).set({ lastVerifiedAt: new Date(Date.now() - 600000) }).where(eq(schema.billing.workspaceId, workspaceId));
+  let release!: () => void; let entered!: () => void;
+  const started = new Promise<void>((resolve) => { entered = resolve; });
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  globalThis.fetch = async () => { entered(); await pending; return Response.json(replacement); };
+  const slowRefresh = getBilling(workspaceId);
+  await started;
+  subscription = { ...replacement, status: "paused" };
+  globalThis.fetch = async () => Response.json(subscription);
+  try { await event("subscription.paused", 16); } finally { release(); }
+  assert.equal((await slowRefresh)!.status, "paused");
+  assert.equal(await workspacePlan(workspaceId), "free");
 } finally { globalThis.fetch = originalFetch; await db.$client.end(); }

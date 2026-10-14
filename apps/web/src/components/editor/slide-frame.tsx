@@ -82,7 +82,7 @@ export function ElementContent({ element }: { element: CarouselElement }) {
       <span
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-1/2 h-0.5"
-        style={{ background: "currentColor" }}
+        style={{ background: "currentColor", height: `${(2 / element.height) * 100}%` }}
       />
     );
   }
@@ -95,7 +95,7 @@ export function ElementContent({ element }: { element: CarouselElement }) {
       />
     );
   }
-  return <span className="pointer-events-none">{element.text}</span>;
+  return <span className="pointer-events-none">{element.text?.replace(/\t/g, "    ")}</span>;
 }
 
 export function SlidePreview({

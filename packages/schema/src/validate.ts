@@ -64,6 +64,7 @@ export function validateCarousel(
   const headlines = new Set<string>();
 
   for (const [slideIndex, slide] of carousel.slides.entries()) {
+    if (["image-left", "image-right"].includes(slide.layout) && !slide.elements.some((element) => element.type === "image")) warnings.push({ code: "IMAGE_SLOT_EMPTY", severity: "warning", slideIndex, message: `Slide ${slideIndex + 1} reserves space for an image. Add an uploaded image or choose a text layout.`, suggestedAction: "add_image_or_change_layout" });
     if (slide.elements.length === 0) {
       errors.push({
         code: "EMPTY_SLIDE",

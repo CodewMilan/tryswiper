@@ -1,14 +1,17 @@
 import { verifyWebhook } from "@clerk/nextjs/webhooks";
-import type { NextRequest } from "next/server";
-import { apiError, fromUnknownError, json } from "@/lib/http";
+import { NextRequest } from "next/server";
+import { apiError, fromUnknownError, json, readBody } from "@/lib/http";
 import { disableClerkIdentity, refreshClerkIdentity } from "@/server/identity";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   if (!process.env.CLERK_WEBHOOK_SIGNING_SECRET) return apiError("WEBHOOK_NOT_CONFIGURED", "Account synchronization is not configured.", 503);
+  let bounded: NextRequest;
+  try { bounded = new NextRequest(request.url, { method: request.method, headers: request.headers, body: Buffer.from(await readBody(request)) }); }
+  catch (error) { return fromUnknownError(error); }
   let event;
-  try { event = await verifyWebhook(request); }
+  try { event = await verifyWebhook(bounded); }
   catch { return apiError("INVALID_SIGNATURE", "Webhook signature did not match.", 401); }
   try {
     if (event.type === "user.deleted" && event.data.id) await disableClerkIdentity(event.data.id);

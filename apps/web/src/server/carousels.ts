@@ -10,6 +10,7 @@ import {
   applyOperations,
   applySlideRevision,
   carouselFontFamily,
+  canGenerateTemplate,
   DEFAULT_THEME,
   FORMATS,
   getFormat,
@@ -175,6 +176,7 @@ export async function generateCarousel(input: {
   let formatId = input.formatId;
   const workspaceFormat = formatId && !getFormat(formatId) ? await getWorkspaceFormat(input.auth, formatId) : null;
   if (formatId && !getFormat(formatId) && !workspaceFormat) throw Object.assign(new Error("Choose an available official or saved workspace format."), { status: 400, code: "UNKNOWN_FORMAT" });
+  if (workspaceFormat && !canGenerateTemplate(workspaceFormat.contentJson)) throw Object.assign(new Error("This saved format needs editable copy slots, with each headline/kicker/body/proof/CTA role used at most once per slide. Start it by hand to adjust the slots before generating."), { status: 400, code: "FORMAT_MANUAL_ONLY" });
   if (workspaceFormat && input.slideCount !== undefined && input.slideCount !== workspaceFormat.contentJson.slides.length) throw Object.assign(new Error("A saved format keeps its original slide count."), { status: 400, code: "INVALID_SLIDE_COUNT" });
   if (!workspaceFormat && input.slideCount !== undefined) {
     const format = formatId ? getFormat(formatId) : FORMATS.find((candidate) => input.slideCount! >= candidate.slideCount.min && input.slideCount! <= candidate.slideCount.max);
@@ -219,7 +221,7 @@ export async function generateCarousel(input: {
   result.carousel.metadata = {
     ...result.carousel.metadata,
     generationSource: source,
-    ...(thinBrand ? { thinBrand: true } : {}),
+    thinBrand,
   };
   const warnings: GenerationWarning[] = [
     ...(source === "local" ? [localGenerationWarning()] : []),
@@ -275,6 +277,8 @@ export async function startCarouselFromFormat(input: {
       formatId: workspaceFormat.id,
       title,
     });
+    delete content.metadata.generationSource;
+    delete content.metadata.thinBrand;
     const result = await persistNewCarousel(input.auth, content, plan, "manual", false, input.request, (id) => ({
       carousel_id: id, editor_url: editorUrl(id), status: "draft", format_id: workspaceFormat.id,
       validation: validateOutput(content, { forbiddenWords: brandRow.wordsToAvoid, allowedProof: brandRow.proofPoints }), carousel: content,

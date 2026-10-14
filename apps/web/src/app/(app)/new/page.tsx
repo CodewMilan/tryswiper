@@ -31,6 +31,7 @@ type FormatOption = {
   slideCount: { min: number; max: number };
   roles: string[];
   source: "official" | "workspace";
+  can_generate?: boolean;
   preview?: { slide: Slide; theme: Theme };
 };
 
@@ -103,7 +104,7 @@ export default function NewCarouselPage() {
       const body = (await response.json()) as { formats?: FormatOption[]; message?: string };
       if (!response.ok || !body.formats) throw new Error(body.message ?? "Could not load formats.");
       const available = body.formats;
-      const storyFormats = available.filter((format) => format.id !== "freeform");
+      const storyFormats = available.filter((format) => format.id !== "freeform" && format.can_generate !== false);
       setFormats(available);
       setGenerateFormatId((current) => storyFormats.some((format) => format.id === current)
         ? current
@@ -176,7 +177,7 @@ export default function NewCarouselPage() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected || pending || allowanceBlocked) return;
-    if (mode === "generate" && (brief.trim().length < 12 || selected.id === "freeform")) return;
+    if (mode === "generate" && (brief.trim().length < 12 || selected.id === "freeform" || selected.can_generate === false)) return;
     setPending(true);
     setError(null);
     setUsageLimited(false);
@@ -347,7 +348,7 @@ export default function NewCarouselPage() {
               className="mt-2 h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {officialFormats.map((format) => <option key={format.id} value={format.id}>{format.name}</option>)}
-              {workspaceFormats.length ? <optgroup label="Your workspace formats">{workspaceFormats.map((format) => <option key={format.id} value={format.id}>{format.name}</option>)}</optgroup> : null}
+              {workspaceFormats.some((format) => format.can_generate !== false) ? <optgroup label="Your workspace formats">{workspaceFormats.filter((format) => format.can_generate !== false).map((format) => <option key={format.id} value={format.id}>{format.name}</option>)}</optgroup> : null}
             </select>
             <p id="story-shape-hint" className="mt-2 text-sm leading-6 text-ink-soft">{selected?.description ?? "Choose a narrative shape for your brief."}</p>
             {selected?.source === "workspace" ? <p className="mt-2 text-sm leading-6 text-ink-soft">Uses your saved design and images. Writes new headline, kicker, body, proof and CTA copy; fixed labels and captions stay as saved. Review every slide.</p> : null}

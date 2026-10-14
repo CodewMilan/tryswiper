@@ -4,29 +4,22 @@ export function wrapLines(
   measure: (value: string) => number,
 ): string[] {
   const lines: string[] = [];
-  const paragraphs = text.replace(/\r\n/g, "\n").split("\n");
-
+  const paragraphs = text.replace(/\r\n?/g, "\n").replace(/\t/g, "    ").split("\n");
   for (const paragraph of paragraphs) {
-    const words = paragraph.split(/\s+/).filter(Boolean);
-    if (words.length === 0) {
-      lines.push("");
-      continue;
-    }
-
+    const tokens = paragraph.match(/[^ ]+| +/g) ?? [];
+    if (!tokens.length) { lines.push(""); continue; }
     let current = "";
-    for (const word of words) {
-      const pieces = breakWord(word, maxWidth, measure);
-      for (const piece of pieces) {
-        const candidate = current ? `${current} ${piece}` : piece;
-        if (current && measure(candidate) > maxWidth) {
-          lines.push(current);
-          current = piece;
-        } else {
-          current = candidate;
-        }
+    for (const token of tokens) {
+      if (/^ +$/.test(token)) { current += token; continue; }
+      if (measure(current + token) <= maxWidth) { current += token; continue; }
+      if (current) { lines.push(current.trimEnd()); current = ""; }
+      const pieces = breakWord(token, maxWidth, measure);
+      for (const [index, piece] of pieces.entries()) {
+        if (index < pieces.length - 1) lines.push(piece);
+        else current = piece;
       }
     }
-    if (current) lines.push(current);
+    lines.push(current.trimEnd());
   }
 
   return lines;

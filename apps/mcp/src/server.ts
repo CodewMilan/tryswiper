@@ -151,7 +151,7 @@ export function createSwiperServer(credentials?: SwiperCredentials) {
         brief: z.string().trim().min(12).max(10000).describe("What the carousel should argue or explain"),
         title: z.string().max(120).optional(),
         format_id: z.string().min(1).max(120).optional(),
-        slide_count: z.number().int().min(3).max(12).optional().describe("Must be within the selected format's advertised slide range."),
+        slide_count: z.number().int().min(1).max(12).optional().describe("Must be within the selected format's advertised slide range; saved formats keep their original count."),
         request_id: z.string().min(1).max(120).optional().describe("Reuse this ID when retrying the same creation request; use a new ID for a different brief."),
       }),
     },

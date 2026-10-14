@@ -9,7 +9,7 @@ const creationFields = {
 };
 export const creationSchema = z.object(creationFields).refine((body) => !body.brief || body.brief.length >= 12, { message: "Describe the carousel in at least 12 characters.", path: ["brief"] });
 export const generationSchema = z.object({ ...creationFields,
-  brief: z.string().trim().min(12).max(10000), slide_count: z.number().int().min(3).max(12).optional(),
+  brief: z.string().trim().min(12).max(10000), slide_count: z.number().int().min(1).max(12).optional(),
 });
 export const slideRevisionSchema = z.object({ instruction: z.string().trim().min(1).max(2000) });
 

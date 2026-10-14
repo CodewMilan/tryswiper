@@ -1,6 +1,6 @@
 import { dodoConfig, retrieveDodoSubscription } from "@/lib/dodo";
 import { verifyDodoWebhook, webhookEventType, webhookIds } from "@/lib/dodo-webhook";
-import { apiError, fromUnknownError, json } from "@/lib/http";
+import { apiError, fromUnknownError, json, readBody } from "@/lib/http";
 import { applySubscriptionEvent } from "@/server/billing";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
@@ -16,7 +16,8 @@ export async function POST(request: Request) {
     return apiError("PAYMENTS_NOT_CONFIGURED", "DODO_PAYMENTS_WEBHOOK_SECRET is not set.", 503);
   }
 
-  const rawBody = await request.text();
+  let rawBody: string;
+  try { rawBody = new TextDecoder().decode(await readBody(request)); } catch (error) { return fromUnknownError(error); }
   if (!verifyDodoWebhook(rawBody, request.headers, config.webhookSecret)) {
     return apiError("INVALID_SIGNATURE", "Webhook signature did not match.", 401);
   }

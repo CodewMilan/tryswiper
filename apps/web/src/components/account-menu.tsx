@@ -57,7 +57,7 @@ function AccountMenuView({ links = [], className, tone = "dark", name, imageUrl,
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
   }}>
     <button ref={triggerRef} type="button" aria-label={name} aria-haspopup="menu" aria-expanded={open} aria-controls={menuId}
-      className={`ml-0.5 inline-flex size-9 items-center justify-center overflow-hidden rounded-full ring-1 focus-visible:outline-none focus-visible:ring-2 ${tone === "light" ? "bg-black text-white ring-black/20 focus-visible:ring-ring" : "bg-white/15 text-white ring-white/40 focus-visible:ring-white/80"}`}
+      className={`ml-0.5 inline-flex size-11 items-center justify-center overflow-hidden rounded-full ring-1 focus-visible:outline-none focus-visible:ring-2 ${tone === "light" ? "bg-black text-white ring-black/20 focus-visible:ring-ring" : "bg-white/15 text-white ring-white/40 focus-visible:ring-white/80"}`}
       onClick={() => { startAtEnd.current = false; setOpen((value) => !value); }} onKeyDown={(event) => {
         if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); startAtEnd.current = event.key === "ArrowUp"; setOpen(true); }
       }}>

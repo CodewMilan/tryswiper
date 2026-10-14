@@ -38,7 +38,7 @@ const opaqueColorSchema = z.string().regex(/^#(?:[\da-f]{3}|[\da-f]{6})$/i, "Use
 export const backgroundSchema = z.object({
   type: z.literal("solid"),
   value: opaqueColorSchema,
-});
+}).strict();
 
 export const textStyleSchema = z.object({
   fontSize: z.number().positive().max(240),
@@ -47,7 +47,7 @@ export const textStyleSchema = z.object({
   color: colorSchema.optional(),
   lineHeight: z.number().positive().max(5).optional(),
   letterSpacing: z.number().min(-20).max(100).optional(),
-});
+}).strict();
 
 export const elementSchema = z.object({
   id: z.string().min(1),
@@ -61,7 +61,7 @@ export const elementSchema = z.object({
   width: z.number().positive().max(1080),
   height: z.number().positive().max(1350),
   style: textStyleSchema.optional(),
-}).superRefine((element, ctx) => {
+}).strict().superRefine((element, ctx) => {
   if (element.type === "image" || element.type === "logo") {
     if (!element.assetId || !/^[a-zA-Z0-9_-]+$/.test(element.assetId)) ctx.addIssue({ code: "custom", path: ["assetId"], message: "Images and logos require an uploaded asset ID." });
     if (element.src !== undefined && element.src !== `/api/v1/assets/${element.assetId}`) ctx.addIssue({ code: "custom", path: ["src"], message: "Image source must match its uploaded asset URL." });

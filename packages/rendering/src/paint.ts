@@ -146,12 +146,15 @@ function renderSlideCanvas(slide: Slide, theme: Theme, assets?: DecodedAssets) {
       continue;
     }
     if (element.type === "shape" || element.type === "line") {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(element.x, element.y, element.width, element.height); ctx.clip();
       ctx.fillStyle = paintColor(element.style?.color, theme.accent);
       if (element.type === "line") {
         ctx.fillRect(element.x, element.y + element.height / 2, element.width, 2);
       } else {
         ctx.fillRect(element.x, element.y, element.width, element.height);
       }
+      ctx.restore();
     }
   }
 

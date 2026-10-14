@@ -2,6 +2,15 @@
 .github
 node_modules
 **/.next
+**/.next-*
+**/test-results
+**/playwright-report
+.agents
+.codex
+.aws
+.ssh
+.pnpm-store
+problems.md
 .turbo
 coverage
 *.tsbuildinfo

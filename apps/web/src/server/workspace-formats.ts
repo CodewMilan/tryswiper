@@ -2,6 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { schema } from "@swiper/db";
 import {
   carouselSchema,
+  canGenerateTemplate,
   listFormats,
   type Carousel,
   type CarouselPlan,
@@ -24,6 +25,7 @@ function formatSummary(row: typeof schema.workspaceFormat.$inferSelect) {
     slideCount: { min: parsed.data.slides.length, max: parsed.data.slides.length },
     roles: parsed.data.slides.map((slide) => slide.role),
     source: "workspace" as const,
+    can_generate: canGenerateTemplate(parsed.data),
     preview: { slide: parsed.data.slides[0], theme: parsed.data.theme },
   };
 }

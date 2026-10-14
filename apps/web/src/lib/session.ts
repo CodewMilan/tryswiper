@@ -1,5 +1,5 @@
 import { cookies, headers } from "next/headers";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { schema } from "@swiper/db";
 import { clerkConfigured, E2E_COOKIE, e2eEnabled, isE2eUserId } from "./auth-env";
@@ -8,14 +8,14 @@ import { ensureWorkspace } from "./workspace";
 import { linkClerkProfile, syncClerkProfile } from "@/server/identity";
 
 async function localUserForClerk(clerkUserId: string) {
-  const [cached] = await db.select({ id: schema.user.id, name: schema.user.name, checkedAt: schema.user.identityCheckedAt, disabledAt: schema.user.disabledAt })
+  const [cached] = await db.select({ id: schema.user.id, name: schema.user.name, checkedAt: schema.user.identityCheckedAt, disabledAt: schema.user.disabledAt, verificationStartedAt: sql<Date>`clock_timestamp()`.mapWith((value) => value instanceof Date ? value : new Date(value)) })
     .from(schema.account).innerJoin(schema.user, eq(schema.user.id, schema.account.userId))
     .where(and(eq(schema.account.providerId, "clerk"), eq(schema.account.accountId, clerkUserId))).limit(1);
   if (cached && !cached.disabledAt && cached.checkedAt && Date.now() - cached.checkedAt.getTime() < 2 * 60_000) return { localId: cached.id, name: cached.name };
   const clerkUser = await currentUser();
   if (!clerkUser || clerkUser.id !== clerkUserId) return null;
   const localId = await linkClerkProfile(clerkUser);
-  if (!localId || !(await syncClerkProfile(localId, clerkUser))) return null;
+  if (!localId || !(await syncClerkProfile(localId, clerkUser, cached?.verificationStartedAt))) return null;
   return { localId, name: clerkUser.fullName || clerkUser.primaryEmailAddress?.emailAddress.split("@")[0] || "Swiper" };
 }
 

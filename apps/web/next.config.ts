@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@swiper/schema", "@swiper/db", "@swiper/ai", "@swiper/rendering", "@swiper/mcp"],
   serverExternalPackages: ["@napi-rs/canvas"],
   outputFileTracingIncludes: {
-    "/api/v1/carousels/[id]/export": ["../../packages/rendering/fonts/**/*"],
+    "/api/v1/carousels{,/**}": ["../../packages/rendering/fonts/**/*"],
   },
 };
 

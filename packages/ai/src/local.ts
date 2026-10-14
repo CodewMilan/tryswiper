@@ -104,6 +104,9 @@ export function planLocally(input: {
     product,
     slides: (input.template?.slides ?? formatSlides(format, input.slideCount)).map((def, index) => {
       const copy = copyForRole(def.role, product, input.brief, index);
+      if (input.template) for (const field of ["kicker", "body", "proof", "cta"] as const) {
+        if (input.template.slides[index]?.[field] !== undefined && copy[field] === undefined) copy[field] = field === "cta" ? product.cta ?? "Learn more" : `Draft: add ${field} for ${firstSentence(cleaned, product.name)}.`;
+      }
       return {
         role: def.role,
         layout: def.layout as LayoutType,

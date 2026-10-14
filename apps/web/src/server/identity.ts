@@ -27,14 +27,17 @@ export async function linkClerkProfile(profile: IdentityProfile) {
   });
 }
 
-export async function syncClerkProfile(localId: string, user: IdentityProfile) {
+export async function syncClerkProfile(localId: string, user: IdentityProfile, verificationStartedAt = new Date()) {
   return db.transaction(async (tx) => {
+    const [current] = await tx.select({ disabledAt: schema.user.disabledAt, checkedAt: schema.user.identityCheckedAt }).from(schema.user).where(eq(schema.user.id, localId)).for("update");
+    if (!current) return false;
+    if (current.checkedAt && (current.checkedAt > verificationStartedAt || current.disabledAt && current.checkedAt >= verificationStartedAt)) return !current.disabledAt;
     const disabled = user.banned || user.locked;
     const email = user.primaryEmailAddress;
     await tx.update(schema.user).set({
       ...(email ? { email: email.emailAddress.toLowerCase(), emailVerified: email.verification?.status === "verified" } : {}),
       name: user.fullName || email?.emailAddress.split("@")[0] || "Swiper", image: user.imageUrl || null,
-      disabledAt: disabled ? new Date() : null, identityCheckedAt: new Date(), updatedAt: new Date(),
+      disabledAt: disabled ? new Date() : null, identityCheckedAt: verificationStartedAt, updatedAt: new Date(),
     }).where(eq(schema.user.id, localId));
     if (disabled) await tx.update(schema.mcpKey).set({ revokedAt: new Date() }).where(and(eq(schema.mcpKey.userId, localId), isNull(schema.mcpKey.revokedAt)));
     return !disabled;
@@ -46,19 +49,19 @@ export async function disableClerkIdentity(clerkId: string) {
     .where(and(eq(schema.account.providerId, "clerk"), eq(schema.account.accountId, clerkId))).limit(1);
   if (!account) return;
   await db.transaction(async (tx) => {
-    await tx.update(schema.user).set({ disabledAt: new Date(), identityCheckedAt: new Date(), updatedAt: new Date() }).where(eq(schema.user.id, account.userId));
+    await tx.update(schema.user).set({ disabledAt: new Date(), identityCheckedAt: sql`clock_timestamp()`, updatedAt: new Date() }).where(eq(schema.user.id, account.userId));
     await tx.update(schema.mcpKey).set({ revokedAt: new Date() }).where(and(eq(schema.mcpKey.userId, account.userId), isNull(schema.mcpKey.revokedAt)));
   });
 }
 
 export async function refreshClerkIdentity(clerkId: string) {
-  const [account] = await db.select({ userId: schema.account.userId }).from(schema.account)
+  const [account] = await db.select({ userId: schema.account.userId, verificationStartedAt: sql<Date>`clock_timestamp()`.mapWith((value) => value instanceof Date ? value : new Date(value)) }).from(schema.account)
     .where(and(eq(schema.account.providerId, "clerk"), eq(schema.account.accountId, clerkId))).limit(1);
   if (!account) return;
   try {
     const provider = await clerkClient();
     const profile = await provider.users.getUser(clerkId);
-    return await syncClerkProfile(account.userId, profile);
+    return await syncClerkProfile(account.userId, profile, account.verificationStartedAt);
   } catch (error) {
     if (error && typeof error === "object" && "status" in error && error.status === 404) {
       await disableClerkIdentity(clerkId);

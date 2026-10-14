@@ -40,6 +40,12 @@ test("wrapLines breaks text that does not fit", () => {
   assert.deepEqual(lines, ["one two", "three", "four"]);
 });
 
+test("wrapping preserves internal spaces, tabs, blank lines and unbroken-word characters", () => {
+  assert.deepEqual(wrapLines("one  two\n\nthree\tfour", 100, (value) => value.length), ["one  two", "", "three    four"]);
+  const word = "supercalifragilisticexpialidocious";
+  assert.equal(wrapLines(word, 7, (value) => value.length).join(""), word);
+});
+
 test("png export is a zip of 1080×1350 slides", async () => {
   const carousel = renderPlanToCarousel(plan, DEFAULT_THEME);
   const file = await renderExport(carousel, "png");

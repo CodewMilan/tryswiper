@@ -69,7 +69,7 @@ export async function generatePlan(input: {
       system: SYSTEM,
       prompt: [
         compactBrand(input.brand),
-        input.template ? `Saved workspace format: ${input.template.formatId}. Return exactly these roles and layouts in order: ${JSON.stringify(input.template.slides.map(({ role, layout }) => ({ role, layout })))}. Write NEW copy from the brief. Do not reuse the template's prior factual claims.` : "",
+        input.template ? `Saved workspace format: ${input.template.formatId}. Return exactly these roles and layouts in order, including all listed copy fields: ${JSON.stringify(input.template.slides.map((slide) => ({ role: slide.role, layout: slide.layout, copy_fields: ["headline", "kicker", "body", "proof", "cta"].filter((field) => slide[field as keyof typeof slide] !== undefined) })))}. Write NEW copy from the brief. Do not reuse the template's prior factual claims.` : "",
         input.formatId ? `Format id: ${input.formatId}` : "Pick the best official format.",
         input.slideCount ? `Return exactly ${input.slideCount} slides.` : "",
         input.formatId && getFormat(input.formatId) ? `Use these narrative roles in order: ${formatSlides(getFormat(input.formatId)!, input.slideCount).map((slide) => slide.role).join(", ")}` : "",
@@ -81,7 +81,7 @@ export async function generatePlan(input: {
         .join("\n\n"),
     });
     if (input.template) {
-      if (object.formatId !== input.template.formatId || object.slides.length !== input.template.slides.length || object.slides.some((slide, index) => slide.role !== input.template!.slides[index]!.role || slide.layout !== input.template!.slides[index]!.layout)) return invalidOutput(usage);
+      if (object.formatId !== input.template.formatId || object.slides.length !== input.template.slides.length || object.slides.some((slide, index) => slide.role !== input.template!.slides[index]!.role || slide.layout !== input.template!.slides[index]!.layout || (["kicker", "body", "proof", "cta"] as const).some((field) => input.template!.slides[index]![field] !== undefined && slide[field] === undefined))) return invalidOutput(usage);
     } else {
       const format = getFormat(object.formatId);
       if (!format || input.formatId && object.formatId !== input.formatId || input.slideCount && object.slides.length !== input.slideCount || object.slides.length < format.slideCount.min || object.slides.length > format.slideCount.max || object.slides.some((slide, index) => slide.role !== formatSlides(format, object.slides.length)[index]?.role)) return invalidOutput(usage);
