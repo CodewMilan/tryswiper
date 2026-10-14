@@ -18,4 +18,4 @@ _Deferred at: 2026-10-01T05:52:00Z_
 
 The interface mark is seven black vertical bars on a clear ground. Preserve the alternating vertical offsets, equal bar widths, and spacing. The supplied file is `assets/brand/swiper-logo-black.png`. The vector at `apps/web/public/logos/swiper.svg` follows its measured geometry and is what the nav, footer, editor, and 404 render. Keep that mark large enough to read (about 56px tall).
 
-The browser icon and Apple home-screen icon use the same black bars on the stone canvas (`#f5f5f4`) so the mark stays visible at a small size. The earlier white-on-black square remains in `assets/brand/swiper-logo-source.png` and is not the interface mark. Keep the existing interface palette and typography; their setup remains deferred.
+The browser favicons (`icon.svg` and `favicon.ico`) use white bars on a transparent background. The Apple home-screen icon uses black bars on the stone canvas (`#f5f5f4`). The earlier white-on-black square remains in `assets/brand/swiper-logo-source.png` and is not the interface mark. Keep the existing interface palette and typography; their setup remains deferred.
