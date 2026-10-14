@@ -21,7 +21,7 @@ export function dodoConfig(env: NodeJS.ProcessEnv = process.env): DodoConfig {
     webhookSecret,
     environment,
     base: environment === "live_mode" ? "https://live.dodopayments.com" : "https://test.dodopayments.com",
-    ready: Boolean(apiKey && productId),
+    ready: Boolean(apiKey && productId && webhookSecret),
   };
 }
 
@@ -44,6 +44,7 @@ export async function createDodoCheckout(input: {
     console.error("billing_checkout_not_configured", {
       hasApiKey: Boolean(config.apiKey),
       hasProductId: Boolean(config.productId),
+      hasWebhookSecret: Boolean(config.webhookSecret),
       environment: config.environment,
     });
     throw Object.assign(

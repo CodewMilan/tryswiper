@@ -1045,3 +1045,8 @@ test("generation honors supported slide counts and rejects unknown or incompatib
   expect((await incompatible.json()).code).toBe("INVALID_SLIDE_COUNT");
   expect((await (await request.get("/api/v1/billing")).json()).usage.carousel).toBe(2);
 });
+
+test("production migrations preserve duplicate identity data, reject conflicting mappings and can run twice", async () => {
+  test.skip(!["localhost", "127.0.0.1"].includes(new URL(testDatabaseUrl).hostname), "Migration fixtures require a local test database.");
+  await promisify(execFile)(process.execPath, ["--import", require.resolve("tsx", { paths: [resolve(__dirname, "../../mcp")] }), resolve(__dirname, "migrations.fixture.mts"), testDatabaseUrl], { env: process.env });
+});

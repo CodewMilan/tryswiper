@@ -24,6 +24,7 @@ See `.env.example`.
 
 - `DATABASE_URL` — include `sslmode=require` for managed Postgres. Use the pooled URL when the host has one. The driver disables prepared statements so transaction poolers work.
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` — from the Clerk dashboard. The publishable key is read when the image is built (`docker build --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...`). Enable Google and GitHub under SSO connections.
+- `CLERK_WEBHOOK_SIGNING_SECRET` — configure `/api/webhooks/clerk` for `user.created`, `user.updated`, and `user.deleted`. Signed events sync linked profiles and revoke content keys on account removal/disable. Session/key access also checks current identity state at least every two minutes, so webhook delivery is not the only revocation path. Disabling access retains local content and billing records; data-deletion/retention policy remains an operator decision.
 - `APP_URL` — public origin, no trailing slash. Production must be `https://`. Read at runtime.
 - `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` — optional. Without them, generation uses the local planner.
 - `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_PRODUCT_ID`, and `DODO_PAYMENTS_WEBHOOK_SECRET` — optional until you charge. Checkout uses the test API unless `DODO_PAYMENTS_ENVIRONMENT=live_mode`. Point the Dodo webhook at `https://<origin>/api/v1/billing/webhook`.
@@ -34,6 +35,8 @@ See `.env.example`.
 The server refuses to start in production when the secret or the public origin is missing.
 
 ## Release
+
+Checkout requires all three Dodo values. Subscription events are verified, deduplicated, and reconciled against `GET /subscriptions/{id}`; ordinary payment successes do not grant a plan. Paid access follows the product, provider state, and period end. Grace-period access is periodically reverified. Keep the subscription product's renewal configuration and the operator's trial/cancellation policies aligned with Dodo. Live lifecycle certification is still required before charging.
 
 ```bash
 docker build -t swiper .
@@ -56,6 +59,8 @@ Apply migrations before serving the new application. Existing local databases cr
 push should use `pnpm db:push` as described below.
 
 ## Schema changes
+
+The 14 October repairs add migrations `0005` through `0008`. Apply them before serving the new code. `0007` preserves redundant same-user provider mappings in `account_identity_archive`, then adds uniqueness; it refuses to merge identities that point to different users. Review/reconcile any such conflict before retrying deployment. Archived mappings remain internal and are removed if the local user is deleted. CI and the browser regression suite exercise migration replay, preservation, and conflict rollback on isolated databases.
 
 1. Edit `packages/db/src/schema.ts`.
 2. `pnpm --filter @swiper/db exec drizzle-kit generate --name <change>`

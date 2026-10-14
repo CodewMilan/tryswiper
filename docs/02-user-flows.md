@@ -1,6 +1,6 @@
 # How to use Swiper
 
-Updated 9 October 2026, after the UX and UI refinement. This documents the implemented product. Customers can read the same journey at `/guide`.
+Updated 14 October 2026, after the first audit repair passes. This documents the implemented product. Customers can read the main journey at `/guide`.
 
 Swiper helps people who use AI agents make editable social carousels. The agent creates a draft; the user reviews, edits, and downloads it in Swiper. Browser generation and manual creation are also available. A successful first session ends with a reviewed carousel downloaded as images or a PDF.
 
@@ -114,7 +114,9 @@ Both methods use one carousel slot. Generation also uses one AI generation. Star
 5. Use **Undo** or Cmd/Ctrl+Z outside text fields to reverse a saved edit. Redo is not implemented.
 6. Wait for **All changes saved**. Autosave persists pending edits locally and retries transient failures.
 
-If saving fails, keep the tab open and choose **Retry save**. For a version conflict, **Download local draft** saves recovery JSON; **Load latest version** discards pending local edits and loads server content. Recovery JSON is a backup, not a social export; there is currently no UI import flow for it.
+If saving fails, keep the tab open and choose **Retry save**. For a version conflict, **Download local draft** saves the complete local document, its original server base, and pending edits as recovery JSON. **Load latest version** discards pending local edits and loads server content. Restore your saved file through **More carousel options → Restore local backup**, review the replacement warning, and choose **Restore backup**. The current saved version remains available through Undo. Recovery JSON is a backup, not a social export; images still depend on the original workspace's uploaded assets.
+
+Agent slide revisions use the latest editable copy and preserve existing design, images, logos, IDs, and other slides. If the carousel changes while a model revision is running, the agent receives a conflict and must read the latest version before trying again. Agents can pass a `request_id` when creating or revising to retry without duplicating the work.
 
 ## 7. Export and share
 

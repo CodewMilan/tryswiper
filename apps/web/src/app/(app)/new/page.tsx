@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { MonthlyAllowance } from "@/components/monthly-allowance";
@@ -90,6 +90,7 @@ export default function NewCarouselPage() {
   const [draftKey, setDraftKey] = useState<string | null>(null);
   const [restored, setRestored] = useState(false);
   const [thinBrand, setThinBrand] = useState(false);
+  const pendingRequest = useRef<{ key: string; payload: string } | null>(null);
   const usage = workspaceUsage.data;
   const carouselFull = !!usage && (usage.usage.carousel ?? 0) >= usage.limits.carousel;
   const generationFull = !!usage && (usage.usage.generation ?? 0) >= usage.limits.generation;
@@ -173,7 +174,7 @@ export default function NewCarouselPage() {
       const payload = JSON.stringify({ format_id: selected.id, title: title.trim() || undefined,
         brief: mode === "generate" ? brief.trim() : undefined,
         reference_url: mode === "generate" && referenceUrl.trim() ? referenceUrl.trim() : undefined });
-      let requestId = crypto.randomUUID();
+      let requestId = pendingRequest.current?.payload === payload ? pendingRequest.current.key : crypto.randomUUID();
       if (draftKey) {
         try {
           const previous = JSON.parse(sessionStorage.getItem(`${draftKey}:request`) ?? "null");
@@ -181,6 +182,7 @@ export default function NewCarouselPage() {
           sessionStorage.setItem(`${draftKey}:request`, JSON.stringify({ key: requestId, payload }));
         } catch { /* Request recovery is optional when browser storage is unavailable. */ }
       }
+      pendingRequest.current = { key: requestId, payload };
       const response = await fetch("/api/v1/carousels", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": requestId },
@@ -196,9 +198,14 @@ export default function NewCarouselPage() {
         void workspaceUsage.refresh();
         throw new Error(usageLimitMessage(body));
       }
+      if (body.code === "CREATED_DRAFT_DELETED" || body.code === "REQUEST_ID_REUSED") {
+        pendingRequest.current = null;
+        if (draftKey) { try { sessionStorage.removeItem(`${draftKey}:request`); } catch { /* Retry with a fresh request ID. */ } }
+      }
       if (!response.ok || !body.carousel_id) throw new Error(body.message ?? "Could not start the carousel.");
       if (draftKey) { try { sessionStorage.removeItem(draftKey); sessionStorage.removeItem(`${draftKey}:request`); } catch { /* The server draft is now the source of truth. */ } }
       setDraftKey(null);
+      pendingRequest.current = null;
       const params = new URLSearchParams();
       if (body.warnings?.some((warning) => warning.code === "REFERENCE_UNAVAILABLE")) params.set("reference", "unavailable");
       if (body.source === "local") params.set("generation", "local");
