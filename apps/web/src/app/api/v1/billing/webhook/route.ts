@@ -40,10 +40,11 @@ export async function POST(request: Request) {
       .where(eq(schema.billingWebhook.id, request.headers.get("webhook-id")!)).limit(1);
     if (processed) return json({ received: true, applied: false, reason: "duplicate" });
     // Re-read authoritative state instead of granting access from a stale payload.
+    const verificationStartedAt = new Date();
     const subscription = await retrieveDodoSubscription(ids.subscriptionId);
     const workspaceId = subscription.metadata.workspace_id ?? subscription.metadata.workspaceId;
     if (!workspaceId?.startsWith("ws_")) return json({ received: true, ignored: true });
-    const result = await applySubscriptionEvent({ eventId: request.headers.get("webhook-id")!, type, occurredAt, workspaceId, subscription });
+    const result = await applySubscriptionEvent({ eventId: request.headers.get("webhook-id")!, type, occurredAt, workspaceId, subscription, verificationStartedAt });
     return json({ received: true, ...result });
   } catch (error) { return fromUnknownError(error); }
 }

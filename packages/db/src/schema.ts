@@ -288,6 +288,7 @@ export const billing = pgTable("billing", {
   cancelAtNextBilling: boolean("cancel_at_next_billing").notNull().default(false),
   lastEventAt: timestamp("last_event_at"),
   lastVerifiedAt: timestamp("last_verified_at"),
+  revision: integer("revision").notNull().default(0),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
