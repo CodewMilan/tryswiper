@@ -2,9 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { FORMATS } from "@swiper/schema";
 import { ArrowRight } from "@/components/icons";
-import { FormatRail } from "@/components/format-rail";
 import { Magnetic } from "@/components/motion/magnetic";
 import { FadeUp, SoftBlurIn } from "@/components/motion/soft-blur-in";
 import { SpotlightCard } from "@/components/motion/spotlight-card";
@@ -39,14 +37,6 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
   const startHref = signedIn ? "/new" : "/signup";
   const startLabel = signedIn ? "New carousel" : "Start for free";
   const workspaceHref = signedIn ? "/library" : "/signup";
-  const formats = FORMATS.slice(0, 6).map((format) => ({
-    id: format.id,
-    name: format.name,
-    description: format.description,
-    count: `${format.slideCount.min}–${format.slideCount.max} slides`,
-    hook: format.slides[0]?.job ?? "Open with a reason to swipe.",
-    roles: format.slides.map((slide) => slide.role),
-  }));
 
   useEffect(() => {
     const timers = [
@@ -338,12 +328,6 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
               </SpotlightCard>
             ))}
           </div>
-        </div>
-      </section>
-
-      <section id="format-rail" className="scroll-mt-24 px-4 pb-8 sm:px-8">
-        <div className="mx-auto max-w-[1200px]">
-          <FormatRail items={formats} />
         </div>
       </section>
 
