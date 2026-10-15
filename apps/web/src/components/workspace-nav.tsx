@@ -5,6 +5,7 @@ import NavbarSectionTwo from "@/components/ui/navbar-section-2";
 const links = [
   { href: "/library", label: "Library" },
   { href: "/new", label: "Create" },
+  { href: "/formats", label: "Formats" },
   { href: "/brand", label: "Brand kit" },
   { href: "/connect", label: "Connect" },
 ];

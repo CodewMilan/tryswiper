@@ -6,9 +6,9 @@ const columns = [
     title: "Product",
     links: [
       { href: "/guide", label: "How to use Swiper" },
-      { href: "/#editor", label: "Editor" },
-      { href: "/#formats", label: "Formats" },
-      { href: "/#brand", label: "Brand kit" },
+      { href: "/library", label: "Editor" },
+      { href: "/formats", label: "Formats" },
+      { href: "/brand", label: "Brand kit" },
       { href: "/pricing", label: "Pricing" },
     ],
   },
@@ -25,9 +25,9 @@ const columns = [
   {
     title: "Agents",
     links: [
-      { href: "/#agents", label: "Cursor" },
-      { href: "/#agents", label: "Claude" },
-      { href: "/#agents", label: "ChatGPT" },
+      { href: "/guide/cursor", label: "Cursor" },
+      { href: "/guide/claude", label: "Claude" },
+      { href: "/guide/chatgpt", label: "ChatGPT" },
       { href: "/connect", label: "MCP config" },
     ],
   },

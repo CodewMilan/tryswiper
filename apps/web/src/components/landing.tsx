@@ -34,7 +34,7 @@ const ctaClass =
 
 export function Landing({ signedIn = false }: { signedIn?: boolean }) {
   const [stage, setStage] = useState(0);
-  const startHref = signedIn ? "/new" : "/signup";
+  const startHref = signedIn ? "/new" : "/signup?next=%2Fnew";
   const startLabel = signedIn ? "New carousel" : "Start for free";
   const workspaceHref = signedIn ? "/library" : "/signup";
 
@@ -146,7 +146,7 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
               eyebrowClass="bg-[#f8d4e4] text-pink"
               title="Start from a structure that already works"
               body="Problem, list, before and after, myth. Swiper adapts the format to your brief and brand."
-              href={signedIn ? "/new" : "/signup?next=/new"}
+              href={signedIn ? "/formats" : "/signup?next=%2Fformats"}
             >
               <FormatMock />
             </FeatureCard>
@@ -156,7 +156,7 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
               eyebrowClass="bg-[#d7f3e4] text-green"
               title="Give every draft a brand kit"
               body="Name, audience, tone, proof, and the words you will not say."
-              href={signedIn ? "/brand" : "/signup"}
+              href={signedIn ? "/brand" : "/signup?next=%2Fbrand"}
             >
               <BrandMock />
             </FeatureCard>
@@ -167,7 +167,7 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
             eyebrowClass="bg-[#ffd9cf] text-accent"
             title="Ask in the chat you already have open"
             body="Mint a key, paste one config, and tell the agent what the post is for."
-            href={signedIn ? "/connect" : "/signup"}
+            href={signedIn ? "/connect" : "/signup?next=%2Fconnect"}
             wide
           >
             <AgentMock />
@@ -264,7 +264,7 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
             <p className="mt-4 max-w-md text-[16px] font-light leading-6 text-ink-soft">
               Set the voice once. The next carousel starts from the same brand, not a blank prompt.
             </p>
-            <Link href={signedIn ? "/brand" : "/signup"} className={`group mt-5 inline-flex items-center gap-1 text-[16px] font-medium ${linkClass}`}>
+            <Link href={signedIn ? "/brand" : "/signup?next=%2Fbrand"} className={`group mt-5 inline-flex items-center gap-1 text-[16px] font-medium ${linkClass}`}>
               Set up brand
               <ArrowRight className="motion-safe:transition-transform motion-safe:duration-150 group-hover:translate-x-0.5" />
             </Link>
@@ -421,7 +421,7 @@ function FeatureCard({
 }) {
   return (
     <SpotlightCard className="scroll-mt-24 rounded-[24px] border border-black/6 bg-white">
-      <article id={id} className="p-6 sm:p-8">
+      <article id={id} className="scroll-mt-24 p-6 sm:p-8">
         <div className={wide ? "grid items-start gap-8 lg:grid-cols-[0.8fr_1.2fr]" : ""}>
         <div>
           <div className="flex items-start justify-between gap-4">

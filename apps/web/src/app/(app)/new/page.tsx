@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { MonthlyAllowance } from "@/components/monthly-allowance";
 import { isThinBrand, type GenerationWarning } from "@/lib/generation-notices";
@@ -75,6 +75,13 @@ function FormatChoice({ format, checked, onChange }: {
 }
 
 export default function NewCarouselPage() {
+  return <Suspense fallback={<p role="status" className="p-8">Loading carousel options…</p>}><NewCarouselForm /></Suspense>;
+}
+
+function NewCarouselForm() {
+  const searchParams = useSearchParams();
+  const requestedMode = searchParams.get("mode");
+  const requestedFormat = searchParams.get("format");
   const router = useRouter();
   const workspaceUsage = useWorkspaceUsage();
   const [formats, setFormats] = useState<FormatOption[]>([]);
@@ -83,7 +90,8 @@ export default function NewCarouselPage() {
   const [title, setTitle] = useState("");
   const [brief, setBrief] = useState("");
   const [referenceUrl, setReferenceUrl] = useState("");
-  const [mode, setMode] = useState<"generate" | "manual">("generate");
+  const [savedMode, setMode] = useState<"generate" | "manual">("generate");
+  const mode = requestedMode === "manual" || requestedMode === "generate" ? requestedMode : savedMode;
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -168,7 +176,17 @@ export default function NewCarouselPage() {
     catch { /* Private browsing may disable storage. Keep the in-memory brief usable. */ }
   }, [draftKey, brief, title, referenceUrl, mode, generateFormatId, manualFormatId]);
 
-  const formatId = mode === "generate" ? generateFormatId : manualFormatId;
+  const eligibleFormats = mode === "generate" ? formats.filter((format) => format.id !== "freeform" && format.can_generate !== false) : formats;
+  const cachedId = mode === "generate" ? generateFormatId : manualFormatId;
+  const requested = eligibleFormats.find((format) => format.id === requestedFormat);
+  const formatId = requested?.id ?? eligibleFormats.find((format) => format.id === cachedId)?.id ?? eligibleFormats[0]?.id;
+  function choose(nextMode: "generate" | "manual", nextFormat?: string) {
+    setMode(nextMode);
+    if (nextFormat) (nextMode === "generate" ? setGenerateFormatId : setManualFormatId)(nextFormat);
+    const params = new URLSearchParams({ mode: nextMode });
+    if (nextFormat) params.set("format", nextFormat);
+    window.history.pushState(null, "", `/new?${params}`);
+  }
   const selected = useMemo(() => formats.find((format) => format.id === formatId), [formatId, formats]);
   const startByHand = formats.find((format) => format.id === "freeform");
   const workspaceFormats = formats.filter((format) => format.source === "workspace");
@@ -257,7 +275,9 @@ export default function NewCarouselPage() {
       <form onSubmit={onSubmit} className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
         <fieldset disabled={pending} className="min-w-0">
         <legend className="sr-only">Create your carousel</legend>
-        <Tabs value={mode} onValueChange={(value) => setMode(value as "generate" | "manual")}>
+        {loadState === "ready" && requestedFormat && !requested ? <p role="status" className="mb-4 rounded-2xl border border-border p-4 text-sm">That format is unavailable for this creation method. Choose another format below, or <Link href="/formats" className="underline">browse your formats</Link>.</p> : null}
+        <Tabs value={mode} onValueChange={(value) => choose(value as "generate" | "manual")}>
+        <Link href="/formats" className="mb-4 inline-flex min-h-11 items-center text-sm underline underline-offset-4">Browse and manage formats</Link>
         <TabsList aria-label="Creation method"><TabsTrigger value="generate">Generate from a brief</TabsTrigger><TabsTrigger value="manual">Start by hand</TabsTrigger></TabsList>
         <TabsContent value={mode}>
 
@@ -342,7 +362,7 @@ export default function NewCarouselPage() {
             <select
               id="story-shape"
               value={generateFormatId}
-              onChange={(event) => setGenerateFormatId(event.target.value)}
+              onChange={(event) => choose("generate", event.target.value)}
               disabled={pending}
               aria-describedby="story-shape-hint"
               className="mt-2 h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -362,7 +382,7 @@ export default function NewCarouselPage() {
                 <legend className="text-xl font-light tracking-[-0.02em]">Blank canvas</legend>
                 <p className="mt-1 text-sm text-ink-soft">Start with three editable slides and shape the story yourself.</p>
                 <div className="mt-4 max-w-xl">
-                  <FormatChoice format={startByHand} checked={startByHand.id === formatId} onChange={() => setManualFormatId(startByHand.id)} />
+                  <FormatChoice format={startByHand} checked={startByHand.id === formatId} onChange={() => choose("manual", startByHand.id)} />
                 </div>
               </fieldset>
             ) : null}
@@ -372,7 +392,7 @@ export default function NewCarouselPage() {
               {workspaceFormats.length > 0 ? (
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   {workspaceFormats.map((format) => (
-                    <FormatChoice key={format.id} format={format} checked={format.id === formatId} onChange={() => setManualFormatId(format.id)} />
+                    <FormatChoice key={format.id} format={format} checked={format.id === formatId} onChange={() => choose("manual", format.id)} />
                   ))}
                 </div>
               ) : (
@@ -388,7 +408,7 @@ export default function NewCarouselPage() {
               <p className="mt-1 text-sm text-ink-soft">Pick the narrative shape Swiper should use for the first draft.</p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 {officialFormats.map((format) => (
-                  <FormatChoice key={format.id} format={format} checked={format.id === formatId} onChange={() => setManualFormatId(format.id)} />
+                  <FormatChoice key={format.id} format={format} checked={format.id === formatId} onChange={() => choose("manual", format.id)} />
                 ))}
               </div>
             </fieldset>
