@@ -1365,3 +1365,119 @@ test("paid checkout matches the advertised product price and billing period", as
     ...process.env, TSX_TSCONFIG_PATH: resolve(__dirname, "../tsconfig.json"),
   } });
 });
+
+test("footer tasks, client guides and setup preserve the requested destination", async ({ page }) => {
+  await page.goto("/");
+  const footer = page.locator("footer");
+  for (const [label, href] of [["Editor", "/library"], ["Formats", "/formats"], ["Brand kit", "/brand"], ["Contact support", "/support"]]) {
+    await expect(footer.getByRole("link", { name: label, exact: true })).toHaveAttribute("href", href);
+  }
+  for (const [id, next] of [["editor", "/new"], ["brand", "/brand"], ["agents", "/connect"], ["formats", "/formats"]]) {
+    await expect(page.locator(`#${id} a`).first()).toHaveAttribute("href", `/signup?next=${encodeURIComponent(next)}`);
+  }
+  for (const [client, title] of [["cursor", "Cursor"], ["claude", "Claude"], ["chatgpt", "ChatGPT"]]) {
+    await footer.getByRole("link", { name: title, exact: true }).click();
+    await expect(page).toHaveURL(`/guide/${client}`);
+    await expect(page.getByRole("heading", { name: `Connect ${title} to Swiper.` })).toBeVisible();
+    const cta = page.getByRole("link", { name: `Set up ${title}`, exact: true });
+    await expect(cta).toHaveAttribute("href", `/signup?next=${encodeURIComponent(`/connect?client=${client}`)}`);
+    await cta.click();
+    await expect(page).toHaveURL(`/signup?next=${encodeURIComponent(`/connect?client=${client}`)}`);
+    await expect(page.getByRole("link", { name: "Sign in", exact: true })).toHaveAttribute("href", `/login?next=${encodeURIComponent(`/connect?client=${client}`)}`);
+    await page.goto("/");
+  }
+  await page.goto("/formats");
+  await expect(page).toHaveURL("/login?next=%2Fformats");
+  await signUp(page.request);
+  for (const client of ["claude", "chatgpt", "cursor"]) {
+    await page.goto(`/guide/${client}`);
+    await page.getByRole("link", { name: /^Set up (Cursor|Claude|ChatGPT)$/ }).click();
+    await expect(page).toHaveURL(`/connect?client=${client}`);
+    await expect(page.getByRole("tab", { selected: true })).toHaveText(client === "chatgpt" ? "ChatGPT" : client === "claude" ? "Claude" : "Cursor");
+    await expect(page.getByRole("button", { name: "Mint API key", exact: true })).toBeEnabled();
+  }
+  await page.getByRole("tab", { name: "Claude", exact: true }).click();
+  await expect(page).toHaveURL("/connect?client=claude");
+  await page.goBack();
+  await expect(page.getByRole("tab", { selected: true })).toHaveText("Cursor");
+  await page.goto("/connect?client=unknown");
+  await expect(page.getByRole("tab", { selected: true })).toHaveText("Cursor");
+  expect((await page.request.get("/guide/not-a-client")).status()).toBe(404);
+});
+
+test("saved format management validates edits, isolates workspaces and preserves existing drafts", async ({ page, browser }, testInfo) => {
+  await signUp(page.request);
+  const original = await create(page.request, "before-after");
+  const saved = await (await page.request.post("/api/v1/formats", { data: { carousel_id: original.carousel_id, name: "Original design" } })).json();
+  const id = saved.format.id as string;
+  const duplicate = await page.request.post("/api/v1/formats", { data: { carousel_id: original.carousel_id, name: "Other design" } });
+  expect(duplicate.status()).toBe(201);
+  const other = await browser.newContext();
+  try {
+    await signUp(other.request);
+    expect((await other.request.patch(`/api/v1/formats/${id}`, { data: { name: "Stolen" } })).status()).toBe(404);
+    expect((await other.request.delete(`/api/v1/formats/${id}`)).status()).toBe(404);
+  } finally { await other.close(); }
+  expect((await page.request.patch(`/api/v1/formats/${id}`, { data: { name: "x" } })).status()).toBe(400);
+  expect((await page.request.patch(`/api/v1/formats/${id}`, { data: { name: "Valid name", workspaceId: "elsewhere" } })).status()).toBe(400);
+  await page.goto("/formats");
+  await page.getByRole("tab", { name: "Saved by you", exact: true }).click();
+  const card = page.getByRole("article", { name: "Original design", exact: true });
+  await expect(card.getByLabel("First slide preview for Original design")).toBeVisible();
+  await card.getByRole("button", { name: "Edit details" }).click();
+  await page.getByLabel("Format name", { exact: true }).fill("Other design");
+  await page.getByRole("button", { name: "Save details" }).click();
+  await expect(page.getByRole("alert")).toContainText("already exists");
+  await page.getByLabel("Format name", { exact: true }).fill("Renamed design");
+  await page.getByLabel("Description", { exact: true }).fill("A reusable design for this workspace.");
+  await page.getByRole("button", { name: "Save details" }).click();
+  await expect(page.getByRole("status")).toContainText("Format details saved");
+  await page.reload();
+  const renamed = page.getByRole("article", { name: "Renamed design", exact: true });
+  await expect(renamed).toContainText("A reusable design for this workspace.");
+  await renamed.getByRole("link", { name: "Use format", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Start by hand", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(`input[value="${id}"]`)).toBeChecked();
+  await page.getByRole("button", { name: "Open in editor", exact: true }).click();
+  await expect(page).toHaveURL(/\/c\//);
+  const copyId = new URL(page.url()).pathname.split("/").at(-1)!;
+  await page.goto("/formats");
+  await page.getByRole("article", { name: "Renamed design", exact: true }).getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("button", { name: "Keep format", exact: true }).click();
+  await expect(renamed).toBeVisible();
+  await renamed.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("button", { name: "Delete format", exact: true }).click();
+  await expect(renamed).toHaveCount(0);
+  expect((await page.request.get(`/api/v1/carousels/${original.carousel_id}`)).status()).toBe(200);
+  expect((await page.request.get(`/api/v1/carousels/${copyId}`)).status()).toBe(200);
+  await page.goto(`/new?mode=manual&format=${id}`);
+  await expect(page.getByText(/That format is unavailable/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open in editor", exact: true })).toBeEnabled();
+  await page.goto("/formats");
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.getByLabel("Search formats").fill("No matching format here");
+  await expect(page.getByRole("heading", { name: "No matching formats" })).toBeVisible();
+  await page.getByRole("button", { name: "Show all formats" }).click();
+  await expect(page.getByRole("article").first()).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+  await page.screenshot({ path: testInfo.outputPath("formats-mobile.png"), fullPage: true });
+});
+
+test("homepage anchors clear the header and support works without a mail application", async ({ page, context }, testInfo) => {
+  for (const width of [1440, 375]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const id of ["editor", "formats", "brand", "agents"]) {
+      await page.goto(`/#${id}`);
+      await expect.poll(async () => Math.round((await page.locator(`#${id}`).boundingBox())!.y)).toBeGreaterThanOrEqual(90);
+      await expect(page.locator(`#${id} h3`)).toBeInViewport();
+    }
+  }
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/support");
+  await expect(page.getByRole("link", { name: "Email support", exact: true })).toHaveAttribute("href", "mailto:milan@cassettelabs.in?subject=Swiper%20support");
+  await page.getByRole("button", { name: "Copy email address" }).click();
+  await expect(page.getByRole("button", { name: "Email copied" })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("milan@cassettelabs.in");
+  await page.screenshot({ path: testInfo.outputPath("support-mobile.png"), fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+});

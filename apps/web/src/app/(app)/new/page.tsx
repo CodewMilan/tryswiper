@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import type { FormatOption } from "@/lib/formats";
 import { MonthlyAllowance } from "@/components/monthly-allowance";
 import { isThinBrand, type GenerationWarning } from "@/lib/generation-notices";
 import { useWorkspaceUsage, usageLimitMessage, type UsageApiError } from "@/lib/use-workspace-usage";
@@ -11,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DEFAULT_THEME, getFormat, planFromFormat, renderPlanToCarousel, type Slide, type Theme } from "@swiper/schema";
+import { DEFAULT_THEME, getFormat, planFromFormat, renderPlanToCarousel } from "@swiper/schema";
 import { SlidePreview } from "@/components/editor/slide-frame";
 import { ArrowRight, Check, Plus } from "@phosphor-icons/react";
 
@@ -24,16 +25,6 @@ function slideCount(format: FormatOption) {
   return format.slideCount.min === format.slideCount.max ? `${format.slideCount.min} slides` : `${format.slideCount.min}–${format.slideCount.max} slides`;
 }
 
-type FormatOption = {
-  id: string;
-  name: string;
-  description: string;
-  slideCount: { min: number; max: number };
-  roles: string[];
-  source: "official" | "workspace";
-  can_generate?: boolean;
-  preview?: { slide: Slide; theme: Theme };
-};
 
 function FormatChoice({ format, checked, onChange }: {
   format: FormatOption;
