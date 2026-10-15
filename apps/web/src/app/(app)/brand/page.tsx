@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { carouselFontFamily } from "@swiper/schema";
+import { MAX_ASSET_BYTES, MAX_ASSET_MIB } from "@/lib/upload-limits";
 import {
   COLOR_KEYS,
   DEFAULT_BRAND_COLORS,
@@ -152,8 +153,8 @@ export default function BrandPage() {
 
   async function uploadLogo(file: File) {
     if (logoBusy) return;
-    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 8 * 1024 * 1024) {
-      setError("Choose a PNG, JPEG, or WebP image no larger than 8 MB.");
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > MAX_ASSET_BYTES) {
+      setError(`Choose a PNG, JPEG, or WebP image no larger than ${MAX_ASSET_MIB} MB.`);
       return;
     }
     setLogoBusy(true);
@@ -418,7 +419,7 @@ export default function BrandPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-[14px] font-light text-ink-soft">
-                  PNG, JPEG, or WebP. 8MB max.
+                  PNG, JPEG, or WebP. {MAX_ASSET_MIB}MB max.
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Button type="button" variant="outline" disabled={logoBusy} onClick={() => fileRef.current?.click()}>

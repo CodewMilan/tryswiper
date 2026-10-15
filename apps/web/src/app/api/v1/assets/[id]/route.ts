@@ -1,5 +1,5 @@
 import { requireAuth } from "@/lib/api-auth";
-import { fromUnknownError, json } from "@/lib/http";
+import { fileBody, fromUnknownError, json } from "@/lib/http";
 import { deleteAsset, getAsset } from "@/server/assets";
 
 export const runtime = "nodejs";
@@ -12,7 +12,7 @@ export async function GET(
     const authContext = await requireAuth(request);
     const { id } = await context.params;
     const asset = await getAsset(authContext, id);
-    return new Response(asset.bytes, {
+    return new Response(fileBody(asset.bytes), {
       headers: {
         "Content-Type": asset.mimeType,
         "Content-Length": String(asset.bytes.byteLength),

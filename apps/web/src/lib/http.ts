@@ -1,5 +1,21 @@
 import { NextResponse } from "next/server";
 
+// Stream file downloads so exports can exceed a buffered function response.
+export function fileBody(bytes: Uint8Array) {
+  let offset = 0;
+  return new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (offset >= bytes.byteLength) {
+        controller.close();
+        return;
+      }
+      const end = Math.min(offset + 64 * 1024, bytes.byteLength);
+      controller.enqueue(bytes.subarray(offset, end));
+      offset = end;
+    },
+  });
+}
+
 export async function readBody(request: Request, limit = 1024 * 1024): Promise<Uint8Array> {
   const tooLarge = () => Object.assign(new Error("This request is too large."), { status: 413, code: "REQUEST_TOO_LARGE" });
   if (Number(request.headers.get("content-length")) > limit) throw tooLarge();

@@ -2,7 +2,33 @@
 
 ## What ships
 
-One container (`Dockerfile`) runs the Next.js app. Route handlers are the API. Postgres is managed outside the container. The process applies SQL migrations on startup, then listens on `PORT` (default 3000).
+The Next.js app runs on Vercel Node functions or in one container (`Dockerfile`). Route handlers are the API. Postgres is managed outside the app. The container applies SQL migrations on startup, then listens on `PORT` (default 3000).
+
+## Vercel
+
+Use project root `apps/web`, Next.js framework, and Node.js 22. Deploy with
+`npx vercel deploy --prod` from the repository root after linking the project.
+`apps/web/vercel.json` installs with the repository's pinned pnpm version, applies
+SQL migrations, then builds with Webpack. A failed migration stops the deployment.
+Use a separate database for previews before enabling automatic preview deployments;
+the build runs migrations for whichever `DATABASE_URL` is configured.
+
+Set `DATABASE_URL` to managed Postgres (prefer the pooled URL), Clerk's public and
+secret keys, and `APP_URL` to the production HTTPS origin. Leave `NEXT_PUBLIC_APP_URL`
+unset so browser links use their current origin. Add the optional environment
+variables below when enabling their features.
+
+The tracing root includes the monorepo so native canvas and shared packages can
+be packaged. Carousel API traces explicitly include bundled fonts. API and MCP
+functions allow 120 seconds. Functions and the database are colocated in `iad1`.
+Vercel builds cap browser and server image uploads at 4 MiB, leaving multipart
+headroom under the platform's 4.5 MB request limit; containers keep the 8 MiB cap.
+File responses stream in 64 KiB chunks. Large MCP requests remain subject to the
+platform's 4.5 MB request limit. Native rendering, fonts, and downloads must be
+smoke-tested on the deployed Linux runtime.
+
+Vercel does not run the account-erasure retry CLI on a schedule. Configure a
+separate scheduler for `pnpm erasure:retry` before relying on background retries.
 
 `GET /api/health` returns `{ "ok": true }` when the database answers.
 

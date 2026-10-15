@@ -1,6 +1,6 @@
 import { requireAuth } from "@/lib/api-auth";
 import { editorUrl } from "@/lib/utils";
-import { fromUnknownError, json } from "@/lib/http";
+import { fileBody, fromUnknownError, json } from "@/lib/http";
 import { getCarousel } from "@/server/carousels";
 import { carouselSchema } from "@swiper/schema";
 import { renderExport } from "@swiper/rendering";
@@ -23,7 +23,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const ids = parsed.data.slides[slide - 1]!.elements.flatMap((element) => element.assetId ? [element.assetId] : []);
     const assets = await assetsForWorkspace(auth.workspaceId, ids);
     const file = await withResourceBudget(auth.workspaceId, "render", () => renderExport(parsed.data, "png", slide - 1, assets));
-    return new Response(Buffer.from(file.bytes), { headers: { "Content-Type": "image/png", "Cache-Control": "no-store", "X-Carousel-Version": String(row.version) } });
+    return new Response(fileBody(file.bytes), { headers: { "Content-Type": "image/png", "Cache-Control": "no-store", "X-Carousel-Version": String(row.version) } });
   } catch (error) { return fromUnknownError(error); }
 }
 

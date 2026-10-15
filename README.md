@@ -61,7 +61,22 @@ Then ask the agent: “Make a carousel explaining why we’re different.”
 
 ## Deploy
 
-The web app is one Node process plus Postgres. Export rendering uses native canvas, so run the container. Do not deploy this as a Vercel serverless function.
+The web app supports Vercel Node functions or a Node container, with managed Postgres.
+
+For Vercel, set the project root to `apps/web` and Node.js to 22. The checked-in
+`vercel.json` installs the workspace, applies database migrations, and builds Next.js.
+Configure `DATABASE_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and
+`APP_URL` in Vercel before deploying from the repository root:
+
+```bash
+npx vercel deploy --prod
+```
+
+Vercel uploads are capped at 4 MiB to fit its request limit. Downloads stream their
+bytes, and Next traces include the native canvas dependency and bundled fonts.
+See [deployment](docs/18-deployment.md) for environment and release details.
+
+For a container:
 
 ```bash
 docker build -t swiper .

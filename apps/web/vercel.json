@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "pnpm --dir ../.. --filter @swiper/db migrate && next build --webpack",
+  "installCommand": "pnpm --dir ../.. install --frozen-lockfile",
+  "regions": ["iad1"],
+  "functions": {
+    "src/app/api/**/*.ts": { "maxDuration": 120 },
+    "src/app/mcp/route.ts": { "maxDuration": 120 }
+  }
+}

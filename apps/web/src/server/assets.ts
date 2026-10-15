@@ -6,8 +6,9 @@ import { readImageSize } from "@swiper/rendering";
 import type { AuthContext } from "../lib/api-auth";
 import { db } from "../lib/db";
 import { sid } from "../lib/ids";
+import { ASSET_SIZE_ERROR, MAX_ASSET_BYTES } from "@/lib/upload-limits";
 
-export const MAX_ASSET_BYTES = 8 * 1024 * 1024;
+export { MAX_ASSET_BYTES };
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
 export function assetUrl(id: string) {
@@ -25,7 +26,7 @@ export async function createAsset(
     });
   }
   if (file.bytes.byteLength > MAX_ASSET_BYTES) {
-    throw Object.assign(new Error("Images must be 8MB or smaller."), {
+    throw Object.assign(new Error(ASSET_SIZE_ERROR), {
       status: 413,
       code: "FILE_TOO_LARGE",
     });

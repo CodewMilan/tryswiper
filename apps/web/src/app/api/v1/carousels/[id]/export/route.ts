@@ -2,7 +2,7 @@ import { CANVAS_HEIGHT, CANVAS_WIDTH, carouselSchema } from "@swiper/schema";
 import { renderExport } from "@swiper/rendering";
 import { requireAuth } from "@/lib/api-auth";
 import { appUrl, editorUrl } from "@/lib/utils";
-import { apiError, fromUnknownError, json } from "@/lib/http";
+import { apiError, fileBody, fromUnknownError, json } from "@/lib/http";
 import { assetsForWorkspace } from "@/server/assets";
 import { getCarousel } from "@/server/carousels";
 import { assertUsage, recordUsage, requireFeature, withUsageTransaction } from "@/server/usage";
@@ -115,7 +115,7 @@ export async function POST(
 }
 
 function fileResponse(bytes: Uint8Array, contentType: string, filename: string) {
-  return new Response(Buffer.from(bytes), {
+  return new Response(fileBody(bytes), {
     headers: {
       "Content-Type": contentType,
       "Content-Disposition": `attachment; filename="${filename}"`,

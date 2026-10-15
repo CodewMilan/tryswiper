@@ -31,4 +31,6 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 ## Deploy
 
-Deploy from the repository root with the Dockerfile. See the root README. This app uses native canvas for PNG and PDF export, so it runs as a Node server, not as a Vercel serverless function.
+Use Vercel with project root `apps/web` and Node.js 22, or deploy from the repository
+root with the Dockerfile. See the root README. The Vercel configuration applies
+migrations before building and packages the native canvas dependency and fonts.

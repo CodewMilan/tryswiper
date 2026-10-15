@@ -7,10 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { boxOf, clampBox, type Box } from "./slide-frame";
+import { ASSET_SIZE_ERROR, MAX_ASSET_BYTES } from "@/lib/upload-limits";
 
 export type UploadedAsset = { id: string; url: string; width: number; height: number };
 
 export async function uploadImage(file: File): Promise<UploadedAsset> {
+  if (file.size > MAX_ASSET_BYTES) throw new Error(ASSET_SIZE_ERROR);
   const form = new FormData();
   form.append("file", file);
   const response = await fetch("/api/v1/assets", { method: "POST", body: form });

@@ -17,3 +17,5 @@ apps/web/.next-e2e
 apps/web/.next-guard
 apps/web/test-results
 apps/web/playwright-report
+.vercel
+!.env.example
