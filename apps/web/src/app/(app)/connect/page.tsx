@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { FIRST_PROMPT } from "@/lib/agent-clients";
 import { AgentConfigs } from "@/components/agent-configs";
 import { PageIntro, Settle } from "@/components/page-intro";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog } from "@/components/ui/dialog";
 import { Copy, Check, ArrowRight } from "@phosphor-icons/react";
 
-const FIRST_PROMPT = "Use Swiper to read my brand kit and create a carousel explaining the main problem my product solves. Choose a suitable story format, write clear original copy, run quality checks, and give me the editor link to review it.";
+
 
 type KeyRow = {
   id: string;
@@ -28,6 +29,10 @@ async function readWorkspace() {
 }
 
 export default function ConnectPage() {
+  return <Suspense fallback={<p role="status" className="p-8">Loading agent setup…</p>}><ConnectWorkspace /></Suspense>;
+}
+
+function ConnectWorkspace() {
   const [keys, setKeys] = useState<KeyRow[]>([]);
   const [freshKey, setFreshKey] = useState<string | null>(null);
   const [freshKeyId, setFreshKeyId] = useState<string | null>(null);

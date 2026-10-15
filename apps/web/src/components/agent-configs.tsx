@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { agentClient } from "@/lib/agent-clients";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,6 +17,8 @@ function cursorInstallHref(origin: string, key: string) {
 }
 
 export function AgentConfigs({ origin, apiKey, savedKeyPrefix }: { origin: string; apiKey: string | null; savedKeyPrefix: string | null }) {
+  const searchParams = useSearchParams();
+  const selectedClient = agentClient(searchParams.get("client"));
   const [copied, setCopied] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
   const usableKey = apiKey ?? "YOUR_SAVED_KEY";
@@ -59,7 +64,7 @@ export function AgentConfigs({ origin, apiKey, savedKeyPrefix }: { origin: strin
         copy: apiKey ? "Copy Cursor config" : "Copy Cursor template",
         href: apiKey ? cursorInstallHref(origin, apiKey) : null,
         hrefLabel: "Add to Cursor",
-        docs: "https://docs.cursor.com/context/model-context-protocol",
+        docs: "https://cursor.com/docs/mcp",
       },
       {
         id: "claude",
@@ -94,28 +99,18 @@ export function AgentConfigs({ origin, apiKey, savedKeyPrefix }: { origin: strin
     }
   }
 
-  if (!apiKey && !savedKeyPrefix) {
-    return (
-      <div className="rounded-[24px] border border-dashed border-black/15 bg-white p-6 sm:p-8">
-        <h2 className="text-[18px] font-medium tracking-[-0.02em]">Mint a key to connect your agent</h2>
-        <p className="mt-2 max-w-xl text-[15px] font-light leading-6 text-ink-soft">
-          Swiper never inserts a fake secret into a connector URL. Mint a key above, copy it once, then install the client you use.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4">
       {!apiKey ? (
         <div className="rounded-[24px] border border-black/8 bg-white p-6 text-[15px] font-light leading-6 text-ink-soft">
-          Your key {savedKeyPrefix}… is active, but its secret was shown only once. These are setup templates:
+          {savedKeyPrefix ? `Your key ${savedKeyPrefix}… is active, but its secret was shown only once.` : "Mint a key above when you’re ready to connect."} These are setup templates:
           replace YOUR_SAVED_KEY with the secret you saved. If you no longer have it, mint a new key above
           to get complete configs. Revoke the old key if you no longer use it.
         </div>
       ) : null}
       {copyError ? <p role="alert" className="text-sm text-destructive">{copyError}</p> : null}
-      <Tabs defaultValue="cursor">
+      <Tabs value={selectedClient} onValueChange={(value) => { const params = new URLSearchParams(window.location.search); params.set("client", agentClient(value)); window.history.pushState(null, "", `/connect?${params}`); }}>
       <TabsList aria-label="Choose your agent">{cards.map((card) => <TabsTrigger key={card.id} value={card.id}>{card.title}</TabsTrigger>)}</TabsList>
       {cards.map((card) => (
         <TabsContent key={card.id} value={card.id}>
@@ -145,6 +140,7 @@ export function AgentConfigs({ origin, apiKey, savedKeyPrefix }: { origin: strin
             </p>
           ) : null}
           {card.id === "claude" ? <details className="mt-5 border-t border-border pt-4"><summary className="min-h-11 cursor-pointer text-sm font-medium">Using Claude Code instead?</summary><p className="mt-2 text-sm leading-6 text-ink-soft">Run this command in your terminal. Check /mcp in Claude Code to confirm Swiper is available.</p><pre className="mt-3 overflow-x-auto rounded-xl bg-secondary p-4 text-xs leading-6">{`claude mcp add --transport http swiper ${mcpUrl} --header "Authorization: Bearer ${usableKey}"`}</pre><Button className="mt-3" variant="outline" onClick={() => void copy("claude-code", `claude mcp add --transport http swiper ${mcpUrl} --header "Authorization: Bearer ${usableKey}"`)}>{copied === "claude-code" ? "Copied" : "Copy Claude Code command"}</Button></details> : null}
+          <Link href={`/guide/${card.id}`} className="mt-3 mr-5 inline-flex min-h-11 items-center text-sm underline underline-offset-4">{card.title} setup walkthrough</Link>
           <a href={card.docs} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center text-sm text-ink-soft underline underline-offset-4">Official {card.title} setup guide</a>
         </section>
         </TabsContent>
