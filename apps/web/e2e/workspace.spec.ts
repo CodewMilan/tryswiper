@@ -1502,3 +1502,55 @@ test("homepage anchors clear the header and support works without a mail applica
   await page.screenshot({ path: testInfo.outputPath("support-mobile.png"), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
 });
+
+test("confirmed account deletion immediately erases owned content and revokes access", async ({ page, browser }, testInfo) => {
+  const userId = await signUp(page.request);
+  const draft = await create(page.request, "before-after");
+  const image = await page.request.post("/api/v1/assets", { multipart: { file: fixtureImage("#112233") } });
+  expect(image.status()).toBe(201);
+  expect((await page.request.post("/api/v1/formats", { data: { carousel_id: draft.carousel_id, name: "Erase this format" } })).status()).toBe(201);
+  const { key } = await (await page.request.post("/api/v1/mcp-keys", { data: { name: "Erase this key" } })).json();
+  expect((await page.request.delete("/api/v1/account", { data: { confirmation: "DELETE" }, headers: { Authorization: `Bearer ${key}`, Origin: "http://localhost:3101" } })).status()).toBe(403);
+  expect((await page.request.delete("/api/v1/account", { data: { confirmation: "DELETE" }, headers: { Origin: "https://untrusted.example" } })).status()).toBe(403);
+  expect((await page.request.delete("/api/v1/account", { data: { confirmation: "no" }, headers: { Origin: "http://localhost:3101" } })).status()).toBe(400);
+  const other = await browser.newContext();
+  const sql = postgres(testDatabaseUrl, { max: 1, prepare: false });
+  try {
+    await signUp(other.request);
+    const otherDraft = await create(other.request);
+    const [{ id: ownedWorkspace }] = await sql`select id from workspace where owner_id=${userId}`;
+    await page.goto("/account");
+    await page.evaluate(() => { sessionStorage.setItem("swiper:recovery:test", "private copy"); localStorage.setItem("swiper:offline:test", "private copy"); });
+    await page.getByRole("button", { name: "Delete my account", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Permanently delete account", exact: true })).toBeDisabled();
+    await page.getByRole("button", { name: "Keep my account", exact: true }).click();
+    expect((await page.request.get(`/api/v1/carousels/${draft.carousel_id}`)).status()).toBe(200);
+    await page.getByRole("button", { name: "Delete my account", exact: true }).click();
+    await page.getByLabel("Type DELETE to confirm", { exact: true }).fill("DELETE");
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.screenshot({ path: testInfo.outputPath("delete-confirmation-mobile.png") });
+    await page.getByRole("button", { name: "Permanently delete account", exact: true }).click();
+    await expect(page).toHaveURL("/account-deleted");
+    await expect(page.getByRole("heading", { name: "Your account has been deleted." })).toBeVisible();
+    expect(await page.evaluate(() => sessionStorage.getItem("swiper:recovery:test"))).toBeNull();
+    expect(await page.evaluate(() => localStorage.getItem("swiper:offline:test"))).toBeNull();
+    expect((await page.request.get(`/api/v1/carousels/${draft.carousel_id}`)).status()).toBe(401);
+    expect((await page.request.get("/api/v1/brand", { headers: { Authorization: `Bearer ${key}` } })).status()).toBe(401);
+    expect((await other.request.get(`/api/v1/carousels/${otherDraft.carousel_id}`)).status()).toBe(200);
+    expect(Number((await sql`select count(*) as n from workspace where id=${ownedWorkspace}`)[0].n)).toBe(0);
+    expect(Number((await sql`select count(*) as n from asset where workspace_id=${ownedWorkspace}`)[0].n)).toBe(0);
+    expect(Number((await sql`select count(*) as n from workspace_format where workspace_id=${ownedWorkspace}`)[0].n)).toBe(0);
+    const [person] = await sql`select name,email,deleted_at from "user" where id=${userId}`;
+    expect(person.name).toBe("Deleted account"); expect(person.email).toMatch(/@deleted\.swiper\.invalid$/); expect(person.deleted_at).toBeTruthy();
+  } finally { await sql.end(); await other.close(); }
+});
+
+test("account erasure preserves cancellation retries and prevents stale writes or identity resurrection", async ({ page }) => {
+  const userId = await signUp(page.request);
+  const draft = await create(page.request);
+  expect((await page.request.post("/api/v1/formats", { data: { carousel_id: draft.carousel_id, name: "Erase paid design" } })).status()).toBe(201);
+  await promisify(execFile)(process.execPath, ["--import", require.resolve("tsx", { paths: [resolve(__dirname, "../../mcp")] }), resolve(__dirname, "account-erasure.fixture.mts"), userId], { env: {
+    ...process.env, DATABASE_URL: testDatabaseUrl, TSX_TSCONFIG_PATH: resolve(__dirname, "../tsconfig.json"),
+  } });
+  expect((await page.request.get("/api/v1/brand")).status()).toBe(401);
+});

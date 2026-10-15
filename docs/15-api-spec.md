@@ -4,6 +4,7 @@ Updated 15 October 2026. These are implemented routes under `/api/v1`; route han
 
 | Route | Methods and behavior |
 | --- | --- |
+| `/account` | DELETE signed-in account after same-origin/typed confirmation; content keys forbidden |
 | `/projects` | GET paginated workspace project/draft metadata |
 | `/carousels` | POST manual creation or generation from a brief |
 | `/carousels/generate` | POST generation from a brief and official/eligible saved format |
@@ -48,3 +49,7 @@ There are no implemented project CRUD, standalone slide CRUD, presigned object-s
 ## Saved format details
 
 `PATCH /api/v1/formats/{id}` accepts a trimmed `name` (2–80 characters) and optional `description` (up to 240 characters; empty clears it). Unknown fields are rejected. Updates are scoped to the authenticated workspace and require write access. Names remain unique within a workspace; a duplicate returns 409. The design/content and existing carousel copies remain unchanged. Creation, metadata edits and deletion serialize on the workspace row.
+
+## Account erasure
+
+`DELETE /api/v1/account` requires an interactive session, matching `Origin` and `{ "confirmation": "DELETE" }`. The account ID comes from the session. It confirms Clerk deletion and erases owned workspace content, keys and local recovery/history rows. It retains a pseudonymous deletion fence to reject stale identity restoration. A normal completion returns `{ "deleted": true, "billing_followup_pending": false }`; 202 with `billing_followup_pending: true` means content is erased but linked subscription cancellation requires retry/support. Signed account-deletion webhooks use the same erasure path. `pnpm erasure:retry` drains remaining cancellation jobs.

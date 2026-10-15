@@ -10,8 +10,11 @@ export async function cleanupTestUsers(ids: string[]) {
     await sql.begin(async (tx) => {
       const users = await tx<{ id: string }[]>`
         select id from "user"
-        where id in ${tx(ids)} and name = 'Editor QA'
-          and email ~ '^swiper-qa-[0-9a-f-]+@example\\.test$'
+        where id in ${tx(ids)} and (
+          (name = 'Editor QA' and email ~ '^swiper-qa-[0-9a-f-]+@example\\.test$')
+          or (id ~ '^usr_[a-f0-9]{20}$' and name = 'Deleted account' and deleted_at is not null
+            and email ~ '^[a-f0-9]{64}@deleted\\.swiper\\.invalid$')
+        )
       `;
       const verified = users.map((user) => user.id);
       if (!verified.length) return;

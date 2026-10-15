@@ -126,3 +126,18 @@ export async function retrieveDodoSubscription(id: string) {
   if (!parsed.success || parsed.data.subscription_id !== id) throw Object.assign(new Error("The payment provider returned an invalid subscription."), { status: 502, code: "INVALID_SUBSCRIPTION" });
   return parsed.data;
 }
+
+/** Account deletion ends the saved subscription immediately, without promising a refund. */
+export async function cancelDodoSubscription(id: string) {
+  const config = dodoConfig();
+  if (!config.apiKey) throw Object.assign(new Error("Subscription cancellation is awaiting payment-provider configuration."), { status: 503, code: "CANCELLATION_PENDING" });
+  const url = `${config.base}/subscriptions/${encodeURIComponent(id)}`;
+  const options = { headers: { Authorization: `Bearer ${config.apiKey}` }, signal: AbortSignal.timeout(10000), cache: "no-store" as const };
+  const existing = await fetch(url, options);
+  const current = await existing.json().catch(() => ({})) as { subscription_id?: string; status?: string };
+  if (!existing.ok || current.subscription_id !== id) throw Object.assign(new Error("Subscription cancellation could not be verified."), { status: 503, code: "CANCELLATION_PENDING" });
+  if (["cancelled", "expired", "failed"].includes(current.status ?? "")) return;
+  const response = await fetch(url, { ...options, signal: AbortSignal.timeout(10000), method: "PATCH", headers: { ...options.headers, "Content-Type": "application/json" }, body: JSON.stringify({ status: "cancelled" }) });
+  const result = await response.json().catch(() => ({})) as { subscription_id?: string; status?: string };
+  if (!response.ok || result.subscription_id !== id || result.status !== "cancelled") throw Object.assign(new Error("Subscription cancellation is pending. Contact support."), { status: 503, code: "CANCELLATION_PENDING" });
+}

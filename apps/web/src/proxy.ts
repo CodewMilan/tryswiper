@@ -3,7 +3,7 @@ import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server
 import { E2E_COOKIE, clerkConfigured, e2eEnabled, isE2eUserId } from "@/lib/auth-env";
 import { safeNextPath } from "@/lib/paths";
 
-const protectedPaths = ["/library", "/connect", "/brand", "/new", "/formats", "/c"];
+const protectedPaths = ["/library", "/connect", "/brand", "/new", "/formats", "/account", "/c"];
 const guestPaths = ["/login", "/signup"];
 
 function matches(pathname: string, paths: string[]) {

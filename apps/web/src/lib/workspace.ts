@@ -6,8 +6,8 @@ import { sid } from "./ids";
 
 export async function ensureWorkspace(userId: string, name: string) {
   return db.transaction(async (tx) => {
-  const [person] = await tx.select({ id: schema.user.id }).from(schema.user).where(eq(schema.user.id, userId)).for("update");
-  if (!person) throw Object.assign(new Error("Account not found."), { status: 404, code: "NOT_FOUND" });
+  const [person] = await tx.select({ id: schema.user.id, disabledAt: schema.user.disabledAt, deletedAt: schema.user.deletedAt }).from(schema.user).where(eq(schema.user.id, userId)).for("update");
+  if (!person || person.disabledAt || person.deletedAt) throw Object.assign(new Error("Account not found."), { status: 404, code: "NOT_FOUND" });
   const existing = await tx
     .select()
     .from(schema.membership)

@@ -40,6 +40,7 @@ flowchart TD
 | Support `/support` | Get help without requiring a mail application | Email support or copy the address |
 | Create `/new` | Generate from a brief or create manually | Open the editable draft |
 | Editor `/c/{id}` | Review, edit, reorder, save, and export | Check the carousel and download files |
+| Account `/account` | Manage billing or permanently remove the account | Typed confirmation erases owned workspaces; pending subscription cancellation is disclosed |
 | Pricing `/pricing` | See allowances and upgrade | Complete checkout and wait for confirmation |
 | Guide `/guide` | Read the usage guide | Follow a link to the next step |
 

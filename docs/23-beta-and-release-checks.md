@@ -6,7 +6,7 @@ Prepared 14 October 2026. This is an execution protocol, not evidence that a bet
 
 The local implementation preserves edits during agent iteration, supports generation with saved designs, provides image previews and protected MCP exports, bounds expensive work, and exposes subscription management/support. Local tests simulate identity/model/payment providers. These changes need live-client and customer evidence before public or paid certification.
 
-Operator: **MILAN SAMPATH**. Support: **milan@cassettelabs.in**. Approved privacy-policy and terms URLs have not been supplied. Account deletion/retention and host-log policies need approval. Do not publish invented policies.
+Operator: **MILAN SAMPATH**. Support: **milan@cassettelabs.in**. Approved privacy-policy and terms URLs have not been supplied. Operator chose immediate account-content erasure with no recovery period. The local flow is implemented; production backup/log/processor retention and approved policy publication still need review. Do not publish invented policies.
 
 ## Beta task
 
@@ -31,7 +31,7 @@ Revisit positioning using demonstrated edit preservation, reusable design qualit
 | Gate | Evidence required | Current status |
 | --- | --- | --- |
 | Google/GitHub sign-in | New and returning accounts, intended redirect, name completion, error recovery on public domain | Live check pending |
-| Identity lifecycle | Signed profile update, disable, re-enable and deletion; content keys revoked; old profile response cannot reopen access | Local fixtures pass; deployed subscriptions/secret and live delivery pending |
+| Identity lifecycle | Signed profile update, disable, re-enable and deletion; content keys revoked; old profile response cannot reopen access | Local lifecycle/erasure fixtures cover permanent fences and cancellation retries; deployed subscriptions/secret and live delivery pending |
 | Cursor, Claude, ChatGPT | Discover tools, create, guarded edit, image preview, protected file retrieval, appropriate mutation approvals | Local MCP checks pass; each advertised host pending |
 | Credentials | Workspace isolation, no content-key credential/billing management, immediate revocation, no secret URLs except documented ChatGPT connection URL | Local checks pass; hosted revocation pending |
 | Legal and support | Approved privacy/terms pages and retention policy; support links work | Operator/contact supplied and links implemented; policies pending |

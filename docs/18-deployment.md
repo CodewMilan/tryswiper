@@ -24,7 +24,7 @@ See `.env.example`.
 
 - `DATABASE_URL` — include `sslmode=require` for managed Postgres. Use the pooled URL when the host has one. The driver disables prepared statements so transaction poolers work.
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` — from the Clerk dashboard. The publishable key is read when the image is built (`docker build --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...`). Enable Google and GitHub under SSO connections.
-- `CLERK_WEBHOOK_SIGNING_SECRET` — configure `/api/webhooks/clerk` for `user.created`, `user.updated`, and `user.deleted`. Signed events sync linked profiles and revoke content keys on account removal/disable. Session/key access also checks current identity state at least every two minutes, so webhook delivery is not the only revocation path. Disabling access retains local content and billing records; data-deletion/retention policy remains an operator decision.
+- `CLERK_WEBHOOK_SIGNING_SECRET` — configure `/api/webhooks/clerk` for `user.created`, `user.updated`, and `user.deleted`. Signed events sync linked profiles and revoke content keys on account removal/disable. Session/key access also checks current identity state at least every two minutes, so webhook delivery is not the only revocation path. Disabling access retains content; confirmed account deletion now erases owned workspace content immediately and queues linked subscription cancellation. Production backups/log/processor retention still needs approval.
 - `APP_URL` — public origin, no trailing slash. Production must be `https://`. Read at runtime.
 - `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` — optional. Without them, generation uses the local planner.
 - `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_PRO_PRODUCT_ID`, `DODO_PAYMENTS_STUDIO_PRODUCT_ID`, and `DODO_PAYMENTS_WEBHOOK_SECRET` — optional until you charge. Checkout uses the test API unless `DODO_PAYMENTS_ENVIRONMENT=live_mode`. Point the Dodo webhook at `https://<origin>/api/v1/billing/webhook`.
@@ -79,8 +79,16 @@ Postgres-backed leases admit up to eight concurrent model calls and four renders
 
 The Docker context excludes private `problems.md`, agent directories, credentials, local environments, test output and dependency/build caches. Next traces include bundled font assets on all carousel routes, including creation, validation, preview and export. Confirm native libraries and font files in the deployed artifact.
 
-Migrations 0009–0012 add preparation versions, resource budgets, local product events and billing verification revisions. Run migration replay/rollback checks and reconcile legacy identities/billing before release. Approve retention and legal pages; the code does not define the business's account-deletion policy. Use [the release evidence checklist](23-beta-and-release-checks.md) for live authentication, MCP, payments, backups and load.
+Migrations 0009–0013 add preparation versions, resource budgets, local product events, billing verification revisions and the account-erasure fence/cancellation queue. Run migration replay/rollback checks and reconcile legacy identities/billing before release. Approve retention and legal pages; the code does not define the business's account-deletion policy. Use [the release evidence checklist](23-beta-and-release-checks.md) for live authentication, MCP, payments, backups and load.
 
 ## Public policy destinations
 
 After operator approval, set `SWIPER_PRIVACY_POLICY_URL` and `SWIPER_TERMS_URL` to their public HTTPS URLs. The server-rendered footer exposes configured, valid destinations; unset/invalid URLs are omitted. Do not point them to drafts or authenticated documents. The technical inventory and remaining decisions are in [Policy publication review](25-policy-publication.md). `/support` is public and offers email and clipboard contact actions.
+
+## Account deletion operations
+
+Apply migration **0013_account_erasure** before running this application version. It adds `user.deleted_at` and the content-free `account_erasure` queue. Confirmed self-service deletion, verified `user.deleted` events and provider deletion checks share the erasure path. Workspace cascades erase active stored content immediately; old profile events cannot reopen a tombstoned identity. Disabling a user still only removes access.
+
+Run `pnpm erasure:retry` periodically with `DATABASE_URL`, `DODO_PAYMENTS_API_KEY` and the correct `DODO_PAYMENTS_ENVIRONMENT`. In non-production only, the command can load the web app's local `.env.local`; production uses supplied environment variables. It processes up to 100 pending deletion jobs, clears each confirmed subscription ID and reports counts without credentials or content. Monitor a nonzero exit/pending count and rerun until drained. Signed Clerk webhook retries also finish these jobs. Validate real cancellation against the intended provider environment before paid launch. Refunds are not automated by account deletion.
+
+Content-free identity fences and provider-side invoice/account records are separate from deleted workspace content. Verify production backups, logs, processor retention and restoration procedures against the approved policy; a backup restore must not reintroduce erased workspaces.

@@ -1,6 +1,7 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { clerkClient, type User } from "@clerk/nextjs/server";
 import { db, schema } from "@/lib/db";
+import { eraseClerkIdentity } from "./account-erasure";
 import { sid } from "@/lib/ids";
 
 type IdentityProfile = Pick<User, "id" | "fullName" | "primaryEmailAddress" | "imageUrl" | "banned" | "locked">;
@@ -12,9 +13,9 @@ export async function linkClerkProfile(profile: IdentityProfile) {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`clerk:${profile.id}`}, 0))`);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`email:${email}`}, 0))`);
-    const [linked] = await tx.select({ userId: schema.account.userId }).from(schema.account)
+    const [linked] = await tx.select({ userId: schema.account.userId, deletedAt: schema.user.deletedAt }).from(schema.account).innerJoin(schema.user, eq(schema.user.id, schema.account.userId))
       .where(and(eq(schema.account.providerId, "clerk"), eq(schema.account.accountId, profile.id))).limit(1);
-    if (linked) return linked.userId;
+    if (linked) return linked.deletedAt ? null : linked.userId;
     const [byEmail] = await tx.select({ id: schema.user.id, disabledAt: schema.user.disabledAt }).from(schema.user).where(eq(schema.user.email, email)).limit(1);
     if (byEmail?.disabledAt) throw Object.assign(new Error("This email belongs to a disabled account. Contact support before reconnecting it."), { status: 409, code: "ACCOUNT_LINK_REQUIRED" });
     const verified = profile.primaryEmailAddress?.verification?.status === "verified";
@@ -29,8 +30,8 @@ export async function linkClerkProfile(profile: IdentityProfile) {
 
 export async function syncClerkProfile(localId: string, user: IdentityProfile, verificationStartedAt = new Date()) {
   return db.transaction(async (tx) => {
-    const [current] = await tx.select({ disabledAt: schema.user.disabledAt, checkedAt: schema.user.identityCheckedAt }).from(schema.user).where(eq(schema.user.id, localId)).for("update");
-    if (!current) return false;
+    const [current] = await tx.select({ disabledAt: schema.user.disabledAt, checkedAt: schema.user.identityCheckedAt, deletedAt: schema.user.deletedAt }).from(schema.user).where(eq(schema.user.id, localId)).for("update");
+    if (!current || current.deletedAt) return false;
     if (current.checkedAt && (current.checkedAt > verificationStartedAt || current.disabledAt && current.checkedAt >= verificationStartedAt)) return !current.disabledAt;
     const disabled = user.banned || user.locked;
     const email = user.primaryEmailAddress;
@@ -64,7 +65,7 @@ export async function refreshClerkIdentity(clerkId: string) {
     return await syncClerkProfile(account.userId, profile, account.verificationStartedAt);
   } catch (error) {
     if (error && typeof error === "object" && "status" in error && error.status === 404) {
-      await disableClerkIdentity(clerkId);
+      await eraseClerkIdentity(clerkId);
       return false;
     }
     throw Object.assign(new Error("Account verification is temporarily unavailable. Please try again.", { cause: error }), { status: 503, code: "IDENTITY_UNAVAILABLE" });

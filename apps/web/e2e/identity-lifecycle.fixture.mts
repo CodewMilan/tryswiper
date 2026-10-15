@@ -42,7 +42,9 @@ try {
   headers["svix-signature"] = `v1,${signature}`;
   assert.equal((await POST(new NextRequest("http://localhost/api/webhooks/clerk", { method: "POST", headers, body }))).status, 200);
   assert.equal(await syncClerkProfile(localId, { id: clerkId, fullName: "Old active profile", primaryEmailAddress: null, imageUrl: "", banned: false, locked: false }, new Date(Date.now() - 60000)), false);
-  assert.ok((await db.select().from(schema.user).where(eq(schema.user.id, localId)))[0]!.disabledAt);
+  assert.ok((await db.select().from(schema.user).where(eq(schema.user.id, localId)))[0]!.deletedAt);
+  assert.equal(await syncClerkProfile(localId, { id: clerkId, fullName: "Late active profile", primaryEmailAddress: null, imageUrl: "", banned: false, locked: false }, new Date(Date.now() + 60000)), false);
+  assert.equal((await db.select().from(schema.workspace).where(eq(schema.workspace.ownerId, localId))).length, 0);
   deleted = true;
   assert.equal(await refreshClerkIdentity(clerkId), false);
   await assert.rejects(assertActiveIdentity(localId), (error: unknown) => (error as { code: string }).code === "ACCOUNT_DISABLED");

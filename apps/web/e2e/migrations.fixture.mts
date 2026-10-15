@@ -40,6 +40,8 @@ try {
         await assert.rejects(client`insert into account(id,account_id,provider_id,user_id) values('account_three','same_identity','clerk','user_one')`, (error: unknown) => (error as { code: string }).code === "23505");
         assert.ok((await client`select to_regclass('public.creation_request') as name`)[0]!.name);
         assert.ok((await client`select to_regclass('public.billing_webhook') as name`)[0]!.name);
+        assert.ok((await client`select to_regclass('public.account_erasure') as name`)[0]!.name);
+        await client`select deleted_at from "user" limit 1`;
       }
     } finally { await client.end(); }
   }

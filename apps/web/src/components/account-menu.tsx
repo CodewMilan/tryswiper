@@ -79,7 +79,8 @@ function AccountMenuView({ links = [], className, tone = "dark", name, imageUrl,
     }}>
       <p className="truncate px-3 py-2 text-sm font-medium tracking-[-0.01em]">{name}</p>
       {links.map((link) => <Link key={link.href} href={link.href} role="menuitem" tabIndex={-1} className={menuLinkClass} onClick={() => close()}>{link.label}</Link>)}
-      <a href="mailto:milan@cassettelabs.in" role="menuitem" tabIndex={-1} className={menuLinkClass} onClick={() => close()}>Contact support</a>
+      <Link href="/account" role="menuitem" tabIndex={-1} className={menuLinkClass} onClick={() => close()}>Account settings</Link>
+      <Link href="/support" role="menuitem" tabIndex={-1} className={menuLinkClass} onClick={() => close()}>Contact support</Link>
       <button type="button" role="menuitem" tabIndex={-1} className={`${menuLinkClass} w-full text-left`} onClick={() => { close(); void onSignOut(); }}>Sign out</button>
     </div> : null}
   </div>;

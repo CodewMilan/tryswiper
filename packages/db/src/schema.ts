@@ -16,6 +16,7 @@ export const user = pgTable("user", {
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
   disabledAt: timestamp("disabled_at"),
+  deletedAt: timestamp("deleted_at"),
   identityCheckedAt: timestamp("identity_checked_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -352,7 +353,16 @@ export const productEvent = pgTable("product_event", {
   kind: text("kind").notNull(), source: text("source"), value: text("value"), createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [index("product_event_workspace_created_idx").on(table.workspaceId, table.createdAt)]);
 
+/** Content-free deletion fence and durable provider-cancellation work. */
+export const accountErasure = pgTable("account_erasure", {
+  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  subscriptionIds: jsonb("subscription_ids").$type<string[]>().notNull().default([]),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
 export const schema = {
+  accountErasure,
   operationLease,
   resourceWindow,
   productEvent,

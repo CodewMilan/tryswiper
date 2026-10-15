@@ -16,6 +16,7 @@
     "db:down": "docker compose down",
     "db:push": "pnpm --filter @swiper/db push",
     "db:migrate": "pnpm --filter @swiper/db migrate",
-    "db:studio": "pnpm --filter @swiper/db studio"
+    "db:studio": "pnpm --filter @swiper/db studio",
+    "erasure:retry": "pnpm --filter @swiper/mcp exec tsx --tsconfig ../web/tsconfig.json ../web/scripts/retry-account-erasures.mts"
   }
 }
