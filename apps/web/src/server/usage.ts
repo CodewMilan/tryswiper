@@ -2,14 +2,12 @@ import { and, count, eq, gte } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { sid } from "@/lib/ids";
 import { getBilling } from "@/server/billing";
+import { isPaidPlan, PLAN_LIMITS, type Plan } from "@/lib/plans";
+
+export { PLAN_LIMITS } from "@/lib/plans";
+export type { Plan } from "@/lib/plans";
 
 export type UsageKind = "carousel" | "generation" | "export" | "publish";
-export type Plan = "free" | "pro";
-
-export const PLAN_LIMITS = {
-  free: { carousel: 5, generation: 10, export: 20, publish: 0, jpg: false },
-  pro: { carousel: 100, generation: 250, export: 1000, publish: 100, jpg: true },
-} as const;
 
 function periodStart() {
   const now = new Date();
@@ -18,8 +16,8 @@ function periodStart() {
 
 export async function workspacePlan(workspaceId: string): Promise<Plan> {
   const billing = await getBilling(workspaceId);
-  return billing?.plan === "pro" && billing.dodoSubscriptionId && billing.productId && billing.lastVerifiedAt && ["active", "past_due"].includes(billing.status) &&
-    billing.paidThrough && billing.paidThrough.getTime() > Date.now() ? "pro" : "free";
+  return billing && isPaidPlan(billing.plan) && billing.dodoSubscriptionId && billing.productId && billing.lastVerifiedAt && ["active", "past_due"].includes(billing.status) &&
+    billing.paidThrough && billing.paidThrough.getTime() > Date.now() ? billing.plan : "free";
 }
 
 export async function usageFor(workspaceId: string, reader: Pick<typeof db, "select"> = db) {
@@ -74,8 +72,8 @@ export async function withUsageTransaction<T>(workspaceId: string, kinds: UsageK
     const previous = await replay?.(tx);
     if (previous) return previous.value;
     const [billing] = await tx.select().from(schema.billing).where(eq(schema.billing.workspaceId, workspaceId)).limit(1);
-    const plan: Plan = verifiedPlan === "pro" && billing?.plan === "pro" && billing.dodoSubscriptionId && billing.productId && billing.lastVerifiedAt && ["active", "past_due"].includes(billing.status) &&
-      billing.paidThrough && billing.paidThrough.getTime() > Date.now() ? "pro" : "free";
+    const plan: Plan = isPaidPlan(verifiedPlan) && billing && billing.plan === verifiedPlan && billing.dodoSubscriptionId && billing.productId && billing.lastVerifiedAt && ["active", "past_due"].includes(billing.status) &&
+      billing.paidThrough && billing.paidThrough.getTime() > Date.now() ? verifiedPlan : "free";
     const usage = await usageFor(workspaceId, tx);
     for (const kind of kinds) {
       const used = usage[kind] ?? 0; const limit = PLAN_LIMITS[plan][kind];
@@ -90,7 +88,7 @@ export async function withUsageTransaction<T>(workspaceId: string, kinds: UsageK
 export async function requireFeature(workspaceId: string, feature: "jpg" | "publish") {
   const plan = await workspacePlan(workspaceId);
   if (feature === "jpg" ? !PLAN_LIMITS[plan].jpg : PLAN_LIMITS[plan].publish === 0) {
-    throw Object.assign(new Error(`${feature === "jpg" ? "JPG export" : "Publishing"} is included with Pro.`), {
+    throw Object.assign(new Error(`${feature === "jpg" ? "JPG export" : "File preparation"} is included with Pro and Studio.`), {
       status: 403,
       code: "UPGRADE_REQUIRED",
       details: { feature, plan },

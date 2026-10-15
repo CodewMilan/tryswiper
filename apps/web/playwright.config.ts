@@ -21,6 +21,12 @@ export default defineConfig({
       SWIPER_E2E: "1",
       ANTHROPIC_API_KEY: "",
       OPENAI_API_KEY: "",
+      DODO_PAYMENTS_API_KEY: "fixture_checkout_never_charge",
+      DODO_PAYMENTS_PRODUCT_ID: "fixture_pro",
+      DODO_PAYMENTS_PRO_PRODUCT_ID: "fixture_pro",
+      DODO_PAYMENTS_STUDIO_PRODUCT_ID: "fixture_studio",
+      DODO_PAYMENTS_WEBHOOK_SECRET: "fixture_signing_only",
+      DODO_PAYMENTS_ENVIRONMENT: "test_mode",
     },
   },
 });

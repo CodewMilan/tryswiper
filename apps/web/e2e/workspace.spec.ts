@@ -741,7 +741,7 @@ test("complete brand context clears the warning and local slide revision stays f
   expect(billing.usage.generation ?? 0).toBe(0);
 });
 
-test("marketing logos follow the session and signed-in navigation shows Pricing once", async ({ page }) => {
+test("marketing logos lead home and signed-in navigation shows Pricing once", async ({ page }) => {
   for (const path of ["/", "/pricing", "/this-page-does-not-exist"]) {
     await page.goto(path);
     await expect(page.locator("header").getByRole("link", { name: "Swiper home", exact: true })).toHaveAttribute("href", "/");
@@ -750,10 +750,10 @@ test("marketing logos follow the session and signed-in navigation shows Pricing 
   for (const path of ["/", "/pricing", "/this-page-does-not-exist"]) {
     await page.goto(path);
     const header = page.locator("header");
-    await expect(header.getByRole("link", { name: "Swiper library", exact: true })).toHaveAttribute("href", "/library");
+    await expect(header.getByRole("link", { name: "Swiper home", exact: true })).toHaveAttribute("href", "/");
     await expect(header.getByRole("link", { name: "Pricing", exact: true })).toHaveCount(1);
-    await header.getByRole("link", { name: "Swiper library", exact: true }).click();
-    await expect(page).toHaveURL(/\/library$/);
+    await header.getByRole("link", { name: "Swiper home", exact: true }).click();
+    await expect(page).toHaveURL("http://localhost:3101/");
   }
 });
 
@@ -1325,4 +1325,43 @@ test("undo snapshots stay bounded and expired request responses cannot generate 
     expect((await (await request.get(`/api/v1/requests/${requestId}`)).json()).status).toBe("expired");
     expect((await (await request.get("/api/v1/billing")).json()).usage.carousel).toBe(1);
   } finally { await sql.end(); }
+});
+
+test("pricing shows three priced tiers, selects Studio checkout and preserves paid management", async ({ page }, testInfo) => {
+  await signUp(page.request);
+  let selected: string | undefined;
+  const studioLimits = { carousel: 100, generation: 150, export: 600, publish: 100, jpg: true };
+  await page.route("**/api/v1/billing", (route) => route.fulfill({ json: { plan: selected ?? "free", has_billing_customer: Boolean(selected), usage: { generation: 1 }, limits: selected ? studioLimits : { carousel: 5, generation: 10, export: 20, publish: 0, jpg: false } } }));
+  await page.route("**/api/v1/billing/checkout", (route) => {
+    selected = route.request().postDataJSON().plan;
+    expect(selected).toBe("studio");
+    return route.fulfill({ json: { checkout_url: "http://localhost:3101/pricing?status=success&plan=studio" } });
+  });
+  await page.goto("/pricing");
+  for (const [name, price] of [["Free", "$0"], ["Pro", "$29"], ["Studio", "$79"]]) {
+    await expect(page.getByRole("region", { name, exact: true })).toContainText(price!);
+  }
+  await expect(page.getByText("Price shown at checkout")).toHaveCount(0);
+  await page.getByRole("region", { name: "Studio", exact: true }).getByRole("button", { name: "Upgrade to Studio" }).click();
+  await expect(page).toHaveURL(/status=success&plan=studio/);
+  await expect(page.getByRole("region", { name: "Studio", exact: true }).getByText("Current plan")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Manage subscription", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Pro", exact: true }).getByRole("link", { name: "Contact us to change plans" })).toHaveAttribute("href", /mailto:/);
+  await expect(page.getByText("Your Studio workspace this month")).toBeVisible();
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1100 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`pricing-${width}.png`), fullPage: width === 1440 });
+  }
+  await page.locator("summary").filter({ hasText: "What uses an AI credit?" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(/A local fallback draft does not spend an AI credit/)).toBeVisible();
+  const invalid = await page.request.post("/api/v1/billing/checkout", { data: { plan: "enterprise" } });
+  expect(invalid.status()).toBe(400);
+});
+
+test("paid checkout matches the advertised product price and billing period", async () => {
+  await promisify(execFile)(process.execPath, ["--import", require.resolve("tsx", { paths: [resolve(__dirname, "../../mcp")] }), resolve(__dirname, "pricing-contract.fixture.mts")], { env: {
+    ...process.env, TSX_TSCONFIG_PATH: resolve(__dirname, "../tsconfig.json"),
+  } });
 });

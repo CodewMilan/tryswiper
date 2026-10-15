@@ -27,8 +27,8 @@ See `.env.example`.
 - `CLERK_WEBHOOK_SIGNING_SECRET` — configure `/api/webhooks/clerk` for `user.created`, `user.updated`, and `user.deleted`. Signed events sync linked profiles and revoke content keys on account removal/disable. Session/key access also checks current identity state at least every two minutes, so webhook delivery is not the only revocation path. Disabling access retains local content and billing records; data-deletion/retention policy remains an operator decision.
 - `APP_URL` — public origin, no trailing slash. Production must be `https://`. Read at runtime.
 - `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` — optional. Without them, generation uses the local planner.
-- `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_PRODUCT_ID`, and `DODO_PAYMENTS_WEBHOOK_SECRET` — optional until you charge. Checkout uses the test API unless `DODO_PAYMENTS_ENVIRONMENT=live_mode`. Point the Dodo webhook at `https://<origin>/api/v1/billing/webhook`.
-- `PRO_PRICE` — optional label on `/pricing`, for example `19`. The charged amount is the Dodo product price.
+- `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_PRO_PRODUCT_ID`, `DODO_PAYMENTS_STUDIO_PRODUCT_ID`, and `DODO_PAYMENTS_WEBHOOK_SECRET` — optional until you charge. Checkout uses the test API unless `DODO_PAYMENTS_ENVIRONMENT=live_mode`. Point the Dodo webhook at `https://<origin>/api/v1/billing/webhook`.
+- Pro and Studio products must be distinct recurring monthly USD products at $29/$79 respectively, tax-exclusive, without trials, PPP or automatic discounts. `DODO_PAYMENTS_PRODUCT_ID` remains an alias for Pro. Public prices/limits come from `src/lib/plans.ts`; `PRO_PRICE` no longer controls the page. Checkout preflights the provider product and refuses mismatches.
 
 `NEXT_PUBLIC_APP_URL` is optional. Leave it unset in the image so the browser uses the origin it loaded.
 
@@ -36,7 +36,7 @@ The server refuses to start in production when the secret or the public origin i
 
 ## Release
 
-Checkout requires all three Dodo values. Subscription events are verified, deduplicated, and reconciled against `GET /subscriptions/{id}`; ordinary payment successes do not grant a plan. Paid access follows the product, provider state, and period end. Grace-period access is periodically reverified. Keep the subscription product's renewal configuration and the operator's trial/cancellation policies aligned with Dodo. Live lifecycle certification is still required before charging.
+Checkout requires the API key, signing secret and the selected tier’s product ID. Subscription events are verified, deduplicated, and reconciled against `GET /subscriptions/{id}`; ordinary payment successes do not grant a plan. Paid access follows the product, provider state, and period end. Grace-period access is periodically reverified. Keep the subscription product's renewal configuration and the operator's trial/cancellation policies aligned with Dodo. Live lifecycle certification is still required before charging.
 
 ```bash
 docker build -t swiper .

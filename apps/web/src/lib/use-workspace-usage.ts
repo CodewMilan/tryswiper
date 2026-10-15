@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { planName, type Plan } from "@/lib/plans";
 
 export type UsageKind = "carousel" | "generation" | "export" | "publish";
 export type WorkspaceUsage = {
-  plan: "free" | "pro";
+  plan: Plan;
   usage: Partial<Record<UsageKind, number>>;
   limits: Record<UsageKind, number> & { jpg: boolean };
 };
@@ -12,7 +13,7 @@ export type WorkspaceUsage = {
 export type UsageApiError = {
   message?: string;
   code?: string;
-  details?: { kind?: UsageKind; limit?: number; plan?: "free" | "pro" };
+  details?: { kind?: UsageKind; limit?: number; plan?: Plan };
 };
 
 export function usageLimitMessage(error: UsageApiError) {
@@ -21,7 +22,7 @@ export function usageLimitMessage(error: UsageApiError) {
   };
   const kind = error.details?.kind;
   const allowance = error.details?.limit;
-  const plan = error.details?.plan === "pro" ? "Pro" : "Free";
+  const plan = planName(error.details?.plan);
   return kind
     ? `You’ve used ${allowance === undefined ? "all your" : `all ${allowance}`} ${names[kind]} for this month on ${plan}. Your allowance resets on the first of next month (UTC).${kind === "carousel" ? " Deleting a carousel created this month frees a slot." : ""}`
     : "You’ve reached your monthly allowance. It resets on the first of next month (UTC).";

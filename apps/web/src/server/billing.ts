@@ -3,6 +3,7 @@ import { schema } from "@swiper/db";
 import { db } from "@/lib/db";
 import { dodoConfig, retrieveDodoSubscription } from "@/lib/dodo";
 import { subscriptionEntitlement, type DodoSubscription } from "@/lib/subscription";
+import { isPaidPlan, paidPlanForProduct } from "@/lib/plans";
 
 export async function getBilling(workspaceId: string) {
   const [row] = await db
@@ -11,14 +12,14 @@ export async function getBilling(workspaceId: string) {
     .where(eq(schema.billing.workspaceId, workspaceId))
     .limit(1);
   if (!row) return null;
-  if (row.plan === "pro" && !row.dodoSubscriptionId) return { ...row, plan: "free", status: "verification_required" };
+  if (isPaidPlan(row.plan) && !row.dodoSubscriptionId) return { ...row, plan: "free", status: "verification_required" };
   if (row.dodoSubscriptionId && (!row.productId || !row.lastVerifiedAt || Date.now() - row.lastVerifiedAt.getTime() > 5 * 60_000 ||
-    (row.plan === "pro" && (!row.paidThrough || row.paidThrough.getTime() <= Date.now())))) {
+    (isPaidPlan(row.plan) && (!row.paidThrough || row.paidThrough.getTime() <= Date.now())))) {
     try {
       const verificationStartedAt = new Date();
       const subscription = await retrieveDodoSubscription(row.dodoSubscriptionId);
       if ((subscription.metadata.workspace_id ?? subscription.metadata.workspaceId) !== workspaceId) return { ...row, plan: "free", status: "verification_required" };
-      const values = subscriptionEntitlement(subscription, dodoConfig().productId);
+      const values = subscriptionEntitlement(subscription, dodoConfig().products);
       const [fresh] = await db.update(schema.billing).set({ ...values, lastVerifiedAt: verificationStartedAt, revision: row.revision + 1, updatedAt: new Date() })
         .where(and(eq(schema.billing.workspaceId, workspaceId), eq(schema.billing.dodoSubscriptionId, row.dodoSubscriptionId), eq(schema.billing.revision, row.revision))).returning();
       if (fresh) return fresh;
@@ -47,8 +48,9 @@ export async function applySubscriptionEvent(input: {
     if (current?.dodoSubscriptionId && current.dodoSubscriptionId !== input.subscription.subscription_id &&
       (current.subscriptionCreatedAt && new Date(input.subscription.created_at) <= current.subscriptionCreatedAt ||
         !["active", "past_due"].includes(input.subscription.status))) return { applied: false, reason: "superseded_subscription" };
-    const entitlement = subscriptionEntitlement(input.subscription, dodoConfig().productId);
-    if (entitlement.productId !== dodoConfig().productId && current?.dodoSubscriptionId !== input.subscription.subscription_id) return { applied: false, reason: "unrelated_product" };
+    const products = dodoConfig().products;
+    const entitlement = subscriptionEntitlement(input.subscription, products);
+    if (!paidPlanForProduct(entitlement.productId, products) && current?.dodoSubscriptionId !== input.subscription.subscription_id) return { applied: false, reason: "unrelated_product" };
     const values = { workspaceId: input.workspaceId, ...entitlement, dodoSubscriptionId: input.subscription.subscription_id,
       dodoCustomerId: input.subscription.customer.customer_id, lastEventAt: input.occurredAt, lastVerifiedAt: input.verificationStartedAt ?? new Date(), revision: (current?.revision ?? 0) + 1, updatedAt: new Date() };
     await tx.insert(schema.billing).values(values).onConflictDoUpdate({ target: schema.billing.workspaceId, set: values });

@@ -42,7 +42,14 @@ Rules:
 function fallbackEvent(operation: "draft" | "revision", error: unknown, startedAt: number, requestRef?: string, usage?: { inputTokens?: number; outputTokens?: number }) {
   const value = error as { name?: string; statusCode?: number } | null;
   console.warn(JSON.stringify({ event: "generation_fallback", operation, duration_ms: Date.now() - startedAt,
-    category: value?.name === "TimeoutError" || value?.name === "AbortError" ? "timeout" : /InvalidModelOutput|NoObjectGenerated/.test(value?.name ?? "") ? "invalid_output" : value?.statusCode === 401 || value?.statusCode === 403 ? "provider_auth" : value?.statusCode === 429 ? "provider_limit" : "provider_error", source: "local", request_ref: requestRef, input_tokens: usage?.inputTokens, output_tokens: usage?.outputTokens }));
+    category: value?.name === "PromptBudgetError" ? "input_limit" : value?.name === "TimeoutError" || value?.name === "AbortError" ? "timeout" : /InvalidModelOutput|NoObjectGenerated/.test(value?.name ?? "") ? "invalid_output" : value?.statusCode === 401 || value?.statusCode === 403 ? "provider_auth" : value?.statusCode === 429 ? "provider_limit" : "provider_error", source: "local", request_ref: requestRef, input_tokens: usage?.inputTokens, output_tokens: usage?.outputTokens }));
+}
+
+/** Bound provider input as well as output; oversized context stays a free local draft. */
+function boundedPrompt(prompt: string, schema: z.ZodType) {
+  const bytes = new TextEncoder().encode(SYSTEM + prompt + JSON.stringify(z.toJSONSchema(schema))).byteLength;
+  if (bytes > 32 * 1024) throw Object.assign(new Error("The supplied context exceeds the model input budget."), { name: "PromptBudgetError" });
+  return prompt;
 }
 
 export async function generatePlan(input: {
@@ -60,14 +67,15 @@ export async function generatePlan(input: {
   try {
     const loaded = await model();
     if (!loaded) return { plan: fallback, source: "local" };
+    const modelSchema = input.template ? carouselPlanSchema.extend({ slides: z.array(slidePlanSchema).length(input.template.slides.length) }) : carouselPlanSchema;
     const { object, usage } = await generateObject({
       model: loaded,
-      schema: input.template ? carouselPlanSchema.extend({ slides: z.array(slidePlanSchema).length(input.template.slides.length) }) : carouselPlanSchema,
+      schema: modelSchema,
       maxOutputTokens: 6000,
       abortSignal: AbortSignal.timeout(60000),
       maxRetries: 0,
       system: SYSTEM,
-      prompt: [
+      prompt: boundedPrompt([
         compactBrand(input.brand),
         input.template ? `Saved workspace format: ${input.template.formatId}. Return exactly these roles and layouts in order, including all listed copy fields: ${JSON.stringify(input.template.slides.map((slide) => ({ role: slide.role, layout: slide.layout, copy_fields: ["headline", "kicker", "body", "proof", "cta"].filter((field) => slide[field as keyof typeof slide] !== undefined) })))}. Write NEW copy from the brief. Do not reuse the template's prior factual claims.` : "",
         input.formatId ? `Format id: ${input.formatId}` : "Pick the best official format.",
@@ -78,7 +86,7 @@ export async function generatePlan(input: {
         input.template ? "" : `Official formats and native roles: ${JSON.stringify(FORMATS.map((format) => ({ id: format.id, roles: format.slides.map((slide) => slide.role), count: format.slideCount })))}. For extra slides, add detail-1, detail-2, etc. immediately before proof/product/CTA.`,
       ]
         .filter(Boolean)
-        .join("\n\n"),
+        .join("\n\n"), modelSchema),
     });
     if (input.template) {
       if (object.formatId !== input.template.formatId || object.slides.length !== input.template.slides.length || object.slides.some((slide, index) => slide.role !== input.template!.slides[index]!.role || slide.layout !== input.template!.slides[index]!.layout || (["kicker", "body", "proof", "cta"] as const).some((field) => input.template!.slides[index]![field] !== undefined && slide[field] === undefined))) return invalidOutput(usage);
@@ -138,13 +146,13 @@ export async function reviseSlidePlan(input: {
       abortSignal: AbortSignal.timeout(60000),
       maxRetries: 0,
       system: SYSTEM,
-      prompt: [
+      prompt: boundedPrompt([
         compactBrand(input.brand),
         `Revise only slide ${input.slideIndex + 1} (${current.role}).`,
         `Instruction: ${input.instruction}`,
         `Current plan JSON:\n${JSON.stringify(input.plan, null, 2)}`,
         "Return only the revised slide's copy. Preserve its role and layout. Include the existing copy fields unless the instruction changes them.",
-      ].join("\n\n"),
+      ].join("\n\n"), slidePlanSchema),
     });
     const slides = [...input.plan.slides];
     slides[input.slideIndex] = { ...current, ...object, role: current.role, layout: current.layout };

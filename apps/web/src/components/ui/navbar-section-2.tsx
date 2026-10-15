@@ -46,15 +46,16 @@ export default function NavbarSectionTwo({
   const panelId = useId();
   const [productOpen, setProductOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const homeHref = mode === "member" ? "/library" : "/";
-  const homeLabel = mode === "member" ? "Swiper library" : "Swiper home";
   const showProduct = mode !== "member";
   const showStart = mode === "guest" && !hideStartForFree;
   const showSignIn = mode === "guest" && !hideSignIn;
 
   useEffect(() => {
-    setProductOpen(false);
-    setMobileOpen(false);
+    const frame = window.requestAnimationFrame(() => {
+      setProductOpen(false);
+      setMobileOpen(false);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [pathname]);
 
   useEffect(() => {
@@ -97,7 +98,7 @@ export default function NavbarSectionTwo({
   return (
     <header ref={rootRef} className="pointer-events-none fixed inset-x-0 top-0 z-40 px-3 font-sans text-zinc-900 lg:px-6">
       <div className="pointer-events-auto relative mx-auto flex h-16 w-full max-w-7xl items-center justify-between">
-        <Link href={homeHref} aria-label={homeLabel} className="relative z-10 flex items-center text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <Link href="/" aria-label="Swiper home" className="relative z-10 flex items-center text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <Mark />
         </Link>
 
@@ -178,7 +179,7 @@ export default function NavbarSectionTwo({
                   <ArrowRight className="size-3" />
                 </Link>
               ) : null}
-              <AccountMenu links={accountLinks} />
+              <AccountMenu tone="light" links={accountLinks} />
             </>
           ) : showStart ? (
             <Link href="/signup" className="inline-flex items-center gap-1 rounded-lg bg-white px-3.5 py-1.5 text-[12px] font-semibold text-black transition-colors hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
@@ -190,7 +191,7 @@ export default function NavbarSectionTwo({
           ) : null}
         </div>
         <div className="relative z-10 flex items-center gap-2 lg:hidden">
-          {mode === "member" ? <AccountMenu className="mr-1" links={accountLinks} /> : null}
+          {mode === "member" ? <AccountMenu tone="light" className="mr-1" links={accountLinks} /> : null}
           {showStart ? (
             <Link href="/signup" className="inline-flex items-center gap-1 rounded-lg bg-black px-3 py-1.5 text-xs font-semibold text-white">
               Start for free

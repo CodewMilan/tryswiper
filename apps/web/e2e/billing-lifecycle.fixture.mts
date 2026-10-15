@@ -11,11 +11,13 @@ const workspaceId = process.argv[2]!;
 const secret = "test-billing-signature-only";
 process.env.DODO_PAYMENTS_API_KEY = "test-provider-only";
 process.env.DODO_PAYMENTS_PRODUCT_ID = "prod_swiper";
+process.env.DODO_PAYMENTS_PRO_PRODUCT_ID = "prod_swiper";
+process.env.DODO_PAYMENTS_STUDIO_PRODUCT_ID = "prod_studio";
 process.env.DODO_PAYMENTS_WEBHOOK_SECRET = `whsec_${Buffer.from(secret).toString("base64")}`;
 process.env.DODO_PAYMENTS_ENVIRONMENT = "test_mode";
 let subscription = {
   subscription_id: "sub_test", product_id: "prod_swiper", status: "active",
-  customer: { customer_id: "customer_test" }, metadata: { workspace_id: workspaceId },
+  customer: { customer_id: "customer_test" }, metadata: { workspace_id: workspaceId } as Record<string, string>,
   created_at: new Date(Date.now() - 86400_000).toISOString(), next_billing_date: new Date(Date.now() + 86400_000).toISOString(),
   expires_at: new Date(Date.now() + 365 * 86400_000).toISOString(), cancel_at_next_billing_date: false,
 };
@@ -105,5 +107,17 @@ try {
   // the fresh authoritative snapshot decides access for the same subscription.
   subscription = replacement;
   assert.equal((await event("subscription.active", 16)).applied, true);
+  assert.equal(await workspacePlan(workspaceId), "pro");
+  // Product identity, never client-controlled metadata, selects the paid tier.
+  subscription = { ...replacement, product_id: "prod_studio" };
+  await event("subscription.updated", 17);
+  assert.equal(await workspacePlan(workspaceId), "studio");
+  await db.update(schema.billing).set({ lastVerifiedAt: null }).where(eq(schema.billing.workspaceId, workspaceId));
+  assert.equal(await workspacePlan(workspaceId), "studio");
+  subscription = { ...subscription, status: "paused" };
+  await event("subscription.paused", 18);
+  assert.equal(await workspacePlan(workspaceId), "free");
+  subscription = { ...replacement, metadata: { workspace_id: workspaceId, plan: "studio" } };
+  await event("subscription.updated", 19);
   assert.equal(await workspacePlan(workspaceId), "pro");
 } finally { globalThis.fetch = originalFetch; await db.$client.end(); }

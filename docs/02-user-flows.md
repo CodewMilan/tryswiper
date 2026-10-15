@@ -130,7 +130,7 @@ Choose **Export**. Read the hook, verify claims and facts, and check the closing
 
 Latest edits save before downloading. Free users see the JPG upgrade path before a request. PNG and PDF remain available on Free within allowance. Automated checks help with defined rules; they do not fact-check every claim or certify visual quality. Exporting a manual draft does not require a clean content check.
 
-You upload the result yourself. Swiper does not connect social accounts, schedule or publish posts, or report social performance in this release. Pro adds higher limits and JPG downloads. Checking and file handoff are part of Export.
+You upload the result yourself. Swiper does not connect social accounts, schedule or publish posts, or report social performance in this release. Pro and Studio add higher limits and JPG downloads. Checking and file handoff are part of Export.
 
 ## 8. Reuse and return
 
@@ -140,18 +140,19 @@ The library loads drafts in pages of 25 and shows first-slide previews, slide co
 
 ## Plans and recovery
 
-| Monthly allowance | Free | Pro |
-| --- | ---: | ---: |
-| Carousels | 5 | 100 |
-| AI generations | 10 | 250 |
-| Exports | 20 | 1,000 |
-| JPG export | No | Yes |
+| Monthly allowance | Free | Pro | Studio |
+| --- | ---: | ---: | ---: |
+| Price (USD/month) | $0 | $29 | $79 |
+| Carousels | 5 | 30 | 100 |
+| AI generations/revisions | 10 | 50 | 150 |
+| Exports | 20 | 200 | 600 |
+| JPG export | No | Yes | Yes |
 
 Allowances reset on the first day of each month in UTC. Deleting a carousel created this month frees its slot; generation and export usage stay counted. Deleting an older carousel does not free a current-month slot.
 
 A failed or limited generation keeps the brief. Retry a failed generation or export from its corresponding action. Library, brand, formats, and plan loading errors offer retries. An inaccessible editor link offers a way back to the library. Sign-in failures show recovery instead of remaining indefinitely on a loading screen; a blocked provider must still be fixed in the live authentication configuration.
 
-To upgrade, open Pricing, continue to checkout, and wait for payment confirmation. The return URL alone does not prove the plan changed. Pricing refreshes the plan and offers a manual refresh while confirmation is pending. The displayed Pro price must match the configured payment product. When a customer is linked, **Manage subscription** opens the billing portal. Contact **milan@cassettelabs.in** for billing/support help. The operator is **MILAN SAMPATH**; approved privacy and terms pages remain a launch requirement.
+To upgrade, open Pricing, continue to checkout, and wait for payment confirmation. The return URL alone does not prove the plan changed. Pricing refreshes the plan and offers a manual refresh while confirmation is pending. Each displayed paid price must match its configured payment product; checkout verifies currency, amount and monthly cadence. When paid checkout is unavailable, the cards offer an email access request instead of a broken payment action. When a customer is linked, **Manage subscription** opens the billing portal. Contact **milan@cassettelabs.in** for billing/support help. The operator is **MILAN SAMPATH**; approved privacy and terms pages remain a launch requirement.
 
 ## References and verification limits
 

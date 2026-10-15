@@ -77,7 +77,7 @@
 }
 
 .editor-shell { min-height: 100dvh; background: var(--background); font-weight: 400; }
-.editor-header { display: flex; align-items: center; gap: 12px; min-height: 80px; padding: 12px 24px; background: var(--card); border-bottom: 1px solid var(--border); }
+.editor-header { display: flex; align-items: center; gap: 12px; min-height: 80px; padding: 10px 24px; background: var(--card); border-bottom: 1px solid var(--border); }
 .editor-workspace { display: grid; grid-template-columns: 184px minmax(0, 1fr) 280px; height: calc(100dvh - 80px); min-height: 600px; }
 .editor-slides { overflow-y: auto; border-right: 1px solid var(--border); background: var(--card); }
 .editor-center { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
@@ -101,7 +101,7 @@
   .editor-slides { grid-column: 1 / -1; border-right: 0; border-bottom: 1px solid var(--border); }
   .editor-center { min-height: 740px; }
   .editor-stage { max-height: 760px; }
-  .editor-header { padding: 12px 16px; }
+  .editor-header { padding: 10px 16px; }
 }
 @media (max-width: 639px) {
   .editor-workspace { display: flex; flex-direction: column; }

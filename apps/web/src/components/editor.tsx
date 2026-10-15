@@ -244,7 +244,10 @@ export function Editor({ carouselId, initialNotices = [] }: { carouselId: string
   return (
     <main id="main-content" className="editor-shell">
       <header className="editor-header">
-        <Link href="/library" aria-label="Back to library" className="flex min-h-10 min-w-10 shrink-0 items-center justify-center gap-2 rounded-[14px] focus-visible:ring-2 focus-visible:ring-ring"><ArrowLeft size={18} aria-hidden /><span className="hidden sm:inline-flex"><Mark /></span></Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link href="/library" aria-label="Back to library" className="flex min-h-10 min-w-10 items-center justify-center rounded-[14px] focus-visible:ring-2 focus-visible:ring-ring"><ArrowLeft size={18} aria-hidden /></Link>
+          <Link href="/" aria-label="Swiper home" className="hidden rounded-[14px] focus-visible:ring-2 focus-visible:ring-ring sm:inline-flex"><Mark /></Link>
+        </div>
         <div className="min-w-0 flex-1">
           <input aria-label="Carousel title" className="w-full max-w-md rounded border border-transparent bg-transparent px-2 py-1 text-sm font-medium hover:border-border focus:border-ring focus:outline-none" value={meta.title} maxLength={120}
             onChange={(event) => { if (event.target.value.trim()) mutate([{ op: "rename", title: event.target.value }]); }} />

@@ -32,6 +32,11 @@ test("missing, rejected, and successful model calls report the actual generation
     expect(fallback.plan.slides.slice(1)).toEqual(plan.slides.slice(1));
     expect(calls).toBe(2);
 
+    const oversizedBrand = { ...input.brand, proofPoints: Array.from({ length: 100 }, () => "Verified proof ".repeat(70)) };
+    expect((await generatePlan({ ...input, brand: oversizedBrand })).source).toBe("local");
+    expect((await reviseSlidePlan({ ...revision, brand: oversizedBrand })).source).toBe("local");
+    expect(calls).toBe(2); // Input budget rejects before any paid provider request.
+
     const modelPlan = { ...plan, title: "Copy produced by the model" };
     globalThis.fetch = async () => Response.json({
       id: "resp-test", object: "response", created_at: 1, model: "gpt-4.1", status: "completed",

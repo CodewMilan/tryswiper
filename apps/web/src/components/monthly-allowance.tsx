@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import type { useWorkspaceUsage } from "@/lib/use-workspace-usage";
+import { planName } from "@/lib/plans";
 
 export function MonthlyAllowance({ workspace }: { workspace: ReturnType<typeof useWorkspaceUsage> }) {
   const { data, loading, error, refresh } = workspace;
@@ -11,7 +12,7 @@ export function MonthlyAllowance({ workspace }: { workspace: ReturnType<typeof u
       {data ? (
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-sm text-ink-soft">{data.plan === "pro" ? "Pro" : "Free"} · Remaining this month</p>
+            <p className="text-sm text-ink-soft">{planName(data.plan)} · Remaining this month</p>
             <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-sm">
               <p><span className="font-medium tabular-nums">{Math.max(0, data.limits.carousel - (data.usage.carousel ?? 0))} of {data.limits.carousel}</span> carousels remaining</p>
               <p><span className="font-medium tabular-nums">{Math.max(0, data.limits.generation - (data.usage.generation ?? 0))} of {data.limits.generation}</span> AI generations remaining</p>
