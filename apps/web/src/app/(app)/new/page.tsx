@@ -161,17 +161,19 @@ function NewCarouselForm() {
     return () => { active = false; };
   }, []);
 
-  useEffect(() => {
-    if (!draftKey) return;
-    try { sessionStorage.setItem(draftKey, JSON.stringify({ brief, title, referenceUrl, mode, generateFormatId, manualFormatId })); }
-    catch { /* Private browsing may disable storage. Keep the in-memory brief usable. */ }
-  }, [draftKey, brief, title, referenceUrl, mode, generateFormatId, manualFormatId]);
-
   const eligibleFormats = mode === "generate" ? formats.filter((format) => format.id !== "freeform" && format.can_generate !== false) : formats;
   const cachedId = mode === "generate" ? generateFormatId : manualFormatId;
   const requested = eligibleFormats.find((format) => format.id === requestedFormat);
   const formatId = requested?.id ?? eligibleFormats.find((format) => format.id === cachedId)?.id ?? eligibleFormats[0]?.id;
+
+  useEffect(() => {
+    if (!draftKey) return;
+    try { sessionStorage.setItem(draftKey, JSON.stringify({ brief, title, referenceUrl, mode, generateFormatId: mode === "generate" ? formatId ?? generateFormatId : generateFormatId, manualFormatId: mode === "manual" ? formatId ?? manualFormatId : manualFormatId })); }
+    catch { /* Private browsing may disable storage. Keep the in-memory brief usable. */ }
+  }, [draftKey, brief, title, referenceUrl, mode, generateFormatId, manualFormatId, formatId]);
+
   function choose(nextMode: "generate" | "manual", nextFormat?: string) {
+    if (nextMode !== mode && formatId) (mode === "generate" ? setGenerateFormatId : setManualFormatId)(formatId);
     setMode(nextMode);
     if (nextFormat) (nextMode === "generate" ? setGenerateFormatId : setManualFormatId)(nextFormat);
     const params = new URLSearchParams({ mode: nextMode });
@@ -352,7 +354,7 @@ function NewCarouselForm() {
             <Label htmlFor="story-shape">Story shape</Label>
             <select
               id="story-shape"
-              value={generateFormatId}
+              value={formatId ?? ""}
               onChange={(event) => choose("generate", event.target.value)}
               disabled={pending}
               aria-describedby="story-shape-hint"

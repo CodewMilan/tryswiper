@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog } from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { FormatOption } from "@/lib/formats";
 
 const actionClass = "inline-flex min-h-11 items-center justify-center rounded-xl bg-black px-4 py-2 text-sm font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
@@ -68,10 +68,12 @@ export default function FormatsPage() {
     <PageIntro title="Your formats">Find a story shape or reuse a design you’ve saved. Each use creates a separate, editable carousel.</PageIntro>
     <div className="mt-6 flex flex-wrap gap-x-6"><Link href="/new?mode=manual&format=freeform" className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">Start with a blank slide</Link><Link href="/library" className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">Open a carousel to save a format</Link></div>
     <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft">To save a design, open its carousel and choose More carousel options → Save as format. You can keep up to 100 saved formats; delete an unused one to make room.</p>
+    <Tabs value={filter} onValueChange={setFilter}>
     <div className="mt-8 flex flex-wrap items-end justify-between gap-5">
-      <Tabs value={filter} onValueChange={setFilter}><TabsList aria-label="Format source"><TabsTrigger value="all">All formats</TabsTrigger><TabsTrigger value="workspace">Saved by you</TabsTrigger><TabsTrigger value="official">Swiper formats</TabsTrigger></TabsList></Tabs>
+      <TabsList aria-label="Format source"><TabsTrigger value="all">All formats</TabsTrigger><TabsTrigger value="workspace">Saved by you</TabsTrigger><TabsTrigger value="official">Swiper formats</TabsTrigger></TabsList>
       <div className="w-full space-y-2 sm:w-72"><Label htmlFor="format-search">Search formats</Label><Input id="format-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name or description" /></div>
     </div>
+    <TabsContent value={filter}>
     {notice ? <p role="status" className="mt-5 text-sm">{notice}</p> : null}
     {loading ? <p role="status" className="mt-8 text-sm text-ink-soft">Loading formats…</p> : loadError ? <div role="alert" className="mt-8 rounded-2xl border border-border p-6"><p>{loadError}</p><Button className="mt-4" variant="outline" onClick={() => void load()}>Try again</Button></div> : <>
       <p className="mt-6 text-sm text-ink-soft">{filtered.length} {filtered.length === 1 ? "format" : "formats"}</p>
@@ -84,6 +86,8 @@ export default function FormatsPage() {
         {format.source === "workspace" ? <div className="mt-4 flex gap-2 border-t border-border pt-3"><Button variant="ghost" onClick={() => { setActionError(null); setName(format.name); setDescription(format.description); setEdit(format); }}>Edit details</Button><Button variant="ghost" className="text-destructive" onClick={() => { setActionError(null); setRemove(format); }}>Delete</Button></div> : null}
       </article>)}</div>}
     </>}
+    </TabsContent>
+    </Tabs>
     <Dialog open={!!edit} onOpenChange={(open) => { if (!open && !busy) setEdit(null); }} title="Edit format details" description="Change its name and description. Its saved design and existing carousels stay the same.">
       <form onSubmit={(event) => void change(event)} className="space-y-4"><div className="space-y-2"><Label htmlFor="edit-format-name">Format name</Label><Input id="edit-format-name" autoFocus required minLength={2} maxLength={80} value={name} disabled={busy} onChange={(event) => setName(event.target.value)} /></div><div className="space-y-2"><Label htmlFor="edit-format-description">Description</Label><Textarea id="edit-format-description" maxLength={240} value={description} disabled={busy} onChange={(event) => setDescription(event.target.value)} /></div>{actionError ? <p role="alert" className="text-sm text-destructive">{actionError}</p> : null}<div className="flex gap-3"><Button type="submit" disabled={busy || name.trim().length < 2}>{busy ? "Saving…" : "Save details"}</Button><Button type="button" variant="outline" disabled={busy} onClick={() => setEdit(null)}>Cancel</Button></div></form>
     </Dialog>

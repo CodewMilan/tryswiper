@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { legalLinks } from "@/lib/legal-links";
 import { Mark } from "@/components/mark";
 
 const columns = [
@@ -48,6 +49,7 @@ export function SiteFooter({ signedIn }: { signedIn: boolean }) {
           <p className="mt-8 font-mono text-[13px] text-ink-soft">© 2026. All rights reserved.</p>
           <Link href="/support" className="mt-3 inline-flex min-h-11 items-center text-sm underline underline-offset-4">Contact support</Link>
           <p className="mt-2 text-xs text-ink-soft">Operated by MILAN SAMPATH.</p>
+          <div className="mt-2 flex flex-wrap gap-x-4">{legalLinks().map((link) => <a key={link.label} href={link.href} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">{link.label}</a>)}</div>
         </div>
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
           {columns.map((column) => (

@@ -1,6 +1,6 @@
 # How to use Swiper
 
-Updated 14 October 2026, after the audit repair passes. This documents the implemented product. Customers can read the main journey at `/guide`.
+Updated 15 October 2026, after the audit repair passes. This documents the implemented product. Customers can read the main journey at `/guide`.
 
 Swiper helps people who use AI agents make editable social carousels. The agent creates a draft; the user reviews, edits, and downloads it in Swiper. Browser generation and manual creation are also available. A successful first session ends with a reviewed carousel downloaded as images or a PDF.
 
@@ -35,6 +35,9 @@ flowchart TD
 | Library `/library` | Get started, find drafts, see allowances | Set up the brand, connect an agent, or open a draft |
 | Brand kit `/brand` | Save product context and visual defaults | Save brand, then connect your agent |
 | Connect `/connect` | Create a private key and install a client | Copy the first prompt and check the connection |
+| Formats `/formats` | Preview official/saved formats, search, rename and delete saved designs | Use a format manually or write from a brief |
+| Client guide `/guide/{client}` | Public Cursor, Claude or ChatGPT prerequisites and setup | Continue to the selected client in Connect, preserving auth return paths |
+| Support `/support` | Get help without requiring a mail application | Email support or copy the address |
 | Create `/new` | Generate from a brief or create manually | Open the editable draft |
 | Editor `/c/{id}` | Review, edit, reorder, save, and export | Check the carousel and download files |
 | Pricing `/pricing` | See allowances and upgrade | Complete checkout and wait for confirmation |

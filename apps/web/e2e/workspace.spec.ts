@@ -216,7 +216,7 @@ test("library, web generation, key revocation, plan gates, and branded 404", asy
 
 test("landing copy and generate mode follow the web creation path", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator("main").getByRole("link", { name: "Start for free", exact: true }).first()).toHaveAttribute("href", "/signup");
+  await expect(page.locator("main").getByRole("link", { name: "Start for free", exact: true }).first()).toHaveAttribute("href", "/signup?next=%2Fnew");
   await expect(page.getByText("Generate an editable carousel from a brief right here on the web.", { exact: false })).toBeVisible();
 
   await signUp(page.request);
@@ -311,7 +311,8 @@ test("Connect keeps one-time-secret setup templates after refresh", async ({ pag
   await signUp(page.request);
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/connect");
-  await expect(page.getByRole("heading", { name: "Mint a key to connect your agent" })).toBeVisible();
+  await expect(page.getByText("No active keys yet.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("tab")).toHaveCount(3);
   const minted = page.waitForResponse((response) => response.url().endsWith("/api/v1/mcp-keys") && response.request().method() === "POST");
   await page.getByRole("button", { name: "Mint API key", exact: true }).click();
   const { key } = await (await minted).json() as { key: string };
@@ -351,7 +352,8 @@ test("Connect keeps one-time-secret setup templates after refresh", async ({ pag
   await expect(page.getByRole("button", { name: "Revoke", exact: true })).toHaveCount(1);
   await page.getByRole("button", { name: "Revoke", exact: true }).click();
   await page.getByRole("button", { name: "Revoke key", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Mint a key to connect your agent" })).toBeVisible();
+  await expect(page.getByText("No active keys yet.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("tab")).toHaveCount(3);
 });
 
 test("Export includes Free quality checks and Pro JPG without a separate preparation upsell", async ({ page }) => {
@@ -1366,7 +1368,7 @@ test("paid checkout matches the advertised product price and billing period", as
   } });
 });
 
-test("footer tasks, client guides and setup preserve the requested destination", async ({ page }) => {
+test("footer tasks, client guides and setup preserve the requested destination", async ({ page }, testInfo) => {
   await page.goto("/");
   const footer = page.locator("footer");
   for (const [label, href] of [["Editor", "/library"], ["Formats", "/formats"], ["Brand kit", "/brand"], ["Contact support", "/support"]]) {
@@ -1381,6 +1383,12 @@ test("footer tasks, client guides and setup preserve the requested destination",
     await expect(page.getByRole("heading", { name: `Connect ${title} to Swiper.` })).toBeVisible();
     const cta = page.getByRole("link", { name: `Set up ${title}`, exact: true });
     await expect(cta).toHaveAttribute("href", `/signup?next=${encodeURIComponent(`/connect?client=${client}`)}`);
+    if (client === "chatgpt") {
+      await page.setViewportSize({ width: 375, height: 812 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+      await page.screenshot({ path: testInfo.outputPath("chatgpt-guide-mobile.png"), fullPage: true });
+      await page.setViewportSize({ width: 1440, height: 1000 });
+    }
     await cta.click();
     await expect(page).toHaveURL(`/signup?next=${encodeURIComponent(`/connect?client=${client}`)}`);
     await expect(page.getByRole("link", { name: "Sign in", exact: true })).toHaveAttribute("href", `/login?next=${encodeURIComponent(`/connect?client=${client}`)}`);
@@ -1438,6 +1446,9 @@ test("saved format management validates edits, isolates workspaces and preserves
   await renamed.getByRole("link", { name: "Use format", exact: true }).click();
   await expect(page.getByRole("tab", { name: "Start by hand", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator(`input[value="${id}"]`)).toBeChecked();
+  await page.getByRole("tab", { name: "Generate from a brief", exact: true }).click();
+  await page.getByRole("tab", { name: "Start by hand", exact: true }).click();
+  await expect(page.locator(`input[value="${id}"]`)).toBeChecked();
   await page.getByRole("button", { name: "Open in editor", exact: true }).click();
   await expect(page).toHaveURL(/\/c\//);
   const copyId = new URL(page.url()).pathname.split("/").at(-1)!;
@@ -1453,6 +1464,15 @@ test("saved format management validates edits, isolates workspaces and preserves
   await page.goto(`/new?mode=manual&format=${id}`);
   await expect(page.getByText(/That format is unavailable/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Open in editor", exact: true })).toBeEnabled();
+  await page.goto("/new?mode=generate&format=before-after");
+  await expect(page.getByRole("tab", { name: "Generate from a brief", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByLabel("Story shape", { exact: true })).toHaveValue("before-after");
+  await page.getByLabel("What should this carousel say?").fill("Keep this brief while switching modes and using the browser Back button.");
+  await page.getByRole("tab", { name: "Start by hand", exact: true }).click();
+  await expect(page).toHaveURL("/new?mode=manual");
+  await page.goBack();
+  await expect(page.getByRole("tab", { name: "Generate from a brief", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByLabel("What should this carousel say?")).toHaveValue("Keep this brief while switching modes and using the browser Back button.");
   await page.goto("/formats");
   await page.setViewportSize({ width: 375, height: 812 });
   await page.getByLabel("Search formats").fill("No matching format here");
@@ -1460,7 +1480,8 @@ test("saved format management validates edits, isolates workspaces and preserves
   await page.getByRole("button", { name: "Show all formats" }).click();
   await expect(page.getByRole("article").first()).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
-  await page.screenshot({ path: testInfo.outputPath("formats-mobile.png"), fullPage: true });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: testInfo.outputPath("formats-mobile.png") });
 });
 
 test("homepage anchors clear the header and support works without a mail application", async ({ page, context }, testInfo) => {

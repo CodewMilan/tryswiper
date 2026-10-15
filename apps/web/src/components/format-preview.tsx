@@ -10,7 +10,7 @@ export function FormatPreview({ format }: { format: FormatOption }) {
     slide: renderPlanToCarousel(planFromFormat(official, { productName: "Your story" }), DEFAULT_THEME).slides[0]!,
     theme: DEFAULT_THEME,
   } : null);
-  return <div aria-label={`First slide preview for ${format.name}`} className="flex min-h-52 items-center justify-center rounded-2xl bg-secondary p-5">
+  return <div role="img" aria-label={`First slide preview for ${format.name}`} className="flex min-h-52 items-center justify-center rounded-2xl bg-secondary p-5">
     {preview ? <div aria-hidden className="pointer-events-none"><SlidePreview slide={preview.slide} theme={preview.theme} width={144} /></div> : <span className="text-sm text-ink-soft">Start with a blank slide</span>}
   </div>;
 }

@@ -7,6 +7,7 @@ export function SupportContact() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState(false);
   async function copy() {
+    setCopied(false); setError(false);
     try { await navigator.clipboard.writeText("milan@cassettelabs.in"); setCopied(true); setError(false); }
     catch { setError(true); }
   }

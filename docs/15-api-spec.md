@@ -1,6 +1,6 @@
 # Application API
 
-Updated 14 October 2026. These are implemented routes under `/api/v1`; route handlers and shared schemas define the detailed contracts. Session and content-key authorization always checks workspace ownership.
+Updated 15 October 2026. These are implemented routes under `/api/v1`; route handlers and shared schemas define the detailed contracts. Session and content-key authorization always checks workspace ownership.
 
 | Route | Methods and behavior |
 | --- | --- |
@@ -16,7 +16,7 @@ Updated 14 October 2026. These are implemented routes under `/api/v1`; route han
 | `/carousels/{id}/publish` | POST legacy version-bound manual preparation compatibility; no social posting |
 | `/carousels/{id}/feedback` | POST optional usefulness feedback |
 | `/formats` | GET official and workspace formats; POST save owned draft as a format |
-| `/formats/{id}` | DELETE owned workspace format |
+| `/formats/{id}` | PATCH owned format name/description; DELETE owned workspace format |
 | `/assets` | GET paginated owned image metadata; POST bounded multipart image upload |
 | `/assets/{id}` | GET owned image bytes; DELETE unused owned asset |
 | `/brand` | GET/PATCH workspace brand |
@@ -44,3 +44,7 @@ PATCH edits use the shared discriminated operation union, `expected_version` and
 Invalid inputs return structured 4xx codes/messages. Missing/corrupt export assets fail explicitly. Bodies, document shape, pixels, storage, pagination and expensive operation rate/concurrency are bounded; see [deployment](18-deployment.md). Internal failures return a generic message and error ID rather than private database details.
 
 There are no implemented project CRUD, standalone slide CRUD, presigned object-store uploads, social-account, scheduling or social analytics routes. Slide changes use the document operation API. The MCP contract is in [the tool specification](05-mcp-spec.md).
+
+## Saved format details
+
+`PATCH /api/v1/formats/{id}` accepts a trimmed `name` (2–80 characters) and optional `description` (up to 240 characters; empty clears it). Unknown fields are rejected. Updates are scoped to the authenticated workspace and require write access. Names remain unique within a workspace; a duplicate returns 409. The design/content and existing carousel copies remain unchanged. Creation, metadata edits and deletion serialize on the workspace row.

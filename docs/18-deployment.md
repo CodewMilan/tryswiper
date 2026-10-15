@@ -80,3 +80,7 @@ Postgres-backed leases admit up to eight concurrent model calls and four renders
 The Docker context excludes private `problems.md`, agent directories, credentials, local environments, test output and dependency/build caches. Next traces include bundled font assets on all carousel routes, including creation, validation, preview and export. Confirm native libraries and font files in the deployed artifact.
 
 Migrations 0009–0012 add preparation versions, resource budgets, local product events and billing verification revisions. Run migration replay/rollback checks and reconcile legacy identities/billing before release. Approve retention and legal pages; the code does not define the business's account-deletion policy. Use [the release evidence checklist](23-beta-and-release-checks.md) for live authentication, MCP, payments, backups and load.
+
+## Public policy destinations
+
+After operator approval, set `SWIPER_PRIVACY_POLICY_URL` and `SWIPER_TERMS_URL` to their public HTTPS URLs. The server-rendered footer exposes configured, valid destinations; unset/invalid URLs are omitted. Do not point them to drafts or authenticated documents. The technical inventory and remaining decisions are in [Policy publication review](25-policy-publication.md). `/support` is public and offers email and clipboard contact actions.

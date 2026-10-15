@@ -64,7 +64,7 @@ Starting from it creates a new draft with fresh slide and element IDs, so later 
 the saved source or other carousels created from it.
 
 Workspace formats are private to the authenticated workspace. They appear alongside the official
-library in the browser's **New carousel** flow and can be reused without an agent connection.
+library in the browser's **Formats** and **New carousel** flows and can be reused without an agent connection.
 
 ## Originality
 
@@ -75,3 +75,9 @@ When a user references another post, extract high-level format characteristics r
 Both browser and MCP generation can use eligible workspace formats. Each generated draft keeps the saved theme, geometry, roles, layouts and owned assets, with fresh IDs. Headline/kicker/body/proof/CTA slots receive new copy; fixed labels and captions stay saved. Omitted copy cannot retain an old claim. The exact saved slide count is enforced. A format needs at least one writable copy slot and no duplicate writable role on the same slide; other formats are manual-only and advertise `can_generate: false`. Review generated copy and wrapping before sharing.
 
 A workspace can retain up to 100 formats. Deleting a format does not delete drafts copied from it. Images referenced by current drafts, formats, brand logos or retained history cannot be deleted as unused.
+
+## Browser format management
+
+`/formats` is protected by workspace sign-in. It offers first-slide previews, source filters, name/description search, manual reuse and brief-based generation for eligible formats. Saved designs can be renamed, described and deleted through a confirmation dialog. Official formats have reuse actions only. Empty, loading, API-error and duplicate-name states provide recovery. Deletion frees a saved-format slot and leaves source/copied carousels editable.
+
+Reuse links use `/new?mode=manual&format={id}` or `/new?mode=generate&format={id}`. Explicit links take precedence over restored brief settings. The picker updates browser history without discarding the brief; missing/deleted/incompatible formats show a notice and an available alternative.
