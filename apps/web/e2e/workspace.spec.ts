@@ -1468,7 +1468,7 @@ test("homepage anchors clear the header and support works without a mail applica
     await page.setViewportSize({ width, height: 900 });
     for (const id of ["editor", "formats", "brand", "agents"]) {
       await page.goto(`/#${id}`);
-      await expect.poll(async () => Math.round((await page.locator(`#${id}`).boundingBox())!.y)).toBeGreaterThanOrEqual(90);
+      await expect.poll(async () => Math.round((await page.locator(`#${id}`).boundingBox())!.y)).toBe(96);
       await expect(page.locator(`#${id} h3`)).toBeInViewport();
     }
   }

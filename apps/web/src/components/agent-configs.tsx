@@ -110,7 +110,7 @@ export function AgentConfigs({ origin, apiKey, savedKeyPrefix }: { origin: strin
         </div>
       ) : null}
       {copyError ? <p role="alert" className="text-sm text-destructive">{copyError}</p> : null}
-      <Tabs value={selectedClient} onValueChange={(value) => { const params = new URLSearchParams(window.location.search); params.set("client", agentClient(value)); window.history.pushState(null, "", `/connect?${params}`); }}>
+      <Tabs value={selectedClient} onValueChange={(value) => { const params = new URLSearchParams(window.location.search); if (params.get("client") === agentClient(value)) return; params.set("client", agentClient(value)); window.history.pushState(null, "", `/connect?${params}`); }}>
       <TabsList aria-label="Choose your agent">{cards.map((card) => <TabsTrigger key={card.id} value={card.id}>{card.title}</TabsTrigger>)}</TabsList>
       {cards.map((card) => (
         <TabsContent key={card.id} value={card.id}>

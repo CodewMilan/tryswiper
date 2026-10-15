@@ -176,7 +176,7 @@ function NewCarouselForm() {
     if (nextFormat) (nextMode === "generate" ? setGenerateFormatId : setManualFormatId)(nextFormat);
     const params = new URLSearchParams({ mode: nextMode });
     if (nextFormat) params.set("format", nextFormat);
-    window.history.pushState(null, "", `/new?${params}`);
+    if (`${window.location.pathname}${window.location.search}` !== `/new?${params}`) window.history.pushState(null, "", `/new?${params}`);
   }
   const selected = useMemo(() => formats.find((format) => format.id === formatId), [formatId, formats]);
   const startByHand = formats.find((format) => format.id === "freeform");
