@@ -7,13 +7,14 @@ const input = {
 };
 
 test("missing, rejected, and successful model calls report the actual generation source", async () => {
-  const previous = { anthropic: process.env.ANTHROPIC_API_KEY, openai: process.env.OPENAI_API_KEY, fetch: globalThis.fetch };
+  const previous = { anthropic: process.env.ANTHROPIC_API_KEY, openai: process.env.OPENAI_API_KEY, openrouter: process.env.OPENROUTER_API_KEY, fetch: globalThis.fetch };
   const plan = planLocally(input);
   const revision = { plan, slideIndex: 0, instruction: "Make Specific stories start with customer conversations", brand: input.brand };
   let calls = 0;
   try {
     process.env.ANTHROPIC_API_KEY = " ";
     process.env.OPENAI_API_KEY = " ";
+    process.env.OPENROUTER_API_KEY = " ";
     globalThis.fetch = async () => {
       calls++;
       return Response.json({ error: { message: "Invalid test key", type: "invalid_request_error", code: "invalid_api_key" } }, { status: 401 });
@@ -61,6 +62,8 @@ test("missing, rejected, and successful model calls report the actual generation
     else process.env.ANTHROPIC_API_KEY = previous.anthropic;
     if (previous.openai === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = previous.openai;
+    if (previous.openrouter === undefined) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = previous.openrouter;
     globalThis.fetch = previous.fetch;
   }
 });

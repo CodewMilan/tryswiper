@@ -9,20 +9,43 @@ function firstUsefulLine(text: string, fallback: string) {
   return cleaned.length > 0 ? cleaned : fallback;
 }
 
+type GenerationProvider = "anthropic" | "openai" | "openrouter";
+
+function activeProvider(env: NodeJS.ProcessEnv = process.env): GenerationProvider | null {
+  if (env.ANTHROPIC_API_KEY?.trim()) return "anthropic";
+  if (env.OPENAI_API_KEY?.trim()) return "openai";
+  if (env.OPENROUTER_API_KEY?.trim()) return "openrouter";
+  return null;
+}
+
 export function generationModelConfigured(env: NodeJS.ProcessEnv = process.env) {
-  return Boolean(env.ANTHROPIC_API_KEY?.trim() || env.OPENAI_API_KEY?.trim());
+  return activeProvider(env) !== null;
 }
 
 function model() {
-  const anthropicKey = process.env.ANTHROPIC_API_KEY?.trim();
-  const openaiKey = process.env.OPENAI_API_KEY?.trim();
-  if (anthropicKey) {
+  const provider = activeProvider();
+  if (provider === "anthropic") {
     return import("@ai-sdk/anthropic").then(({ anthropic }) =>
       anthropic("claude-sonnet-4-5"),
     );
   }
-  if (openaiKey) {
+  if (provider === "openai") {
     return import("@ai-sdk/openai").then(({ openai }) => openai("gpt-4.1"));
+  }
+  if (provider === "openrouter") {
+    return import("@ai-sdk/openai").then(({ createOpenAI }) => {
+      const openrouter = createOpenAI({
+        name: "openrouter",
+        baseURL: "https://openrouter.ai/api/v1",
+        apiKey: process.env.OPENROUTER_API_KEY?.trim(),
+        headers: {
+          "HTTP-Referer": process.env.APP_URL?.trim() || "http://localhost:3100",
+          "X-Title": "Swiper",
+        },
+      });
+      // Chat completions, not the OpenAI Responses API. OpenRouter accepts this path.
+      return openrouter.chat(process.env.OPENROUTER_MODEL?.trim() || "openai/gpt-4.1");
+    });
   }
   return null;
 }
@@ -94,7 +117,7 @@ export async function generatePlan(input: {
       const format = getFormat(object.formatId);
       if (!format || input.formatId && object.formatId !== input.formatId || input.slideCount && object.slides.length !== input.slideCount || object.slides.length < format.slideCount.min || object.slides.length > format.slideCount.max || object.slides.some((slide, index) => slide.role !== formatSlides(format, object.slides.length)[index]?.role)) return invalidOutput(usage);
     }
-    console.info(JSON.stringify({ event: "generation_success", operation: "draft", provider: process.env.ANTHROPIC_API_KEY?.trim() ? "anthropic" : "openai", duration_ms: Date.now() - startedAt, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, source: "model", request_ref: input.requestRef }));
+    console.info(JSON.stringify({ event: "generation_success", operation: "draft", provider: activeProvider(), duration_ms: Date.now() - startedAt, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, source: "model", request_ref: input.requestRef }));
     return { plan: object, source: "model" };
   } catch (error) {
     fallbackEvent("draft", error, startedAt, input.requestRef);
@@ -156,7 +179,7 @@ export async function reviseSlidePlan(input: {
     });
     const slides = [...input.plan.slides];
     slides[input.slideIndex] = { ...current, ...object, role: current.role, layout: current.layout };
-    console.info(JSON.stringify({ event: "generation_success", operation: "revision", provider: process.env.ANTHROPIC_API_KEY?.trim() ? "anthropic" : "openai", duration_ms: Date.now() - startedAt, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, source: "model", request_ref: input.requestRef }));
+    console.info(JSON.stringify({ event: "generation_success", operation: "revision", provider: activeProvider(), duration_ms: Date.now() - startedAt, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, source: "model", request_ref: input.requestRef }));
     return { plan: { ...input.plan, slides }, source: "model" };
   } catch (error) {
     fallbackEvent("revision", error, startedAt, input.requestRef);

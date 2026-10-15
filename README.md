@@ -90,7 +90,7 @@ docker run --rm -p 3000:3000 \
 
 The container applies `packages/db/drizzle` migrations, then starts the server. `GET /api/health` checks Postgres.
 
-Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` on the host if agents should write copy. Without either, generation uses the local planner.
+Set `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `OPENROUTER_API_KEY` on the host if agents should write copy. Without one of them, generation uses the local planner.
 
 MCP stays on the machine running the agent. Point it at the public origin:
 

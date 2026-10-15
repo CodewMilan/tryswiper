@@ -21,6 +21,7 @@ export default defineConfig({
       SWIPER_E2E: "1",
       ANTHROPIC_API_KEY: "",
       OPENAI_API_KEY: "",
+      OPENROUTER_API_KEY: "",
       DODO_PAYMENTS_API_KEY: "fixture_checkout_never_charge",
       DODO_PAYMENTS_PRODUCT_ID: "fixture_pro",
       DODO_PAYMENTS_PRO_PRODUCT_ID: "fixture_pro",
